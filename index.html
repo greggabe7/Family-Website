@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Gabriel Family</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .hero-background {
+            position: relative;
+            background: linear-gradient(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.3));
+            overflow: hidden;
+        }
+
+        .photo-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+        }
+
+        .photo-grid img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        @media screen and (max-width: 1024px) {
+            .hero-background {
+                background: none !important;
+                height: 100vh !important;
+                min-height: 100vh !important;
+            }
+
+            .photo-grid {
+                display: flex !important;
+                flex-wrap: wrap !important;
+                position: absolute !important;
+                top: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                bottom: 0 !important;
+                gap: 4px !important;
+            }
+
+            .photo-grid img {
+                width: calc(50% - 2px) !important;
+                height: calc(33.33% - 3px) !important;
+                object-fit: contain !important;
+            }
+
+            /* Hide 4 images on mobile, show only 6 */
+            .photo-grid img:nth-child(5),
+            .photo-grid img:nth-child(6),
+            .photo-grid img:nth-child(9),
+            .photo-grid img:nth-child(10) {
+                display: none !important;
+            }
+        }
+
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        
+        .card-hover:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .fade-in {
+            animation: fadeIn 1s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Navigation -->
+    <nav class="bg-transparent fixed w-full top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <h1 class="text-2xl font-bold text-white drop-shadow-lg">The Gabriel Family</h1>
+                </div>
+                <div class="flex space-x-4 md:space-x-8 text-sm md:text-base">
+                    <a href="#home" class="text-white hover:text-yellow-300 transition font-medium drop-shadow-lg">Home</a>
+                    <a href="kids-money-tracker.html" class="text-white hover:text-yellow-300 transition font-medium drop-shadow-lg">Weekly Allowance</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section id="home" class="hero-background min-h-screen flex items-center justify-center pt-16 relative overflow-hidden">
+        <div class="absolute inset-0 photo-grid">
+            <img src="https://i.imgur.com/hs554rR.jpeg" alt="" />
+            <img src="https://i.imgur.com/UxW60hx.jpeg" alt="" />
+            <img src="https://i.imgur.com/bVp8I7u.jpeg" alt="" />
+            <img src="https://i.imgur.com/3QiGgLa.jpeg" alt="" />
+            <img src="https://i.imgur.com/uPMRhnF.jpeg" alt="" />
+            <img src="https://i.imgur.com/1Nb2UMs.jpeg" alt="" />
+            <img src="https://i.imgur.com/p9E9lai.jpeg" alt="" />
+            <img src="https://i.imgur.com/K3nSDpT.jpeg" alt="" />
+            <img src="https://i.imgur.com/9d0xZsc.jpeg" alt="" />
+            <img src="https://i.imgur.com/GFf8aZe.jpeg" alt="" />
+        </div>
+        <div class="text-center fade-in px-4" style="position: relative; z-index: 1;">
+            <h1 class="text-6xl md:text-8xl font-bold text-white mb-6 drop-shadow-lg">
+                The Gabriel Family
+            </h1>
+            <p class="text-3xl md:text-5xl font-bold text-white mb-12 drop-shadow-lg">
+                Get Shit Done!
+            </p>
+        </div>
+    </section>
+
+    <!-- Apps Section -->
+    <section id="apps" class="py-20 bg-gradient-to-br from-purple-50 to-blue-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 class="text-4xl md:text-5xl font-bold text-center text-gray-800 mb-4">
+                Family Apps
+            </h2>
+
+            <div class="max-w-2xl mx-auto">
+                <!-- Money Tracker Card -->
+                <a href="kids-money-tracker.html" class="bg-white rounded-2xl shadow-xl overflow-hidden card-hover block">
+                    <div class="bg-gradient-to-r from-green-500 to-emerald-500 p-8 text-white">
+                        <div class="flex items-center justify-center gap-4 mb-4">
+                            <!-- Capybara SVG - More realistic style -->
+                            <svg width="56" height="56" viewBox="0 0 64 64" class="drop-shadow-lg">
+                                <ellipse cx="32" cy="44" rx="24" ry="16" fill="#8B6914"/>
+                                <ellipse cx="28" cy="36" rx="18" ry="12" fill="#9A7B2C"/>
+                                <rect x="12" y="16" rx="8" ry="8" width="40" height="28" fill="#A68B5B"/>
+                                <rect x="16" y="24" rx="6" ry="6" width="32" height="18" fill="#C4A97D"/>
+                                <ellipse cx="32" cy="36" rx="14" ry="8" fill="#D4BC94"/>
+                                <ellipse cx="27" cy="33" rx="2.5" ry="2" fill="#5D4A2A"/>
+                                <ellipse cx="37" cy="33" rx="2.5" ry="2" fill="#5D4A2A"/>
+                                <path d="M 26 38 Q 32 42 38 38" stroke="#5D4A2A" stroke-width="2" fill="none" stroke-linecap="round"/>
+                                <ellipse cx="22" cy="24" rx="3" ry="4" fill="#2D1F14"/>
+                                <ellipse cx="42" cy="24" rx="3" ry="4" fill="#2D1F14"/>
+                                <ellipse cx="22.5" cy="23" rx="1" ry="1.5" fill="white"/>
+                                <ellipse cx="42.5" cy="23" rx="1" ry="1.5" fill="white"/>
+                                <ellipse cx="16" cy="14" rx="4" ry="3" fill="#8B6914"/>
+                                <ellipse cx="48" cy="14" rx="4" ry="3" fill="#8B6914"/>
+                                <ellipse cx="16" cy="14" rx="2.5" ry="1.5" fill="#A68B5B"/>
+                                <ellipse cx="48" cy="14" rx="2.5" ry="1.5" fill="#A68B5B"/>
+                                <ellipse cx="18" cy="30" rx="3" ry="2" fill="#FFB6C1" opacity="0.4"/>
+                                <ellipse cx="46" cy="30" rx="3" ry="2" fill="#FFB6C1" opacity="0.4"/>
+                            </svg>
+                            <!-- Money Sack SVG -->
+                            <svg width="56" height="56" viewBox="0 0 64 64" class="drop-shadow-lg">
+                                <ellipse cx="32" cy="42" rx="24" ry="18" fill="#C9A227"/>
+                                <ellipse cx="32" cy="42" rx="20" ry="14" fill="#E6BE44"/>
+                                <ellipse cx="32" cy="22" rx="12" ry="8" fill="#C9A227"/>
+                                <rect x="26" y="20" width="12" height="8" fill="#C9A227"/>
+                                <ellipse cx="32" cy="18" rx="8" ry="4" fill="#8B6914"/>
+                                <rect x="28" y="14" width="8" height="6" fill="#A37F1A"/>
+                                <ellipse cx="26" cy="12" rx="6" ry="5" fill="#E6BE44"/>
+                                <ellipse cx="38" cy="12" rx="6" ry="5" fill="#E6BE44"/>
+                                <ellipse cx="32" cy="10" rx="5" ry="4" fill="#C9A227"/>
+                                <text x="32" y="48" text-anchor="middle" font-size="20" font-weight="bold" fill="#5D4408">$</text>
+                                <ellipse cx="22" cy="36" rx="4" ry="6" fill="white" opacity="0.3"/>
+                            </svg>
+                            <!-- Squishmallow SVG - Grey with white belly, lop ears from top -->
+                            <svg width="56" height="56" viewBox="0 0 64 64" class="drop-shadow-lg">
+                                <path d="M 18 14 C 16 6, 10 4, 6 8 C 0 14, -2 28, 0 42 C 1 48, 4 52, 6 52 C 10 52, 12 46, 12 38 C 12 28, 14 18, 18 14" fill="#9CA3AF"/>
+                                <path d="M 46 14 C 48 6, 54 4, 58 8 C 64 14, 66 28, 64 42 C 63 48, 60 52, 58 52 C 54 52, 52 46, 52 38 C 52 28, 50 18, 46 14" fill="#9CA3AF"/>
+                                <ellipse cx="32" cy="34" rx="26" ry="24" fill="#9CA3AF"/>
+                                <ellipse cx="32" cy="38" rx="20" ry="18" fill="#E5E7EB"/>
+                                <ellipse cx="32" cy="40" rx="14" ry="12" fill="#F9FAFB"/>
+                                <path d="M 20 30 Q 24 26 28 30" stroke="#374151" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+                                <path d="M 36 30 Q 40 26 44 30" stroke="#374151" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+                                <ellipse cx="32" cy="36" rx="2" ry="1.5" fill="#9CA3AF"/>
+                                <path d="M 28 40 Q 32 44 36 40" stroke="#374151" stroke-width="2" fill="none" stroke-linecap="round"/>
+                                <ellipse cx="18" cy="36" rx="4" ry="3" fill="#FDA4AF" opacity="0.6"/>
+                                <ellipse cx="46" cy="36" rx="4" ry="3" fill="#FDA4AF" opacity="0.6"/>
+                                <ellipse cx="24" cy="24" rx="5" ry="3" fill="white" opacity="0.4"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-3xl font-bold text-center">Gabriel Weekly Allowance Challenge</h3>
+                        <p class="text-green-100 text-lg text-center mt-2">
+                            Earn money for completing chores each week!
+                        </p>
+                    </div>
+                    <div class="p-8">
+                        <ul class="space-y-3 text-gray-700">
+                            <li class="flex items-center">
+                                <svg class="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                </svg>
+                                Individual earning tracker
+                            </li>
+                            <li class="flex items-center">
+                                <svg class="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                </svg>
+                                Daily and weekly totals
+                            </li>
+                            <li class="flex items-center">
+                                <svg class="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                </svg>
+                                Customizable payouts
+                            </li>
+                        </ul>
+                        <div class="mt-6">
+                            <span class="inline-block bg-green-100 text-green-800 px-4 py-2 rounded-full text-sm font-semibold">
+                                Click to open
+                            </span>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-white py-8">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <p class="text-gray-400">© 2026 The Gabriel Family. Built with love.</p>
+        </div>
+    </footer>
+
+    <script>
+        // Smooth scrolling
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth' });
+                }
+            });
+        });
+    </script>
+</body>
+</html>
