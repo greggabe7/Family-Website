@@ -1,0 +1,3406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gabriel Weekly Allowance Challenge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        @keyframes bounce {
+            0%, 100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+        
+        .animate-bounce {
+            animation: bounce 1s ease-in-out infinite;
+        }
+
+        /* Fireworks animation */
+        .firework-container {
+            position: fixed;
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        .firework-particle {
+            position: absolute;
+            border-radius: 50%;
+            box-shadow: 0 0 6px 2px currentColor;
+            animation: firework-explode 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+        }
+
+        .firework-particle.large {
+            width: 16px;
+            height: 16px;
+        }
+
+        .firework-particle.medium {
+            width: 12px;
+            height: 12px;
+        }
+
+        .firework-particle.small {
+            width: 8px;
+            height: 8px;
+        }
+
+        @keyframes firework-explode {
+            0% {
+                transform: translate(0, 0) scale(1.5);
+                opacity: 1;
+            }
+            50% {
+                opacity: 1;
+            }
+            100% {
+                transform: translate(var(--tx), var(--ty)) scale(0);
+                opacity: 0;
+            }
+        }
+
+        .firework-spark {
+            position: absolute;
+            background: white;
+            border-radius: 50%;
+            box-shadow: 0 0 10px 4px rgba(255, 255, 255, 0.8);
+            animation: spark-fade 0.8s ease-out forwards;
+        }
+
+        .firework-spark.large {
+            width: 8px;
+            height: 8px;
+        }
+
+        .firework-spark.small {
+            width: 5px;
+            height: 5px;
+        }
+
+        @keyframes spark-fade {
+            0% {
+                transform: translate(0, 0) scale(2);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(var(--tx), var(--ty)) scale(0);
+                opacity: 0;
+            }
+        }
+
+        .firework-trail {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            animation: trail-fade 1s ease-out forwards;
+        }
+
+        @keyframes trail-fade {
+            0% {
+                transform: translate(0, 0) scale(1);
+                opacity: 0.8;
+            }
+            100% {
+                transform: translate(var(--tx), var(--ty)) scale(0.3);
+                opacity: 0;
+            }
+        }
+
+        .firework-star {
+            position: absolute;
+            width: 0;
+            height: 0;
+            animation: star-burst 1s ease-out forwards;
+        }
+
+        .firework-star::before {
+            content: '✦';
+            font-size: 20px;
+            position: absolute;
+            transform: translate(-50%, -50%);
+        }
+
+        @keyframes star-burst {
+            0% {
+                transform: translate(0, 0) scale(1) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(var(--tx), var(--ty)) scale(0) rotate(180deg);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+
+    <script>
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyARiateAk1EJggk09iMDdCvNZDPDNcu7EU",
+            authDomain: "gabriel-family-allowance.firebaseapp.com",
+            databaseURL: "https://gabriel-family-allowance-default-rtdb.firebaseio.com",
+            projectId: "gabriel-family-allowance",
+            storageBucket: "gabriel-family-allowance.firebasestorage.app",
+            messagingSenderId: "351490113717",
+            appId: "1:351490113717:web:01af4592fa8f08039dfefc"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // Sync status tracking
+        let syncStatus = 'connecting'; // 'connected', 'syncing', 'offline', 'connecting'
+        let lastSyncTime = null;
+
+        // Lucide icons as SVG strings
+        const Icons = {
+            DollarSign: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>`,
+            Settings: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full"><circle cx="12" cy="12" r="3"></circle><path d="M12 1v6m0 6v6m5.657-13.657l-4.243 4.243m-2.828 2.828l-4.243 4.243m16.971-.485l-6-6m-6-6l-6 6"></path></svg>`,
+            Check: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full"><polyline points="20 6 9 17 4 12"></polyline></svg>`,
+            Plus: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>`,
+            X: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`,
+            LogOut: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>`,
+            Sun: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>`,
+            BookOpen: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>`,
+            Moon: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>`,
+            RefreshCw: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>`
+        };
+
+        // Fireworks effect function - Big and dramatic!
+        function createFireworks(x, y) {
+            const colors = [
+                '#ff0000', '#ff3300', '#ff6600', '#ff9900', '#ffcc00', '#ffff00',
+                '#00ff00', '#00ff99', '#00ffff', '#0099ff', '#0066ff', '#0000ff',
+                '#6600ff', '#9900ff', '#ff00ff', '#ff0099', '#ff69b4', '#ffffff'
+            ];
+
+            // Create multiple burst points for more drama
+            const bursts = [
+                { offsetX: 0, offsetY: 0, delay: 0 },
+                { offsetX: -30, offsetY: -20, delay: 50 },
+                { offsetX: 30, offsetY: -20, delay: 100 },
+                { offsetX: 0, offsetY: 30, delay: 150 }
+            ];
+
+            bursts.forEach(burst => {
+                setTimeout(() => {
+                    const container = document.createElement('div');
+                    container.className = 'firework-container';
+                    container.style.left = (x + burst.offsetX) + 'px';
+                    container.style.top = (y + burst.offsetY) + 'px';
+                    document.body.appendChild(container);
+
+                    // Create large particles (outer ring)
+                    for (let i = 0; i < 16; i++) {
+                        const particle = document.createElement('div');
+                        particle.className = 'firework-particle large';
+                        const angle = (i / 16) * Math.PI * 2;
+                        const velocity = 120 + Math.random() * 60;
+                        const tx = Math.cos(angle) * velocity;
+                        const ty = Math.sin(angle) * velocity;
+                        particle.style.setProperty('--tx', tx + 'px');
+                        particle.style.setProperty('--ty', ty + 'px');
+                        const color = colors[Math.floor(Math.random() * colors.length)];
+                        particle.style.backgroundColor = color;
+                        particle.style.color = color;
+                        particle.style.animationDelay = Math.random() * 0.1 + 's';
+                        container.appendChild(particle);
+                    }
+
+                    // Create medium particles (middle ring)
+                    for (let i = 0; i < 24; i++) {
+                        const particle = document.createElement('div');
+                        particle.className = 'firework-particle medium';
+                        const angle = (i / 24) * Math.PI * 2 + 0.1;
+                        const velocity = 80 + Math.random() * 50;
+                        const tx = Math.cos(angle) * velocity;
+                        const ty = Math.sin(angle) * velocity;
+                        particle.style.setProperty('--tx', tx + 'px');
+                        particle.style.setProperty('--ty', ty + 'px');
+                        const color = colors[Math.floor(Math.random() * colors.length)];
+                        particle.style.backgroundColor = color;
+                        particle.style.color = color;
+                        particle.style.animationDelay = Math.random() * 0.15 + 's';
+                        container.appendChild(particle);
+                    }
+
+                    // Create small particles (inner scatter)
+                    for (let i = 0; i < 30; i++) {
+                        const particle = document.createElement('div');
+                        particle.className = 'firework-particle small';
+                        const angle = Math.random() * Math.PI * 2;
+                        const velocity = 40 + Math.random() * 60;
+                        const tx = Math.cos(angle) * velocity;
+                        const ty = Math.sin(angle) * velocity;
+                        particle.style.setProperty('--tx', tx + 'px');
+                        particle.style.setProperty('--ty', ty + 'px');
+                        const color = colors[Math.floor(Math.random() * colors.length)];
+                        particle.style.backgroundColor = color;
+                        particle.style.color = color;
+                        particle.style.animationDelay = Math.random() * 0.2 + 's';
+                        container.appendChild(particle);
+                    }
+
+                    // Create large bright sparks
+                    for (let i = 0; i < 12; i++) {
+                        const spark = document.createElement('div');
+                        spark.className = 'firework-spark large';
+                        const angle = (i / 12) * Math.PI * 2;
+                        const velocity = 100 + Math.random() * 50;
+                        const tx = Math.cos(angle) * velocity;
+                        const ty = Math.sin(angle) * velocity;
+                        spark.style.setProperty('--tx', tx + 'px');
+                        spark.style.setProperty('--ty', ty + 'px');
+                        spark.style.animationDelay = Math.random() * 0.1 + 's';
+                        container.appendChild(spark);
+                    }
+
+                    // Create small sparks
+                    for (let i = 0; i < 20; i++) {
+                        const spark = document.createElement('div');
+                        spark.className = 'firework-spark small';
+                        const angle = Math.random() * Math.PI * 2;
+                        const velocity = 60 + Math.random() * 80;
+                        const tx = Math.cos(angle) * velocity;
+                        const ty = Math.sin(angle) * velocity;
+                        spark.style.setProperty('--tx', tx + 'px');
+                        spark.style.setProperty('--ty', ty + 'px');
+                        spark.style.animationDelay = Math.random() * 0.2 + 's';
+                        container.appendChild(spark);
+                    }
+
+                    // Create trailing particles
+                    for (let i = 0; i < 25; i++) {
+                        const trail = document.createElement('div');
+                        trail.className = 'firework-trail';
+                        const angle = Math.random() * Math.PI * 2;
+                        const velocity = 30 + Math.random() * 100;
+                        const tx = Math.cos(angle) * velocity;
+                        const ty = Math.sin(angle) * velocity;
+                        trail.style.setProperty('--tx', tx + 'px');
+                        trail.style.setProperty('--ty', ty + 'px');
+                        trail.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                        trail.style.animationDelay = Math.random() * 0.3 + 's';
+                        container.appendChild(trail);
+                    }
+
+                    // Create star bursts
+                    for (let i = 0; i < 8; i++) {
+                        const star = document.createElement('div');
+                        star.className = 'firework-star';
+                        const angle = (i / 8) * Math.PI * 2;
+                        const velocity = 70 + Math.random() * 40;
+                        const tx = Math.cos(angle) * velocity;
+                        const ty = Math.sin(angle) * velocity;
+                        star.style.setProperty('--tx', tx + 'px');
+                        star.style.setProperty('--ty', ty + 'px');
+                        star.style.color = colors[Math.floor(Math.random() * colors.length)];
+                        star.style.animationDelay = Math.random() * 0.15 + 's';
+                        container.appendChild(star);
+                    }
+
+                    // Remove container after animation
+                    setTimeout(() => {
+                        container.remove();
+                    }, 1500);
+                }, burst.delay);
+            });
+        }
+
+        // State management
+        const APP_VERSION = "2.0"; // Track version for data migration
+        
+        const state = {
+            currentUser: null,
+            showSettings: false,
+            showAddTask: false,
+            newTaskName: '',
+            newTaskSection: 'morning',
+            newTaskDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], // All days by default
+            lastResetDate: new Date().toDateString(),
+            defaultPayout: 0.15,
+            syncedFromReward: false,
+            editingName: null,
+            tempName: '',
+            editingPayout: null,
+            editingSection: null,
+            editingDays: null,
+            editingTaskName: null,
+            tempTaskName: '',
+            editingFrequency: null,
+            editingJoint: null,
+            showHistory: false,
+            selectedHistoryChild: null,
+            editingGoal: null,
+            tempGoalName: '',
+            tempGoalAmount: 0,
+            
+            tasks: [
+                { id: 1, name: 'Brush teeth and hair without being asked', section: 'morning', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
+                { id: 2, name: 'Make bed', section: 'morning', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
+                { id: 3, name: 'Take vitamins', section: 'morning', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
+                { id: 4, name: 'Fill water bottle', section: 'morning', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
+                { id: 5, name: 'Out door by 7:45', section: 'morning', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
+                { id: 6, name: 'Hang backpack and coat up', section: 'afterSchool', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
+                { id: 7, name: 'Empty lunch and/or snack box', section: 'afterSchool', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
+                { id: 8, name: 'Put water bottle at sink', section: 'afterSchool', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
+                { id: 9, name: 'Practice a skill 10 mins', section: 'evening', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
+                { id: 10, name: 'Schoolwork for 20 mins', section: 'evening', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
+                { id: 11, name: 'Brush teeth and rinse nose without being asked', section: 'evening', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
+                { id: 12, name: 'Prepare backpack for following day', section: 'evening', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
+                { id: 13, name: 'Clean up living room and garage', section: 'evening', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
+                { id: 14, name: 'Shower AND hang up towel', section: 'evening', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false }
+            ],
+            
+            users: {
+                mom: { name: 'Mom', password: 'mom123', isParent: true },
+                dad: { name: 'Dad', password: 'dad123', isParent: true },
+                maria: { name: 'Maria', password: 'maria', isParent: false },
+                helena: { name: 'Helena', password: 'helena', isParent: false }
+            },
+
+            earnings: {
+                maria: { weekTotal: 0, todayTotal: 0 },
+                helena: { weekTotal: 0, todayTotal: 0 }
+            },
+
+            yearlyEarnings: {
+                maria: {},  // { "2026": 150.50, "2025": 200.00 }
+                helena: {}
+            },
+
+            completedTasks: {
+                maria: [],
+                helena: []
+            },
+
+            skippedTasks: {
+                maria: [],
+                helena: []
+            },
+
+            completionHistory: {
+                maria: {},
+                helena: {}
+            },
+
+            skippedHistory: {
+                maria: {},
+                helena: {}
+            },
+
+            dailyBonusAwarded: {
+                maria: {},
+                helena: {}
+            },
+
+            goals: {
+                maria: { active: false, name: '', amount: 0 },
+                helena: { active: false, name: '', amount: 0 }
+            },
+
+            payoutHistory: {
+                maria: [],
+                helena: []
+            },
+            
+            weeklyStreakBonus: 3.00,
+            weeklyStreakAwarded: {
+                maria: {},
+                helena: {}
+            },
+
+            loginForm: { username: '', password: '' },
+
+            // Account editing
+            editingAccount: false,
+            tempAccountName: '',
+            tempAccountPassword: '',
+            tempAccountConfirmPassword: ''
+        };
+
+        // Sanitize state helper function
+        function sanitizeState() {
+            // Sanitize: Ensure earnings are never negative
+            ['maria', 'helena'].forEach(childKey => {
+                if (state.earnings[childKey]) {
+                    if (state.earnings[childKey].weekTotal < 0) {
+                        state.earnings[childKey].weekTotal = 0;
+                    }
+                    if (state.earnings[childKey].todayTotal < 0) {
+                        state.earnings[childKey].todayTotal = 0;
+                    }
+                }
+            });
+
+            // Migrate: Initialize yearlyEarnings if not present
+            if (!state.yearlyEarnings) {
+                state.yearlyEarnings = { maria: {}, helena: {} };
+                // Calculate from existing payout history
+                ['maria', 'helena'].forEach(childKey => {
+                    (state.payoutHistory[childKey] || []).forEach(payout => {
+                        const year = new Date(payout.date).getFullYear().toString();
+                        if (!state.yearlyEarnings[childKey][year]) {
+                            state.yearlyEarnings[childKey][year] = 0;
+                        }
+                        state.yearlyEarnings[childKey][year] += payout.amount;
+                    });
+                });
+            }
+        }
+
+        // Load state from localStorage (immediate) then sync with Firebase
+        function loadState() {
+            // First load from localStorage for immediate display
+            try {
+                const saved = localStorage.getItem('moneyTrackerState');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    Object.assign(state, parsed);
+                    state.currentUser = null; // Don't persist login
+                    state.loginForm = { username: '', password: '' };
+                    sanitizeState();
+                }
+            } catch (e) {
+                console.log('Could not load state from localStorage');
+            }
+
+            // Then sync with Firebase (will update if newer data exists)
+            syncStatus = 'syncing';
+            database.ref('allowanceData').once('value')
+                .then(snapshot => {
+                    if (snapshot.exists()) {
+                        const firebaseData = snapshot.val();
+                        const currentUser = state.currentUser; // Preserve login
+                        Object.assign(state, firebaseData);
+                        state.currentUser = currentUser;
+                        state.loginForm = { username: '', password: '' };
+                        sanitizeState();
+                        localStorage.setItem('moneyTrackerState', JSON.stringify(firebaseData));
+                        lastSyncTime = new Date();
+                        syncStatus = 'connected';
+                        render();
+                    } else {
+                        // No data in Firebase yet, migrate local data
+                        migrateToFirebase();
+                        syncStatus = 'connected';
+                    }
+                })
+                .catch(err => {
+                    console.error('Firebase load error:', err);
+                    syncStatus = 'offline';
+                    render();
+                });
+        }
+
+        // Save state to localStorage and Firebase
+        function saveState() {
+            const toSave = { ...state };
+            delete toSave.currentUser;
+            delete toSave.loginForm;
+
+            // Save to localStorage as backup
+            try {
+                localStorage.setItem('moneyTrackerState', JSON.stringify(toSave));
+            } catch (e) {
+                console.log('Could not save state to localStorage');
+            }
+
+            // Save to Firebase
+            syncStatus = 'syncing';
+            render();
+            database.ref('allowanceData').set(toSave)
+                .then(() => {
+                    lastSyncTime = new Date();
+                    syncStatus = 'connected';
+                    render();
+                })
+                .catch(err => {
+                    console.error('Firebase save error:', err);
+                    syncStatus = 'offline';
+                    render();
+                });
+        }
+
+        // Setup real-time sync listener for changes from other devices
+        function setupRealtimeSync() {
+            database.ref('allowanceData').on('value', (snapshot) => {
+                if (snapshot.exists()) {
+                    const firebaseData = snapshot.val();
+                    // Create comparison objects without transient state
+                    const currentData = { ...state };
+                    delete currentData.currentUser;
+                    delete currentData.loginForm;
+                    const currentJson = JSON.stringify(currentData);
+                    const newJson = JSON.stringify(firebaseData);
+
+                    // Only update if data is different (avoid infinite loops)
+                    if (currentJson !== newJson) {
+                        const currentUser = state.currentUser; // Preserve login
+                        Object.assign(state, firebaseData);
+                        state.currentUser = currentUser;
+                        state.loginForm = { username: '', password: '' };
+                        sanitizeState();
+                        localStorage.setItem('moneyTrackerState', JSON.stringify(firebaseData));
+                        lastSyncTime = new Date();
+                        syncStatus = 'connected';
+                        render();
+                    }
+                }
+            }, (err) => {
+                console.error('Firebase realtime sync error:', err);
+                syncStatus = 'offline';
+                render();
+            });
+
+            // Monitor connection state
+            database.ref('.info/connected').on('value', (snapshot) => {
+                if (snapshot.val() === true) {
+                    syncStatus = 'connected';
+                } else {
+                    syncStatus = 'offline';
+                }
+                render();
+            });
+        }
+
+        // Migrate existing localStorage data to Firebase on first use
+        function migrateToFirebase() {
+            const migrated = localStorage.getItem('firebaseMigrated');
+            if (!migrated) {
+                const saved = localStorage.getItem('moneyTrackerState');
+                if (saved) {
+                    const data = JSON.parse(saved);
+                    database.ref('allowanceData').set(data)
+                        .then(() => {
+                            localStorage.setItem('firebaseMigrated', 'true');
+                            console.log('Data migrated to Firebase successfully');
+                            syncStatus = 'connected';
+                            lastSyncTime = new Date();
+                        })
+                        .catch(err => {
+                            console.error('Migration error:', err);
+                        });
+                } else {
+                    localStorage.setItem('firebaseMigrated', 'true');
+                }
+            }
+        }
+
+        // Get sync status indicator HTML
+        function getSyncStatusIndicator() {
+            const colors = {
+                connected: 'bg-green-500',
+                syncing: 'bg-yellow-500 animate-pulse',
+                offline: 'bg-red-500',
+                connecting: 'bg-yellow-500 animate-pulse'
+            };
+            const labels = {
+                connected: 'Synced',
+                syncing: 'Syncing...',
+                offline: 'Offline',
+                connecting: 'Connecting...'
+            };
+            const color = colors[syncStatus] || colors.connecting;
+            const label = labels[syncStatus] || labels.connecting;
+            const timeStr = lastSyncTime ? lastSyncTime.toLocaleTimeString() : '';
+
+            return `
+                <div class="flex items-center gap-2 text-xs text-gray-500" title="Last synced: ${timeStr}">
+                    <div class="w-2 h-2 rounded-full ${color}"></div>
+                    <span>${label}</span>
+                </div>
+            `;
+        }
+
+        // Check for daily reset
+        function checkDailyReset() {
+            const today = new Date().toDateString();
+            if (today !== state.lastResetDate) {
+                const yesterday = new Date(state.lastResetDate).toDateString();
+                state.completionHistory.maria[yesterday] = [...state.completedTasks.maria];
+                state.completionHistory.helena[yesterday] = [...state.completedTasks.helena];
+                state.skippedHistory.maria[yesterday] = [...state.skippedTasks.maria];
+                state.skippedHistory.helena[yesterday] = [...state.skippedTasks.helena];
+                
+                state.completedTasks = { maria: [], helena: [] };
+                state.skippedTasks = { maria: [], helena: [] };
+                state.earnings.maria.todayTotal = 0;
+                state.earnings.helena.todayTotal = 0;
+                state.lastResetDate = today;
+                saveState();
+            }
+        }
+
+        // Sync from Reward Challenge
+        function syncFromReward() {
+            if (!state.syncedFromReward) {
+                try {
+                    const stored = localStorage.getItem('gabriel_family_chores');
+                    if (stored) {
+                        const choreData = JSON.parse(stored);
+                        if (choreData.tasks && Array.isArray(choreData.tasks)) {
+                            state.tasks = choreData.tasks.map(rewardTask => {
+                                const existingTask = state.tasks.find(t => t.name === rewardTask.name);
+                                return {
+                                    ...rewardTask,
+                                    payout: existingTask ? existingTask.payout : state.defaultPayout
+                                };
+                            });
+                            state.syncedFromReward = true;
+                        }
+                    }
+                } catch (e) {
+                    console.log('Could not sync from Reward Challenge');
+                }
+            }
+        }
+
+        // Sync to Reward Challenge
+        function syncToReward() {
+            if (state.syncedFromReward) {
+                try {
+                    const choreData = {
+                        tasks: state.tasks.map(t => ({ id: t.id, name: t.name, section: t.section, points: 10 })),
+                        lastUpdated: new Date().toISOString()
+                    };
+                    localStorage.setItem('gabriel_family_chores', JSON.stringify(choreData));
+                } catch (e) {
+                    console.log('Storage not available');
+                }
+            }
+        }
+
+        function manualSync() {
+            state.syncedFromReward = false;
+            syncFromReward();
+            render();
+            alert('Synced chores from Reward Challenge!');
+        }
+
+        function handleLogin(e) {
+            if (e) e.preventDefault();
+            const user = Object.entries(state.users).find(
+                ([key, userData]) => 
+                    userData.name.toLowerCase() === state.loginForm.username.toLowerCase() &&
+                    userData.password === state.loginForm.password
+            );
+            
+            if (user) {
+                state.currentUser = { id: user[0], ...user[1] };
+                state.loginForm = { username: '', password: '' };
+                render();
+            } else {
+                alert('Invalid username or password');
+            }
+        }
+
+        function handleLogout() {
+            state.currentUser = null;
+            render();
+        }
+
+        function resetToDefaultChores() {
+            if (!confirm('This will replace all current chores with the default list (Every Day). Are you sure?')) return;
+
+            const allDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+            state.tasks = [
+                { id: 1, name: 'Brush teeth and hair without being asked', section: 'morning', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
+                { id: 2, name: 'Make bed', section: 'morning', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
+                { id: 3, name: 'Take vitamins', section: 'morning', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
+                { id: 4, name: 'Fill water bottle', section: 'morning', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
+                { id: 5, name: 'Out door by 7:45', section: 'morning', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
+                { id: 6, name: 'Hang backpack and coat up', section: 'afterSchool', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
+                { id: 7, name: 'Empty lunch and/or snack box', section: 'afterSchool', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
+                { id: 8, name: 'Put water bottle at sink', section: 'afterSchool', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
+                { id: 9, name: 'Practice a skill 10 mins', section: 'evening', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
+                { id: 10, name: 'Schoolwork for 20 mins', section: 'evening', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
+                { id: 11, name: 'Brush teeth and rinse nose without being asked', section: 'evening', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
+                { id: 12, name: 'Prepare backpack for following day', section: 'evening', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
+                { id: 13, name: 'Clean up living room and garage', section: 'evening', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
+                { id: 14, name: 'Shower AND hang up towel', section: 'evening', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false }
+            ];
+
+            saveState();
+            alert('Chores have been reset to defaults (Every Day)!');
+            render();
+        }
+
+        function resetToWeekdayChores() {
+            if (!confirm('This will replace all current chores with the default list (Weekdays Only: Mon-Fri). Are you sure?')) return;
+
+            const weekdays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+            state.tasks = [
+                { id: 1, name: 'Brush teeth and hair without being asked', section: 'morning', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
+                { id: 2, name: 'Make bed', section: 'morning', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
+                { id: 3, name: 'Take vitamins', section: 'morning', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
+                { id: 4, name: 'Fill water bottle', section: 'morning', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
+                { id: 5, name: 'Out door by 7:45', section: 'morning', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
+                { id: 6, name: 'Hang backpack and coat up', section: 'afterSchool', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
+                { id: 7, name: 'Empty lunch and/or snack box', section: 'afterSchool', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
+                { id: 8, name: 'Put water bottle at sink', section: 'afterSchool', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
+                { id: 9, name: 'Practice a skill 10 mins', section: 'evening', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
+                { id: 10, name: 'Schoolwork for 20 mins', section: 'evening', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
+                { id: 11, name: 'Brush teeth and rinse nose without being asked', section: 'evening', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
+                { id: 12, name: 'Prepare backpack for following day', section: 'evening', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
+                { id: 13, name: 'Clean up living room and garage', section: 'evening', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
+                { id: 14, name: 'Shower AND hang up towel', section: 'evening', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false }
+            ];
+
+            saveState();
+            alert('Chores have been reset to defaults (Weekdays Only: Mon-Fri)!');
+            render();
+        }
+
+        function resetAllDataForTesting() {
+            if (!confirm('⚠️ WARNING: This will clear ALL accumulated money, payout history, completed tasks, and reset everything to fresh defaults. This cannot be undone!\n\nAre you sure you want to reset all data for testing?')) return;
+
+            // Reset earnings to zero
+            state.earnings = {
+                maria: { weekTotal: 0, todayTotal: 0 },
+                helena: { weekTotal: 0, todayTotal: 0 }
+            };
+
+            // Clear payout history
+            state.payoutHistory = {
+                maria: [],
+                helena: []
+            };
+
+            // Clear yearly earnings
+            state.yearlyEarnings = {
+                maria: {},
+                helena: {}
+            };
+
+            // Clear completed tasks
+            state.completedTasks = { maria: [], helena: [] };
+
+            // Clear skipped tasks
+            state.skippedTasks = { maria: [], helena: [] };
+
+            // Clear completion history
+            state.completionHistory = { maria: {}, helena: {} };
+
+            // Clear skipped history
+            state.skippedHistory = { maria: {}, helena: {} };
+
+            // Clear daily bonus awarded
+            state.dailyBonusAwarded = { maria: {}, helena: {} };
+
+            // Reset default payout to 0.15
+            state.defaultPayout = 0.15;
+
+            // Reset all task payouts to default 0.15
+            state.tasks.forEach(task => {
+                task.payout = 0.15;
+            });
+
+            // Clear goals progress (keep goals but reset saved amount)
+            state.goals.maria.saved = 0;
+            state.goals.helena.saved = 0;
+
+            saveState();
+            alert('All data has been reset for testing! All earnings, payouts, and task completions have been cleared. Task payouts set to $0.15.');
+            render();
+        }
+
+        function startEditingAccount() {
+            state.editingAccount = true;
+            state.tempAccountName = state.currentUser.name;
+            state.tempAccountPassword = '';
+            state.tempAccountConfirmPassword = '';
+            render();
+        }
+
+        function cancelEditingAccount() {
+            state.editingAccount = false;
+            state.tempAccountName = '';
+            state.tempAccountPassword = '';
+            state.tempAccountConfirmPassword = '';
+            render();
+        }
+
+        function saveAccountChanges() {
+            const userId = state.currentUser.id;
+            const newName = state.tempAccountName.trim();
+
+            if (!newName) {
+                alert('Username cannot be empty');
+                return;
+            }
+
+            // Check if new password is being set
+            if (state.tempAccountPassword) {
+                if (state.tempAccountPassword !== state.tempAccountConfirmPassword) {
+                    alert('Passwords do not match');
+                    return;
+                }
+                if (state.tempAccountPassword.length < 3) {
+                    alert('Password must be at least 3 characters');
+                    return;
+                }
+                state.users[userId].password = state.tempAccountPassword;
+            }
+
+            // Update username
+            state.users[userId].name = newName;
+            state.currentUser.name = newName;
+
+            // Reset editing state
+            state.editingAccount = false;
+            state.tempAccountName = '';
+            state.tempAccountPassword = '';
+            state.tempAccountConfirmPassword = '';
+
+            saveState();
+            alert('Account updated successfully!');
+            render();
+        }
+
+        function toggleTaskComplete(childKey, taskId, taskPayout, event) {
+            const isCompletedToday = state.completedTasks[childKey].includes(taskId);
+            const isSkipped = state.skippedTasks[childKey].includes(taskId);
+            const task = state.tasks.find(t => t.id === taskId);
+
+            if (isSkipped) return;
+
+            const isParent = state.currentUser?.isParent;
+            const isWeeklyTask = task && task.days && task.days.includes('weekly');
+            const isMonthlyTask = task && task.days && task.days.includes('monthly');
+            const isOneTimeTask = task && task.days && task.days.includes('oneTime');
+
+            // Check if completed on an earlier day
+            const weeklyCompletedEarlier = isWeeklyTask && !isCompletedToday && isWeeklyTaskCompletedThisWeek(childKey, taskId);
+            const monthlyCompletedEarlier = isMonthlyTask && !isCompletedToday && isMonthlyTaskCompletedThisMonth(childKey, taskId);
+            const completedEarlier = weeklyCompletedEarlier || monthlyCompletedEarlier;
+
+            // For weekly/monthly tasks completed earlier, only parents can toggle (to undo)
+            if (completedEarlier && !isParent) {
+                return; // Kids can't undo tasks completed on earlier days
+            }
+
+            // Allow kids to uncheck their own tasks, but not check other kids' tasks
+            if (!isParent && state.currentUser.id !== childKey) return;
+
+            // Determine if we're unchecking a task completed on an earlier day
+            const isUndoingEarlierCompletion = completedEarlier && isParent;
+            const isCompleted = isCompletedToday || isUndoingEarlierCompletion;
+
+            if (isCompleted) {
+                // Remove from today's completed tasks
+                state.completedTasks[childKey] = state.completedTasks[childKey].filter(id => id !== taskId);
+
+                // If parent is undoing an earlier completion, also remove from history
+                if (isUndoingEarlierCompletion) {
+                    // Find and remove from completion history
+                    for (const date in state.completionHistory[childKey]) {
+                        if (state.completionHistory[childKey][date].includes(taskId)) {
+                            state.completionHistory[childKey][date] = state.completionHistory[childKey][date].filter(id => id !== taskId);
+                            break;
+                        }
+                    }
+                }
+            } else {
+                state.completedTasks[childKey].push(taskId);
+                // Trigger fireworks when completing a task
+                if (event) {
+                    createFireworks(event.clientX, event.clientY);
+                }
+            }
+
+            // For joint tasks, only pay out if BOTH kids have completed it
+            let actualPayout = taskPayout;
+            let otherChildPayout = 0;
+            const otherChild = childKey === 'maria' ? 'helena' : 'maria';
+
+            if (task && task.isJoint) {
+                const otherCompleted = state.completedTasks[otherChild].includes(taskId);
+                const thisCompleted = !isCompleted; // New state (we just toggled)
+
+                if (thisCompleted && otherCompleted) {
+                    // This child is the SECOND to complete - pay BOTH children
+                    actualPayout = taskPayout;
+                    otherChildPayout = taskPayout; // Other child also gets paid now
+                } else if (!thisCompleted && otherCompleted) {
+                    // This child unchecked, other still has it - remove payout from BOTH
+                    // Use positive values here; the subtraction happens below
+                    actualPayout = taskPayout;
+                    otherChildPayout = taskPayout;
+                } else {
+                    // Only one has completed (or both unchecked) - no payout yet
+                    actualPayout = 0;
+                }
+            }
+
+            // Calculate the change: subtract when unchecking (isCompleted=true), add when checking
+            const pointChange = isCompleted ? -actualPayout : actualPayout;
+
+            // Prevent earnings from going negative
+            if (pointChange < 0) {
+                const newWeekTotal = state.earnings[childKey].weekTotal + pointChange;
+                const newTodayTotal = state.earnings[childKey].todayTotal + pointChange;
+                state.earnings[childKey].weekTotal = Math.max(0, newWeekTotal);
+                state.earnings[childKey].todayTotal = Math.max(0, newTodayTotal);
+            } else {
+                state.earnings[childKey].weekTotal += pointChange;
+                state.earnings[childKey].todayTotal += pointChange;
+            }
+
+            // For joint tasks, also update the other child's earnings
+            if (task && task.isJoint && otherChildPayout !== 0) {
+                const otherPointChange = isCompleted ? -otherChildPayout : otherChildPayout;
+                if (otherPointChange < 0) {
+                    const newOtherWeekTotal = state.earnings[otherChild].weekTotal + otherPointChange;
+                    const newOtherTodayTotal = state.earnings[otherChild].todayTotal + otherPointChange;
+                    state.earnings[otherChild].weekTotal = Math.max(0, newOtherWeekTotal);
+                    state.earnings[otherChild].todayTotal = Math.max(0, newOtherTodayTotal);
+                } else {
+                    state.earnings[otherChild].weekTotal += otherPointChange;
+                    state.earnings[otherChild].todayTotal += otherPointChange;
+                }
+            }
+
+            checkDailyBonus(childKey);
+            
+            // Check for weekly streak (only on completing, not uncompleting)
+            if (!isCompleted) {
+                checkWeeklyStreak(childKey);
+            }
+            
+            saveState();
+            render();
+        }
+
+        function toggleTaskSkipped(childKey, taskId) {
+            if (!state.currentUser?.isParent) return;
+
+            const isSkipped = state.skippedTasks[childKey].includes(taskId);
+            const isCompleted = state.completedTasks[childKey].includes(taskId);
+
+            if (isSkipped && isCompleted) {
+                const task = state.tasks.find(t => t.id === taskId);
+                state.completedTasks[childKey] = state.completedTasks[childKey].filter(id => id !== taskId);
+                state.earnings[childKey].weekTotal = Math.max(0, state.earnings[childKey].weekTotal - task.payout);
+                state.earnings[childKey].todayTotal = Math.max(0, state.earnings[childKey].todayTotal - task.payout);
+            }
+            
+            if (isSkipped) {
+                state.skippedTasks[childKey] = state.skippedTasks[childKey].filter(id => id !== taskId);
+            } else {
+                state.skippedTasks[childKey].push(taskId);
+            }
+
+            setTimeout(() => checkDailyBonus(childKey), 100);
+            saveState();
+            render();
+        }
+
+        function checkDailyBonus(childKey) {
+            // Only consider tasks that are:
+            // 1. Applicable today (based on day of week)
+            // 2. Not skipped
+            // 3. Not weekly, monthly, one-time, or bonus tasks (those are excluded from daily bonus)
+            const dailyTasks = state.tasks.filter(t => {
+                // Exclude skipped tasks
+                if (state.skippedTasks[childKey].includes(t.id)) return false;
+                // Exclude weekly, monthly, one-time, and bonus tasks
+                if (t.days && (t.days.includes('weekly') || t.days.includes('monthly') || t.days.includes('oneTime'))) return false;
+                // Exclude bonus section tasks (optional tasks don't count toward daily bonus)
+                if (t.section === 'bonus') return false;
+                // Only include tasks applicable today
+                return isTaskApplicableToday(t);
+            });
+
+            const allDailyTasksComplete = dailyTasks.every(t =>
+                state.completedTasks[childKey].includes(t.id)
+            );
+
+            const today = new Date().toDateString();
+            const bonusAlreadyAwarded = state.dailyBonusAwarded[childKey][today];
+
+            if (allDailyTasksComplete && !bonusAlreadyAwarded && dailyTasks.length > 0) {
+                const bonusAmount = 1.00;
+                state.earnings[childKey].weekTotal += bonusAmount;
+                state.earnings[childKey].todayTotal += bonusAmount;
+                state.dailyBonusAwarded[childKey][today] = true;
+                alert(`🎉 ${state.users[childKey].name} earned a $1 bonus for completing all daily tasks!`);
+            } else if (!allDailyTasksComplete && bonusAlreadyAwarded) {
+                const bonusAmount = -1.00;
+                state.earnings[childKey].weekTotal += bonusAmount;
+                state.earnings[childKey].todayTotal += bonusAmount;
+                state.dailyBonusAwarded[childKey][today] = false;
+            }
+        }
+
+        function addTask() {
+            if (state.newTaskName.trim()) {
+                const newTask = {
+                    id: Date.now(),
+                    name: state.newTaskName,
+                    section: state.newTaskSection,
+                    days: state.newTaskDays,
+                    payout: state.defaultPayout,
+                    frequency: 'daily',
+                    isJoint: false
+                };
+                state.tasks.push(newTask);
+                state.newTaskName = '';
+                state.showAddTask = false;
+                syncToReward();
+                saveState();
+                render();
+            }
+        }
+
+        function deleteTask(taskId) {
+            state.tasks = state.tasks.filter(task => task.id !== taskId);
+            syncToReward();
+            saveState();
+            render();
+        }
+
+        function moveTaskUp(taskId) {
+            const index = state.tasks.findIndex(t => t.id === taskId);
+            if (index > 0) {
+                const task = state.tasks[index];
+                state.tasks.splice(index, 1);
+                state.tasks.splice(index - 1, 0, task);
+                saveState();
+                render();
+            }
+        }
+
+        function moveTaskDown(taskId) {
+            const index = state.tasks.findIndex(t => t.id === taskId);
+            if (index < state.tasks.length - 1) {
+                const task = state.tasks[index];
+                state.tasks.splice(index, 1);
+                state.tasks.splice(index + 1, 0, task);
+                saveState();
+                render();
+            }
+        }
+
+        function updateTaskPayout(taskId, newPayout) {
+            const task = state.tasks.find(t => t.id === taskId);
+            if (task) {
+                task.payout = parseFloat(newPayout) || 0;
+                state.editingPayout = null;
+                saveState();
+                render();
+            }
+        }
+
+        function updateTaskSection(taskId, newSection) {
+            const task = state.tasks.find(t => t.id === taskId);
+            if (task) {
+                task.section = newSection;
+                state.editingSection = null;
+                syncToReward();
+                saveState();
+                render();
+            }
+        }
+
+        function updateTaskDays(taskId, newDays) {
+            const task = state.tasks.find(t => t.id === taskId);
+            if (task) {
+                task.days = newDays;
+                state.editingDays = null;
+                saveState();
+                render();
+            }
+        }
+        
+        function toggleTaskDay(day) {
+            if (!Array.isArray(state.newTaskDays)) {
+                state.newTaskDays = [];
+            }
+
+            const specialFrequencies = ['weekly', 'monthly', 'oneTime'];
+            const individualDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+            const index = state.newTaskDays.indexOf(day);
+            if (index > -1) {
+                // Unchecking - just remove it
+                state.newTaskDays.splice(index, 1);
+            } else {
+                // Checking - handle mutual exclusivity
+                if (specialFrequencies.includes(day)) {
+                    // Selecting a special frequency clears individual days and other special frequencies
+                    state.newTaskDays = state.newTaskDays.filter(d => !individualDays.includes(d) && !specialFrequencies.includes(d));
+                    state.newTaskDays.push(day);
+                } else {
+                    // Selecting an individual day clears special frequencies
+                    state.newTaskDays = state.newTaskDays.filter(d => !specialFrequencies.includes(d));
+                    state.newTaskDays.push(day);
+                }
+            }
+        }
+
+        function toggleAllDays() {
+            const allDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+            if (state.newTaskDays.length === 7) {
+                state.newTaskDays = [];
+            } else {
+                state.newTaskDays = [...allDays];
+            }
+        }
+
+        function toggleAllDaysForTask(taskId) {
+            const task = state.tasks.find(t => t.id === taskId);
+            if (!task) return;
+            const allDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+            if (task.days.length === 7) {
+                task.days = [];
+            } else {
+                task.days = [...allDays];
+            }
+            saveState();
+            render();
+        }
+        
+        function toggleEditTaskDay(taskId, day) {
+            const task = state.tasks.find(t => t.id === taskId);
+            if (!task) return;
+
+            if (!Array.isArray(task.days)) {
+                task.days = [];
+            }
+
+            const specialFrequencies = ['weekly', 'monthly', 'oneTime'];
+            const individualDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+            const index = task.days.indexOf(day);
+            if (index > -1) {
+                // Unchecking - remove it (but don't allow removing the last day)
+                if (task.days.length > 1) {
+                    task.days.splice(index, 1);
+                }
+            } else {
+                // Checking - handle mutual exclusivity
+                if (specialFrequencies.includes(day)) {
+                    // Selecting a special frequency clears individual days and other special frequencies
+                    task.days = task.days.filter(d => !individualDays.includes(d) && !specialFrequencies.includes(d));
+                    task.days.push(day);
+                    // Set oneTimeDate if selecting oneTime
+                    if (day === 'oneTime') {
+                        task.oneTimeDate = new Date().toDateString();
+                    }
+                } else {
+                    // Selecting an individual day clears special frequencies
+                    task.days = task.days.filter(d => !specialFrequencies.includes(d));
+                    task.days.push(day);
+                }
+            }
+
+            saveState();
+            render();
+        }
+
+        function setGoal(childKey) {
+            if (state.tempGoalName.trim() && state.tempGoalAmount > 0) {
+                state.goals[childKey] = {
+                    active: true,
+                    name: state.tempGoalName.trim(),
+                    amount: parseFloat(state.tempGoalAmount)
+                };
+                state.editingGoal = null;
+                state.tempGoalName = '';
+                state.tempGoalAmount = 0;
+                saveState();
+                render();
+            } else {
+                alert('Please enter both a goal name and amount');
+            }
+        }
+
+        function deactivateGoal(childKey) {
+            if (confirm(`Deactivate goal for ${state.users[childKey].name}?`)) {
+                state.goals[childKey].active = false;
+                state.editingGoal = null;
+                saveState();
+                render();
+            }
+        }
+
+        function processWeeklyPayout(childKey) {
+            const weekTotal = state.earnings[childKey].weekTotal;
+            const childName = state.users[childKey].name;
+
+            if (weekTotal === 0) {
+                alert(`${childName} has $0 to pay out this week.`);
+                return;
+            }
+
+            if (confirm(`Pay out $${weekTotal.toFixed(2)} to ${childName}?`)) {
+                // Record the payout
+                state.payoutHistory[childKey].unshift({
+                    date: new Date().toISOString(),
+                    amount: weekTotal,
+                    weekEnding: new Date().toDateString()
+                });
+
+                // Add to yearly earnings tracker
+                const currentYear = new Date().getFullYear().toString();
+                if (!state.yearlyEarnings[childKey]) {
+                    state.yearlyEarnings[childKey] = {};
+                }
+                if (!state.yearlyEarnings[childKey][currentYear]) {
+                    state.yearlyEarnings[childKey][currentYear] = 0;
+                }
+                state.yearlyEarnings[childKey][currentYear] += weekTotal;
+
+                // Reset weekly total
+                state.earnings[childKey].weekTotal = 0;
+                state.earnings[childKey].todayTotal = 0;
+
+                // Keep only last 52 weeks of history
+                if (state.payoutHistory[childKey].length > 52) {
+                    state.payoutHistory[childKey] = state.payoutHistory[childKey].slice(0, 52);
+                }
+
+                saveState();
+                render();
+
+                alert(`✅ Paid $${weekTotal.toFixed(2)} to ${childName}!`);
+            }
+        }
+
+        // Helper function to get yearly earnings (calculates from payout history if needed)
+        function getYearlyEarnings(childKey, year) {
+            year = year || new Date().getFullYear().toString();
+
+            // First check if we have it in the yearlyEarnings tracker
+            if (state.yearlyEarnings[childKey] && state.yearlyEarnings[childKey][year] !== undefined) {
+                return state.yearlyEarnings[childKey][year];
+            }
+
+            // Otherwise calculate from payout history
+            const yearStart = new Date(parseInt(year), 0, 1);
+            const yearEnd = new Date(parseInt(year) + 1, 0, 1);
+
+            const yearlyTotal = (state.payoutHistory[childKey] || [])
+                .filter(payout => {
+                    const payoutDate = new Date(payout.date);
+                    return payoutDate >= yearStart && payoutDate < yearEnd;
+                })
+                .reduce((sum, payout) => sum + payout.amount, 0);
+
+            return yearlyTotal;
+        }
+
+        function exportAllData() {
+            const exportData = {
+                version: APP_VERSION,
+                exportDate: new Date().toISOString(),
+                appName: "Gabriel Weekly Allowance Challenge",
+                data: {
+                    tasks: state.tasks,
+                    users: state.users,
+                    earnings: state.earnings,
+                    completedTasks: state.completedTasks,
+                    skippedTasks: state.skippedTasks,
+                    completionHistory: state.completionHistory,
+                    skippedHistory: state.skippedHistory,
+                    dailyBonusAwarded: state.dailyBonusAwarded,
+                    goals: state.goals,
+                    payoutHistory: state.payoutHistory,
+                    yearlyEarnings: state.yearlyEarnings,
+                    weeklyStreakBonus: state.weeklyStreakBonus,
+                    weeklyStreakAwarded: state.weeklyStreakAwarded,
+                    defaultPayout: state.defaultPayout,
+                    lastResetDate: state.lastResetDate
+                }
+            };
+
+            const dataStr = JSON.stringify(exportData, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `allowance-tracker-backup-${new Date().toISOString().split('T')[0]}.json`;
+            link.click();
+            URL.revokeObjectURL(url);
+            
+            alert('✅ Data exported successfully! File downloaded.');
+        }
+
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    
+                    // Validate it's our export format
+                    if (!imported.appName || !imported.data) {
+                        alert('❌ Invalid backup file format.');
+                        return;
+                    }
+
+                    let warnings = [];
+                    let changes = [];
+
+                    // Check version compatibility
+                    const importVersion = imported.version || "1.0";
+                    if (importVersion !== APP_VERSION) {
+                        warnings.push(`Importing from version ${importVersion} to ${APP_VERSION}`);
+                    }
+
+                    // Migrate and merge data with smart defaults
+                    const data = imported.data;
+
+                    // Migrate tasks - add any missing fields
+                    if (data.tasks) {
+                        data.tasks = data.tasks.map(task => {
+                            const migrated = { ...task };
+                            let taskChanges = [];
+
+                            // Add missing 'days' field
+                            if (!migrated.days) {
+                                migrated.days = ['weekday'];
+                                taskChanges.push('added days=Mon-Fri');
+                            }
+
+                            // Add missing 'frequency' field (legacy field, migrate to days if present)
+                            if (migrated.frequency && !migrated.days.includes(migrated.frequency)) {
+                                // Migrate old frequency to new days array
+                                if (migrated.frequency === 'oneTime') migrated.days.push('oneTime');
+                                if (migrated.frequency === 'weekly') migrated.days.push('weekly');
+                                if (migrated.frequency === 'monthly') migrated.days.push('monthly');
+                                delete migrated.frequency;
+                                taskChanges.push('migrated frequency to days');
+                            }
+
+                            // Add missing 'isJoint' field
+                            if (migrated.isJoint === undefined) {
+                                migrated.isJoint = false;
+                                taskChanges.push('added isJoint=false');
+                            }
+
+                            // Add missing 'payout' field
+                            if (migrated.payout === undefined) {
+                                migrated.payout = state.defaultPayout;
+                                taskChanges.push(`added payout=$${state.defaultPayout}`);
+                            }
+
+                            if (taskChanges.length > 0) {
+                                changes.push(`Task "${task.name}": ${taskChanges.join(', ')}`);
+                            }
+
+                            return migrated;
+                        });
+                    }
+
+                    // Apply imported data
+                    if (data.tasks) state.tasks = data.tasks;
+                    if (data.users) state.users = data.users;
+                    if (data.earnings) state.earnings = data.earnings;
+                    if (data.completedTasks) state.completedTasks = data.completedTasks;
+                    if (data.skippedTasks) state.skippedTasks = data.skippedTasks;
+                    if (data.completionHistory) state.completionHistory = data.completionHistory;
+                    if (data.skippedHistory) state.skippedHistory = data.skippedHistory;
+                    if (data.dailyBonusAwarded) state.dailyBonusAwarded = data.dailyBonusAwarded;
+                    if (data.goals) state.goals = data.goals;
+                    if (data.payoutHistory) state.payoutHistory = data.payoutHistory;
+                    if (data.yearlyEarnings) {
+                        state.yearlyEarnings = data.yearlyEarnings;
+                    } else {
+                        // Initialize yearly earnings from payout history if not present
+                        state.yearlyEarnings = { maria: {}, helena: {} };
+                        ['maria', 'helena'].forEach(childKey => {
+                            (state.payoutHistory[childKey] || []).forEach(payout => {
+                                const year = new Date(payout.date).getFullYear().toString();
+                                if (!state.yearlyEarnings[childKey][year]) {
+                                    state.yearlyEarnings[childKey][year] = 0;
+                                }
+                                state.yearlyEarnings[childKey][year] += payout.amount;
+                            });
+                        });
+                        changes.push('Calculated yearly earnings from payout history');
+                    }
+                    if (data.weeklyStreakBonus !== undefined) state.weeklyStreakBonus = data.weeklyStreakBonus;
+                    if (data.weeklyStreakAwarded) state.weeklyStreakAwarded = data.weeklyStreakAwarded;
+                    if (data.defaultPayout !== undefined) state.defaultPayout = data.defaultPayout;
+                    if (data.lastResetDate) state.lastResetDate = data.lastResetDate;
+
+                    saveState();
+                    render();
+
+                    // Show import summary
+                    let message = '✅ Data imported successfully!\n\n';
+                    
+                    if (warnings.length > 0) {
+                        message += '⚠️ Warnings:\n' + warnings.join('\n') + '\n\n';
+                    }
+                    
+                    if (changes.length > 0) {
+                        message += '📝 Changes made during import:\n';
+                        if (changes.length <= 5) {
+                            message += changes.join('\n');
+                        } else {
+                            message += changes.slice(0, 5).join('\n');
+                            message += `\n... and ${changes.length - 5} more changes`;
+                        }
+                    } else {
+                        message += 'All data imported without modifications.';
+                    }
+
+                    alert(message);
+
+                } catch (error) {
+                    alert('❌ Error importing data: ' + error.message);
+                }
+            };
+            reader.readAsText(file);
+            
+            // Reset file input
+            event.target.value = '';
+        }
+
+        function updateTaskName(taskId, newName) {
+            if (newName.trim()) {
+                const task = state.tasks.find(t => t.id === taskId);
+                if (task) {
+                    task.name = newName;
+                    state.editingTaskName = null;
+                    syncToReward();
+                    saveState();
+                    render();
+                }
+            }
+        }
+
+        function updateChildName(childKey, newName) {
+            if (newName.trim()) {
+                state.users[childKey].name = newName;
+                state.editingName = null;
+                saveState();
+                render();
+            }
+        }
+
+        function toggleHistoryTask(childKey, date, taskId) {
+            if (!state.completionHistory[childKey][date]) {
+                state.completionHistory[childKey][date] = [];
+            }
+            
+            const dateHistory = state.completionHistory[childKey][date];
+            const isCompleted = dateHistory.includes(taskId);
+            
+            if (isCompleted) {
+                state.completionHistory[childKey][date] = dateHistory.filter(id => id !== taskId);
+            } else {
+                state.completionHistory[childKey][date].push(taskId);
+            }
+
+            const task = state.tasks.find(t => t.id === taskId);
+            if (task) {
+                const pointChange = isCompleted ? -task.payout : task.payout;
+                if (pointChange < 0) {
+                    state.earnings[childKey].weekTotal = Math.max(0, state.earnings[childKey].weekTotal + pointChange);
+                } else {
+                    state.earnings[childKey].weekTotal += pointChange;
+                }
+            }
+
+            saveState();
+            render();
+        }
+
+        function toggleHistorySkipped(childKey, date, taskId) {
+            if (!state.skippedHistory[childKey][date]) {
+                state.skippedHistory[childKey][date] = [];
+            }
+
+            const dateSkipped = state.skippedHistory[childKey][date];
+            const isSkipped = dateSkipped.includes(taskId);
+            const dateCompleted = state.completionHistory[childKey][date] || [];
+            const isCompleted = dateCompleted.includes(taskId);
+
+            if (isSkipped && isCompleted) {
+                const task = state.tasks.find(t => t.id === taskId);
+                state.completionHistory[childKey][date] = dateCompleted.filter(id => id !== taskId);
+                state.earnings[childKey].weekTotal = Math.max(0, state.earnings[childKey].weekTotal - task.payout);
+            }
+            
+            if (isSkipped) {
+                state.skippedHistory[childKey][date] = dateSkipped.filter(id => id !== taskId);
+            } else {
+                state.skippedHistory[childKey][date].push(taskId);
+            }
+
+            saveState();
+            render();
+        }
+
+        function getWeekDates() {
+            const dates = [];
+            const today = new Date();
+            for (let i = 6; i >= 0; i--) {
+                const date = new Date(today);
+                date.setDate(date.getDate() - i);
+                dates.push(date.toDateString());
+            }
+            return dates;
+        }
+        
+        function updateTaskFrequency(taskId, newFrequency) {
+            const task = state.tasks.find(t => t.id === taskId);
+            if (task) {
+                task.frequency = newFrequency;
+                if (newFrequency === 'oneTime') {
+                    task.oneTimeDate = new Date().toDateString();
+                }
+                state.editingFrequency = null;
+                saveState();
+                render();
+            }
+        }
+        
+        function toggleTaskJoint(taskId) {
+            const task = state.tasks.find(t => t.id === taskId);
+            if (task) {
+                task.isJoint = !task.isJoint;
+                saveState();
+                render();
+            }
+        }
+        
+        function isTaskApplicableByFrequency(task) {
+            if (!task.frequency) task.frequency = 'daily';
+            
+            const today = new Date();
+            const todayStr = today.toDateString();
+            
+            if (task.frequency === 'daily') {
+                return true;
+            } else if (task.frequency === 'oneTime') {
+                // Only show on the day it was created
+                return task.oneTimeDate === todayStr;
+            } else if (task.frequency === 'weekly') {
+                // Show on Sundays only
+                return today.getDay() === 0;
+            } else if (task.frequency === 'monthly') {
+                // Show on the 1st of each month
+                return today.getDate() === 1;
+            }
+            
+            return true;
+        }
+        
+        function checkWeeklyStreak(childKey) {
+            // Check if they completed all active tasks every day this week
+            const weekDates = getWeekDates();
+            const today = new Date().toDateString();
+            
+            // Don't award streak bonus if already awarded this week
+            const weekStart = weekDates[0];
+            if (state.weeklyStreakAwarded[childKey][weekStart]) {
+                return;
+            }
+            
+            let hasFullWeek = true;
+            
+            for (const date of weekDates) {
+                const completedForDay = date === today 
+                    ? state.completedTasks[childKey]
+                    : (state.completionHistory[childKey][date] || []);
+                
+                const skippedForDay = date === today
+                    ? state.skippedTasks[childKey]
+                    : (state.skippedHistory[childKey][date] || []);
+                
+                // Get tasks that were applicable on that date
+                const dateObj = new Date(date);
+                const dayOfWeek = dateObj.getDay();
+                
+                const applicableTasks = state.tasks.filter(task => {
+                    // Check if task applies to this day of week
+                    if (!task.days) return false;
+
+                    // Exclude weekly, monthly, one-time, and bonus tasks from streak calculation
+                    if (task.days.includes('weekly') || task.days.includes('monthly') || task.days.includes('oneTime')) return false;
+                    // Exclude bonus section tasks (optional tasks don't count toward weekly streak)
+                    if (task.section === 'bonus') return false;
+
+                    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+                    const dayName = dayNames[dayOfWeek];
+
+                    const appliesToDay = task.days.some(d => {
+                        if (d === dayName) return true;
+                        if (d === 'weekday' && dayOfWeek >= 1 && dayOfWeek <= 5) return true;
+                        return false;
+                    });
+
+                    if (!appliesToDay) return false;
+
+                    return true;
+                });
+                
+                const activeTasks = applicableTasks.filter(t => !skippedForDay.includes(t.id));
+                
+                if (activeTasks.length === 0) continue; // Skip days with no tasks
+                
+                const allCompleted = activeTasks.every(t => completedForDay.includes(t.id));
+                
+                if (!allCompleted) {
+                    hasFullWeek = false;
+                    break;
+                }
+            }
+            
+            // Award streak bonus if they completed everything all week
+            if (hasFullWeek && state.weeklyStreakBonus > 0) {
+                state.earnings[childKey].weekTotal += state.weeklyStreakBonus;
+                state.earnings[childKey].todayTotal += state.weeklyStreakBonus;
+                state.weeklyStreakAwarded[childKey][weekStart] = true;
+                saveState();
+                alert(`🔥 ${state.users[childKey].name} earned a $${state.weeklyStreakBonus.toFixed(2)} WEEKLY STREAK BONUS for completing all tasks every day this week!`);
+            }
+        }
+
+        function getSectionIcon(section) {
+            switch(section) {
+                case 'morning': return `<div class="w-5 h-5 text-yellow-500">${Icons.Sun}</div>`;
+                case 'afterSchool': return `<div class="w-5 h-5 text-blue-500">${Icons.BookOpen}</div>`;
+                case 'evening': return `<div class="w-5 h-5 text-purple-500">${Icons.Moon}</div>`;
+                case 'bonus': return `<div class="w-5 h-5 text-green-500">${Icons.DollarSign}</div>`;
+                case 'weekly': return `<div class="w-5 h-5 text-blue-600">📅</div>`;
+                case 'monthly': return `<div class="w-5 h-5 text-purple-600">🗓️</div>`;
+                case 'oneTime': return `<div class="w-5 h-5 text-orange-500">⚡</div>`;
+                default: return '';
+            }
+        }
+
+        function getSectionTitle(section) {
+            switch(section) {
+                case 'morning': return 'Morning';
+                case 'afterSchool': return 'After School/Afternoon';
+                case 'evening': return 'Evening';
+                case 'bonus': return 'Bonus (Optional)';
+                case 'weekly': return 'Weekly Tasks';
+                case 'monthly': return 'Monthly Tasks';
+                case 'oneTime': return 'One-Time Tasks';
+                default: return section;
+            }
+        }
+
+        // Helper function to render a task item (used in child card)
+        function renderTaskItem(task, childKey) {
+            const isCompletedToday = state.completedTasks[childKey].includes(task.id);
+            const isSkipped = state.skippedTasks[childKey].includes(task.id);
+            const isWeeklyTask = task.days && task.days.includes('weekly');
+            const isMonthlyTask = task.days && task.days.includes('monthly');
+            const isOneTimeTask = task.days && task.days.includes('oneTime');
+            const weeklyCompletedEarlier = isWeeklyTask && !isCompletedToday && isWeeklyTaskCompletedThisWeek(childKey, task.id);
+            const monthlyCompletedEarlier = isMonthlyTask && !isCompletedToday && isMonthlyTaskCompletedThisMonth(childKey, task.id);
+            const weeklyCompletionDate = weeklyCompletedEarlier ? getWeeklyTaskCompletionDate(childKey, task.id) : null;
+            const monthlyCompletionDate = monthlyCompletedEarlier ? getMonthlyTaskCompletionDate(childKey, task.id) : null;
+            const completedEarlier = weeklyCompletedEarlier || monthlyCompletedEarlier;
+            const isCompleted = isCompletedToday || completedEarlier;
+            // Parents can always click to undo; kids can't click on tasks completed earlier
+            const isDisabled = isSkipped || (completedEarlier && !state.currentUser.isParent);
+
+            return `
+                <div class="flex gap-2">
+                    ${state.currentUser.isParent ? `
+                        <button
+                            onclick="toggleTaskSkipped('${childKey}', ${task.id})"
+                            class="px-2 py-3 rounded-lg border-2 transition-all ${
+                                isSkipped
+                                    ? 'bg-gray-200 border-gray-400 text-gray-600'
+                                    : 'bg-white border-gray-300 text-gray-400 hover:border-gray-400'
+                            }"
+                            title="${isSkipped ? 'Unskip task' : 'Skip task (not applicable today)'}"
+                        >
+                            ${isSkipped ? '↺' : '—'}
+                        </button>
+                    ` : ''}
+                    <button
+                        onclick="toggleTaskComplete('${childKey}', ${task.id}, ${task.payout}, event)"
+                        ${isDisabled ? 'disabled' : ''}
+                        class="flex-1 text-left p-3 rounded-lg transition-all duration-300 border-2 ${
+                            isSkipped
+                                ? 'bg-gray-100 border-gray-300 opacity-50 cursor-not-allowed'
+                                : isCompleted
+                                ? 'bg-gradient-to-r from-green-100 to-emerald-100 border-green-400' + ((completedEarlier && !state.currentUser.isParent) ? ' cursor-not-allowed' : ' hover:from-red-50 hover:to-red-100 hover:border-red-300')
+                                : 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 hover:from-green-100 hover:to-emerald-100'
+                        }"
+                        title="${isCompleted && state.currentUser.isParent ? 'Click to undo completion and deduct $' + task.payout.toFixed(2) : ''}"
+                    >
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center gap-2 flex-1">
+                                <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                                    isSkipped
+                                        ? 'bg-gray-300 border-gray-400'
+                                        : isCompleted
+                                        ? 'bg-green-500 border-green-500'
+                                        : 'border-gray-300'
+                                }">
+                                    ${isSkipped ? `
+                                        <span class="text-white text-xs">—</span>
+                                    ` : isCompleted ? `
+                                        <div class="w-3 h-3 text-white">${Icons.Check}</div>
+                                    ` : ''}
+                                </div>
+                                <div class="flex flex-col">
+                                    <span class="text-sm ${
+                                        isSkipped
+                                            ? 'text-gray-400 line-through'
+                                            : isCompleted
+                                            ? 'text-gray-600 line-through'
+                                            : 'text-gray-700'
+                                    }">
+                                        ${task.isJoint ? '👯 ' : ''}${task.name}
+                                    </span>
+                                    ${weeklyCompletedEarlier ? `
+                                        <span class="text-xs text-green-600">Done ${weeklyCompletionDate}${state.currentUser.isParent ? ' • Click to undo' : ''}</span>
+                                    ` : monthlyCompletedEarlier ? `
+                                        <span class="text-xs text-green-600">Done ${monthlyCompletionDate}${state.currentUser.isParent ? ' • Click to undo' : ''}</span>
+                                    ` : isCompleted && isOneTimeTask && state.currentUser.isParent ? `
+                                        <span class="text-xs text-orange-500">Completed • Click to undo</span>
+                                    ` : isCompleted && state.currentUser.isParent ? `
+                                        <span class="text-xs text-green-600">Click to undo</span>
+                                    ` : isWeeklyTask && !isCompleted ? `
+                                        <span class="text-xs text-blue-500">Complete any day this week</span>
+                                    ` : isMonthlyTask && !isCompleted ? `
+                                        <span class="text-xs text-purple-500">Complete any day this month</span>
+                                    ` : isOneTimeTask && !isCompleted ? `
+                                        <span class="text-xs text-orange-500">One-time task</span>
+                                    ` : ''}
+                                </div>
+                            </div>
+                            <span class="font-bold ${
+                                isSkipped
+                                    ? 'text-gray-400'
+                                    : isCompleted
+                                    ? 'text-green-600'
+                                    : 'text-green-700'
+                            }">
+                                ${isSkipped ? 'N/A' : isCompleted ? '✓' : task.payout.toFixed(2)}
+                            </span>
+                        </div>
+                    </button>
+                </div>
+            `;
+        }
+
+        function getDayLabel(days) {
+            // Handle old data format (string) or missing days
+            if (!days || (typeof days === 'string')) {
+                days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+            }
+            if (!Array.isArray(days)) {
+                days = [days];
+            }
+
+            const allDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+            const weekdays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+            const dayAbbrev = { monday: 'M', tuesday: 'T', wednesday: 'W', thursday: 'Th', friday: 'F', saturday: 'Sa', sunday: 'Su' };
+
+            // Check for special patterns
+            const hasAllDays = allDays.every(d => days.includes(d));
+            const hasAllWeekdays = weekdays.every(d => days.includes(d)) && !days.includes('saturday') && !days.includes('sunday');
+            const hasOnlyWeekend = days.includes('saturday') && days.includes('sunday') && days.length === 2;
+
+            // Handle legacy 'weekday' format
+            if (days.includes('weekday') && !days.some(d => allDays.includes(d))) {
+                return 'Mon-Fri';
+            }
+
+            if (hasAllDays || days.length === 7) {
+                return 'Every Day';
+            } else if (hasAllWeekdays && days.length === 5) {
+                return 'Mon-Fri';
+            } else if (hasOnlyWeekend) {
+                return 'Weekends';
+            } else if (days.length === 0) {
+                return 'Not Set';
+            } else {
+                // Show individual days
+                const activeDays = allDays.filter(d => days.includes(d));
+                return activeDays.map(d => dayAbbrev[d]).join('·');
+            }
+        }
+
+        function isTaskApplicableToday(task) {
+            // Ensure task has days array
+            if (!task.days) task.days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+            if (typeof task.days === 'string') {
+                task.days = [task.days];
+            }
+
+            const today = new Date().getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+            const todayStr = new Date().toDateString();
+            const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+            const todayName = dayNames[today];
+
+            // Check special frequencies first
+            // One-time tasks always show until completed, skipped, or deleted
+            if (task.days.includes('oneTime')) {
+                if (!task.oneTimeDate) task.oneTimeDate = todayStr;
+                return true;
+            }
+
+            // Weekly tasks show every day - can be completed any day of the week
+            if (task.days.includes('weekly')) {
+                return true;
+            }
+
+            // Monthly tasks show every day - can be completed any day of the month
+            if (task.days.includes('monthly')) {
+                return true;
+            }
+
+            // Check if today's day name is in the task's days array
+            if (task.days.includes(todayName)) return true;
+
+            // Also support legacy 'weekday' format
+            if (task.days.includes('weekday') && today >= 1 && today <= 5) return true;
+
+            return false;
+        }
+
+        function groupTasks(childKey) {
+            // Filter tasks to only show ones applicable today
+            const applicableTasks = state.tasks.filter(task => {
+                return isTaskApplicableToday(task);
+            });
+
+            // Separate daily tasks from special frequency tasks
+            const dailyTasks = applicableTasks.filter(t =>
+                !t.days || (!t.days.includes('weekly') && !t.days.includes('monthly') && !t.days.includes('oneTime'))
+            );
+            const weeklyTasks = applicableTasks.filter(t => t.days && t.days.includes('weekly'));
+            const monthlyTasks = applicableTasks.filter(t => t.days && t.days.includes('monthly'));
+
+            // One-time tasks: filter based on completion status
+            // - Parents see completed one-time tasks so they can undo
+            // - Kids don't see their completed one-time tasks
+            // - Skipped tasks are hidden for everyone
+            let oneTimeTasks = applicableTasks.filter(t => t.days && t.days.includes('oneTime'));
+            if (childKey) {
+                const isParent = state.currentUser?.isParent;
+                oneTimeTasks = oneTimeTasks.filter(t => {
+                    const isCompleted = state.completedTasks[childKey].includes(t.id);
+                    const isSkipped = state.skippedTasks[childKey].includes(t.id);
+                    // Always hide skipped tasks
+                    if (isSkipped) return false;
+                    // Parents can see completed tasks (to undo), kids cannot
+                    if (isCompleted && !isParent) return false;
+                    return true;
+                });
+            }
+
+            return {
+                morning: dailyTasks.filter(t => t.section === 'morning'),
+                afterSchool: dailyTasks.filter(t => t.section === 'afterSchool'),
+                evening: dailyTasks.filter(t => t.section === 'evening'),
+                bonus: dailyTasks.filter(t => t.section === 'bonus'),
+                weekly: weeklyTasks,
+                monthly: monthlyTasks,
+                oneTime: oneTimeTasks
+            };
+        }
+
+        function groupAllTasks() {
+            // Return ALL tasks regardless of day (for Manage Chores section)
+            // Separate daily tasks from special frequency tasks
+            const dailyTasks = state.tasks.filter(t =>
+                !t.days || (!t.days.includes('weekly') && !t.days.includes('monthly') && !t.days.includes('oneTime'))
+            );
+            const weeklyTasks = state.tasks.filter(t => t.days && t.days.includes('weekly'));
+            const monthlyTasks = state.tasks.filter(t => t.days && t.days.includes('monthly'));
+            const oneTimeTasks = state.tasks.filter(t => t.days && t.days.includes('oneTime'));
+
+            return {
+                morning: dailyTasks.filter(t => t.section === 'morning'),
+                afterSchool: dailyTasks.filter(t => t.section === 'afterSchool'),
+                evening: dailyTasks.filter(t => t.section === 'evening'),
+                bonus: dailyTasks.filter(t => t.section === 'bonus'),
+                weekly: weeklyTasks,
+                monthly: monthlyTasks,
+                oneTime: oneTimeTasks
+            };
+        }
+
+        // Get the start of the current week (Sunday)
+        function getWeekStart() {
+            const now = new Date();
+            const dayOfWeek = now.getDay(); // 0 = Sunday
+            const weekStart = new Date(now);
+            weekStart.setDate(now.getDate() - dayOfWeek);
+            weekStart.setHours(0, 0, 0, 0);
+            return weekStart;
+        }
+
+        // Check if a weekly task has been completed this week
+        function isWeeklyTaskCompletedThisWeek(childKey, taskId) {
+            const task = state.tasks.find(t => t.id === taskId);
+            if (!task || !task.days || !task.days.includes('weekly')) {
+                return false;
+            }
+
+            const weekStart = getWeekStart();
+            const today = new Date().toDateString();
+
+            // Check if completed today
+            if (state.completedTasks[childKey].includes(taskId)) {
+                return true;
+            }
+
+            // Check completion history for this week
+            for (let i = 0; i < 7; i++) {
+                const checkDate = new Date(weekStart);
+                checkDate.setDate(weekStart.getDate() + i);
+                const dateStr = checkDate.toDateString();
+
+                if (dateStr === today) continue; // Already checked today above
+
+                const completedForDay = state.completionHistory[childKey][dateStr] || [];
+                if (completedForDay.includes(taskId)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // Get the date when a weekly task was completed this week (for display)
+        function getWeeklyTaskCompletionDate(childKey, taskId) {
+            const weekStart = getWeekStart();
+            const today = new Date().toDateString();
+
+            // Check if completed today
+            if (state.completedTasks[childKey].includes(taskId)) {
+                return 'Today';
+            }
+
+            // Check completion history for this week
+            for (let i = 0; i < 7; i++) {
+                const checkDate = new Date(weekStart);
+                checkDate.setDate(weekStart.getDate() + i);
+                const dateStr = checkDate.toDateString();
+
+                if (dateStr === today) continue;
+
+                const completedForDay = state.completionHistory[childKey][dateStr] || [];
+                if (completedForDay.includes(taskId)) {
+                    return checkDate.toLocaleDateString('en-US', { weekday: 'short' });
+                }
+            }
+            return null;
+        }
+
+        // Get the start of the current month
+        function getMonthStart() {
+            const now = new Date();
+            return new Date(now.getFullYear(), now.getMonth(), 1);
+        }
+
+        // Check if a monthly task has been completed this month
+        function isMonthlyTaskCompletedThisMonth(childKey, taskId) {
+            const task = state.tasks.find(t => t.id === taskId);
+            if (!task || !task.days || !task.days.includes('monthly')) {
+                return false;
+            }
+
+            const monthStart = getMonthStart();
+            const today = new Date();
+            const todayStr = today.toDateString();
+
+            // Check if completed today
+            if (state.completedTasks[childKey].includes(taskId)) {
+                return true;
+            }
+
+            // Check completion history for this month
+            const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+            for (let i = 0; i < daysInMonth; i++) {
+                const checkDate = new Date(monthStart);
+                checkDate.setDate(monthStart.getDate() + i);
+                const dateStr = checkDate.toDateString();
+
+                if (dateStr === todayStr) continue; // Already checked today above
+                if (checkDate > today) break; // Don't check future dates
+
+                const completedForDay = state.completionHistory[childKey][dateStr] || [];
+                if (completedForDay.includes(taskId)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // Get the date when a monthly task was completed this month (for display)
+        function getMonthlyTaskCompletionDate(childKey, taskId) {
+            const monthStart = getMonthStart();
+            const today = new Date();
+            const todayStr = today.toDateString();
+
+            // Check if completed today
+            if (state.completedTasks[childKey].includes(taskId)) {
+                return 'Today';
+            }
+
+            // Check completion history for this month
+            const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+            for (let i = 0; i < daysInMonth; i++) {
+                const checkDate = new Date(monthStart);
+                checkDate.setDate(monthStart.getDate() + i);
+                const dateStr = checkDate.toDateString();
+
+                if (dateStr === todayStr) continue;
+                if (checkDate > today) break;
+
+                const completedForDay = state.completionHistory[childKey][dateStr] || [];
+                if (completedForDay.includes(taskId)) {
+                    return checkDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                }
+            }
+            return null;
+        }
+
+        function renderLoginScreen() {
+            return `
+                <div class="min-h-screen relative overflow-hidden flex items-center justify-center p-4">
+                    <!-- Background Photo Collage -->
+                    <div class="absolute inset-0 grid grid-cols-5 grid-rows-2 gap-0">
+                        <img src="https://i.imgur.com/hs554rR.jpeg" alt="" class="w-full h-full object-cover" />
+                        <img src="https://i.imgur.com/UxW60hx.jpeg" alt="" class="w-full h-full object-cover" />
+                        <img src="https://i.imgur.com/bVp8I7u.jpeg" alt="" class="w-full h-full object-cover" />
+                        <img src="https://i.imgur.com/3QiGgLa.jpeg" alt="" class="w-full h-full object-cover" />
+                        <img src="https://i.imgur.com/uPMRhnF.jpeg" alt="" class="w-full h-full object-cover" />
+                        <img src="https://i.imgur.com/1Nb2UMs.jpeg" alt="" class="w-full h-full object-cover" />
+                        <img src="https://i.imgur.com/p9E9lai.jpeg" alt="" class="w-full h-full object-cover" />
+                        <img src="https://i.imgur.com/K3nSDpT.jpeg" alt="" class="w-full h-full object-cover" />
+                        <img src="https://i.imgur.com/9d0xZsc.jpeg" alt="" class="w-full h-full object-cover" />
+                        <img src="https://i.imgur.com/GFf8aZe.jpeg" alt="" class="w-full h-full object-cover" />
+                    </div>
+                    <!-- Gradient Overlay -->
+                    <div class="absolute inset-0 bg-gradient-to-br from-green-900/40 to-emerald-900/40"></div>
+                    
+                    <div class="bg-white rounded-lg shadow-xl p-8 max-w-md w-full relative z-10">
+                        <div class="flex items-center justify-center gap-4 mb-6">
+                            <!-- Capybara SVG - More realistic style -->
+                            <svg width="64" height="64" viewBox="0 0 64 64" class="drop-shadow-lg">
+                                <!-- Body - larger, rounder -->
+                                <ellipse cx="32" cy="44" rx="24" ry="16" fill="#8B6914"/>
+                                <!-- Back hump -->
+                                <ellipse cx="28" cy="36" rx="18" ry="12" fill="#9A7B2C"/>
+                                <!-- Head - boxy rectangular shape like real capybara -->
+                                <rect x="12" y="16" rx="8" ry="8" width="40" height="28" fill="#A68B5B"/>
+                                <!-- Lighter face area -->
+                                <rect x="16" y="24" rx="6" ry="6" width="32" height="18" fill="#C4A97D"/>
+                                <!-- Large flat snout/muzzle -->
+                                <ellipse cx="32" cy="36" rx="14" ry="8" fill="#D4BC94"/>
+                                <!-- Nostrils -->
+                                <ellipse cx="27" cy="33" rx="2.5" ry="2" fill="#5D4A2A"/>
+                                <ellipse cx="37" cy="33" rx="2.5" ry="2" fill="#5D4A2A"/>
+                                <!-- Cute smile -->
+                                <path d="M 26 38 Q 32 42 38 38" stroke="#5D4A2A" stroke-width="2" fill="none" stroke-linecap="round"/>
+                                <!-- Small sleepy eyes - capybaras look relaxed -->
+                                <ellipse cx="22" cy="24" rx="3" ry="4" fill="#2D1F14"/>
+                                <ellipse cx="42" cy="24" rx="3" ry="4" fill="#2D1F14"/>
+                                <ellipse cx="22.5" cy="23" rx="1" ry="1.5" fill="white"/>
+                                <ellipse cx="42.5" cy="23" rx="1" ry="1.5" fill="white"/>
+                                <!-- Small rounded ears on top of head -->
+                                <ellipse cx="16" cy="14" rx="4" ry="3" fill="#8B6914"/>
+                                <ellipse cx="48" cy="14" rx="4" ry="3" fill="#8B6914"/>
+                                <ellipse cx="16" cy="14" rx="2.5" ry="1.5" fill="#A68B5B"/>
+                                <ellipse cx="48" cy="14" rx="2.5" ry="1.5" fill="#A68B5B"/>
+                                <!-- Cute blush -->
+                                <ellipse cx="18" cy="30" rx="3" ry="2" fill="#FFB6C1" opacity="0.4"/>
+                                <ellipse cx="46" cy="30" rx="3" ry="2" fill="#FFB6C1" opacity="0.4"/>
+                            </svg>
+                            <!-- Money Sack SVG -->
+                            <svg width="64" height="64" viewBox="0 0 64 64" class="drop-shadow-lg">
+                                <!-- Sack body -->
+                                <ellipse cx="32" cy="42" rx="24" ry="18" fill="#C9A227"/>
+                                <ellipse cx="32" cy="42" rx="20" ry="14" fill="#E6BE44"/>
+                                <!-- Sack top/tie -->
+                                <ellipse cx="32" cy="22" rx="12" ry="8" fill="#C9A227"/>
+                                <rect x="26" y="20" width="12" height="8" fill="#C9A227"/>
+                                <!-- Tie/knot -->
+                                <ellipse cx="32" cy="18" rx="8" ry="4" fill="#8B6914"/>
+                                <rect x="28" y="14" width="8" height="6" fill="#A37F1A"/>
+                                <!-- Sack opening folds -->
+                                <ellipse cx="26" cy="12" rx="6" ry="5" fill="#E6BE44"/>
+                                <ellipse cx="38" cy="12" rx="6" ry="5" fill="#E6BE44"/>
+                                <ellipse cx="32" cy="10" rx="5" ry="4" fill="#C9A227"/>
+                                <!-- Dollar sign on sack -->
+                                <text x="32" y="48" text-anchor="middle" font-size="20" font-weight="bold" fill="#5D4408">$</text>
+                                <!-- Shine highlight -->
+                                <ellipse cx="22" cy="36" rx="4" ry="6" fill="white" opacity="0.3"/>
+                            </svg>
+                            <!-- Squishmallow SVG - Grey with white belly, lop ears from top -->
+                            <svg width="64" height="64" viewBox="0 0 64 64" class="drop-shadow-lg">
+                                <!-- Lop ears - extend up from top then fold over and droop -->
+                                <!-- Left ear - base at top, extends up then folds down left side -->
+                                <path d="M 18 14 C 16 6, 10 4, 6 8 C 0 14, -2 28, 0 42 C 1 48, 4 52, 6 52 C 10 52, 12 46, 12 38 C 12 28, 14 18, 18 14" fill="#9CA3AF"/>
+                                <!-- Right ear - base at top, extends up then folds down right side -->
+                                <path d="M 46 14 C 48 6, 54 4, 58 8 C 64 14, 66 28, 64 42 C 63 48, 60 52, 58 52 C 54 52, 52 46, 52 38 C 52 28, 50 18, 46 14" fill="#9CA3AF"/>
+                                <!-- Main squishy round body - grey -->
+                                <ellipse cx="32" cy="34" rx="26" ry="24" fill="#9CA3AF"/>
+                                <!-- White belly/face area -->
+                                <ellipse cx="32" cy="38" rx="20" ry="18" fill="#E5E7EB"/>
+                                <ellipse cx="32" cy="40" rx="14" ry="12" fill="#F9FAFB"/>
+                                <!-- Characteristic squishmallow closed happy eyes (^ ^) -->
+                                <path d="M 20 30 Q 24 26 28 30" stroke="#374151" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+                                <path d="M 36 30 Q 40 26 44 30" stroke="#374151" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+                                <!-- Small cute nose -->
+                                <ellipse cx="32" cy="36" rx="2" ry="1.5" fill="#9CA3AF"/>
+                                <!-- Tiny happy smile -->
+                                <path d="M 28 40 Q 32 44 36 40" stroke="#374151" stroke-width="2" fill="none" stroke-linecap="round"/>
+                                <!-- Signature squishmallow rosy cheeks -->
+                                <ellipse cx="18" cy="36" rx="4" ry="3" fill="#FDA4AF" opacity="0.6"/>
+                                <ellipse cx="46" cy="36" rx="4" ry="3" fill="#FDA4AF" opacity="0.6"/>
+                                <!-- Soft highlight for plush effect -->
+                                <ellipse cx="24" cy="24" rx="5" ry="3" fill="white" opacity="0.4"/>
+                            </svg>
+                        </div>
+                        <h1 class="text-2xl font-bold text-center text-gray-800 mb-2">
+                            Gabriel Weekly Allowance Challenge
+                        </h1>
+                        <p class="text-center text-gray-600 mb-6 text-sm">Track your chores, earn your allowance! 🌟</p>
+                        <form onsubmit="handleLogin(event); return false;" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">
+                                    Username
+                                </label>
+                                <input
+                                    type="text"
+                                    id="username"
+                                    value="${state.loginForm.username}"
+                                    oninput="state.loginForm.username = this.value"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">
+                                    Password
+                                </label>
+                                <input
+                                    type="password"
+                                    id="password"
+                                    value="${state.loginForm.password}"
+                                    oninput="state.loginForm.password = this.value"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                />
+                            </div>
+                            <button
+                                type="submit"
+                                class="w-full bg-green-500 text-white py-2 rounded-lg hover:bg-green-600 transition font-semibold"
+                            >
+                                Login
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderChildTracker(childKey, childData) {
+            const canEdit = state.currentUser.isParent || state.currentUser.id === childKey;
+            const isOwnCard = state.currentUser.id === childKey;
+            const groupedTasks = groupTasks(childKey);
+            const today = new Date().toDateString();
+            const hasBonus = state.dailyBonusAwarded[childKey][today];
+            
+            // Calculate progress toward bonus (only daily tasks applicable today, excluding weekly/monthly/oneTime/bonus)
+            const dailyBonusTasks = state.tasks.filter(t => {
+                if (state.skippedTasks[childKey].includes(t.id)) return false;
+                if (t.days && (t.days.includes('weekly') || t.days.includes('monthly') || t.days.includes('oneTime'))) return false;
+                // Exclude bonus section tasks (optional tasks don't count toward daily bonus)
+                if (t.section === 'bonus') return false;
+                return isTaskApplicableToday(t);
+            });
+            const completedCount = dailyBonusTasks.filter(t => state.completedTasks[childKey].includes(t.id)).length;
+            const totalActiveTasks = dailyBonusTasks.length;
+            const bonusProgress = totalActiveTasks > 0 ? Math.round((completedCount / totalActiveTasks) * 100) : 0;
+            
+            return `
+                <div class="bg-white rounded-lg shadow-lg p-6">
+                    <div class="flex items-center gap-2 mb-4">
+                        <div class="w-6 h-6 text-green-500">${Icons.DollarSign}</div>
+                        ${state.editingName === childKey && state.currentUser.isParent ? `
+                            <div class="flex gap-2 flex-1">
+                                <input
+                                    type="text"
+                                    value="${state.tempName}"
+                                    oninput="state.tempName = this.value"
+                                    onkeypress="if(event.key === 'Enter') updateChildName('${childKey}', state.tempName)"
+                                    class="flex-1 px-2 py-1 border border-gray-300 rounded"
+                                    autofocus
+                                />
+                                <button
+                                    onclick="updateChildName('${childKey}', state.tempName)"
+                                    class="p-1 bg-green-500 text-white rounded hover:bg-green-600"
+                                >
+                                    <div class="w-4 h-4">${Icons.Check}</div>
+                                </button>
+                            </div>
+                        ` : `
+                            <h2
+                                onclick="${state.currentUser.isParent ? `state.editingName='${childKey}'; state.tempName='${childData.name}'; render();` : ''}"
+                                class="text-xl font-bold text-gray-800 ${state.currentUser.isParent ? 'cursor-pointer hover:text-green-600' : ''}"
+                            >
+                                ${childData.name}${isOwnCard && !state.currentUser.isParent ? ' (You)' : ''}
+                            </h2>
+                        `}
+                    </div>
+                    
+                    <!-- Daily Bonus Indicator -->
+                    <div class="mb-4 p-4 rounded-lg ${hasBonus ? 'bg-gradient-to-r from-yellow-100 to-amber-100 border-2 border-yellow-400' : 'bg-gray-50 border-2 border-gray-200'}">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                ${hasBonus ? `
+                                    <div class="text-4xl animate-bounce">🏆</div>
+                                    <div>
+                                        <div class="text-lg font-bold text-yellow-700">Daily Bonus Earned!</div>
+                                        <div class="text-sm text-yellow-600">+$1.00 for completing all tasks!</div>
+                                    </div>
+                                ` : `
+                                    <div class="text-3xl">🎯</div>
+                                    <div>
+                                        <div class="text-sm font-semibold text-gray-700">Daily Bonus Progress</div>
+                                        <div class="text-xs text-gray-600">${completedCount}/${totalActiveTasks} tasks • Complete all for +$1.00!</div>
+                                    </div>
+                                `}
+                            </div>
+                            ${!hasBonus ? `
+                                <div class="text-2xl font-bold ${bonusProgress === 100 ? 'text-green-600' : 'text-gray-400'}">${bonusProgress}%</div>
+                            ` : ''}
+                        </div>
+                        ${!hasBonus && totalActiveTasks > 0 ? `
+                            <div class="mt-2 bg-gray-200 rounded-full h-2 overflow-hidden">
+                                <div class="bg-gradient-to-r from-green-400 to-emerald-500 h-full transition-all duration-500" style="width: ${bonusProgress}%"></div>
+                            </div>
+                        ` : ''}
+                    </div>
+                    
+                    <!-- Weekly Streak Bonus Progress -->
+                    ${(() => {
+                        const weekDates = getWeekDates();
+                        const weekStart = weekDates[0];
+                        const hasWeeklyBonus = state.weeklyStreakAwarded[childKey][weekStart];
+                        
+                        // Calculate how many days this week they've completed all tasks
+                        let completedDays = 0;
+                        const today = new Date().toDateString();
+                        
+                        for (const date of weekDates) {
+                            const completedForDay = date === today 
+                                ? state.completedTasks[childKey]
+                                : (state.completionHistory[childKey][date] || []);
+                            
+                            const skippedForDay = date === today
+                                ? state.skippedTasks[childKey]
+                                : (state.skippedHistory[childKey][date] || []);
+                            
+                            const dateObj = new Date(date);
+                            const dayOfWeek = dateObj.getDay();
+                            
+                            const applicableTasks = state.tasks.filter(task => {
+                                if (!task.days) return false;
+                                // Exclude weekly, monthly, one-time, and bonus tasks
+                                if (task.days.includes('weekly') || task.days.includes('monthly') || task.days.includes('oneTime')) return false;
+                                // Exclude bonus section tasks (optional tasks don't count toward weekly streak)
+                                if (task.section === 'bonus') return false;
+
+                                const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+                                const dayName = dayNames[dayOfWeek];
+
+                                const appliesToDay = task.days.some(d => {
+                                    if (d === dayName) return true;
+                                    if (d === 'weekday' && dayOfWeek >= 1 && dayOfWeek <= 5) return true;
+                                    return false;
+                                });
+                                return appliesToDay;
+                            });
+                            
+                            const activeTasks = applicableTasks.filter(t => !skippedForDay.includes(t.id));
+                            
+                            if (activeTasks.length === 0) continue;
+                            
+                            const allCompleted = activeTasks.every(t => completedForDay.includes(t.id));
+                            if (allCompleted) completedDays++;
+                        }
+                        
+                        const streakProgress = Math.round((completedDays / 7) * 100);
+                        
+                        return `
+                            <div class="mb-4 p-3 rounded-lg ${hasWeeklyBonus ? 'bg-gradient-to-r from-orange-100 to-red-100 border-2 border-orange-400' : 'bg-blue-50 border-2 border-blue-200'}">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-2">
+                                        ${hasWeeklyBonus ? `
+                                            <div class="text-3xl">🔥</div>
+                                            <div>
+                                                <div class="text-base font-bold text-orange-700">Weekly Streak Bonus!</div>
+                                                <div class="text-xs text-orange-600">+$${state.weeklyStreakBonus.toFixed(2)} for 7 perfect days!</div>
+                                            </div>
+                                        ` : `
+                                            <div class="text-2xl">🔥</div>
+                                            <div>
+                                                <div class="text-sm font-semibold text-blue-700">Weekly Streak Progress</div>
+                                                <div class="text-xs text-blue-600">${completedDays}/7 perfect days • Earn $${state.weeklyStreakBonus.toFixed(2)}!</div>
+                                            </div>
+                                        `}
+                                    </div>
+                                    ${!hasWeeklyBonus ? `
+                                        <div class="text-xl font-bold ${streakProgress === 100 ? 'text-orange-600' : 'text-blue-400'}">${completedDays}/7</div>
+                                    ` : ''}
+                                </div>
+                                ${!hasWeeklyBonus ? `
+                                    <div class="mt-2 bg-blue-200 rounded-full h-2 overflow-hidden">
+                                        <div class="bg-gradient-to-r from-orange-400 to-red-500 h-full transition-all duration-500" style="width: ${streakProgress}%"></div>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `;
+                    })()}
+                    
+                    <div class="mb-4 space-y-2">
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-600">Week Total:</span>
+                            <span class="text-2xl font-bold text-green-600">
+                                $${state.earnings[childKey].weekTotal.toFixed(2)}
+                            </span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-600">Today:</span>
+                            <span class="text-xl font-semibold text-emerald-600">
+                                $${state.earnings[childKey].todayTotal.toFixed(2)}
+                            </span>
+                        </div>
+                        <div class="flex justify-between items-center pt-2 border-t border-gray-200">
+                            <span class="text-sm text-gray-600">${new Date().getFullYear()} Total:</span>
+                            <span class="text-lg font-semibold text-blue-600">
+                                $${getYearlyEarnings(childKey).toFixed(2)}
+                            </span>
+                        </div>
+
+                        ${state.goals[childKey].active ? `
+                            <div class="mt-3 p-3 bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-lg">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <span class="text-2xl">🎯</span>
+                                    <div class="flex-1">
+                                        <div class="text-sm font-semibold text-purple-700">Saving for: ${state.goals[childKey].name}</div>
+                                        <div class="text-xs text-purple-600">Goal: $${state.goals[childKey].amount.toFixed(2)}</div>
+                                    </div>
+                                </div>
+                                <div class="bg-gray-200 rounded-full h-3 overflow-hidden">
+                                    <div class="bg-gradient-to-r from-purple-500 to-pink-500 h-full transition-all duration-500" 
+                                         style="width: ${Math.min(100, (state.earnings[childKey].weekTotal / state.goals[childKey].amount) * 100)}%">
+                                    </div>
+                                </div>
+                                <div class="flex justify-between mt-1 text-xs">
+                                    <span class="text-purple-600 font-semibold">$${state.earnings[childKey].weekTotal.toFixed(2)} saved</span>
+                                    <span class="text-purple-600 font-semibold">
+                                        ${state.earnings[childKey].weekTotal >= state.goals[childKey].amount ? '🎉 Goal Reached!' : `$${(state.goals[childKey].amount - state.earnings[childKey].weekTotal).toFixed(2)} to go`}
+                                    </span>
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                    
+                    ${canEdit ? `
+                        <div class="space-y-4">
+                            <!-- Daily Tasks by Time of Day -->
+                            ${['morning', 'afterSchool', 'evening', 'bonus'].map(section => `
+                                <div>
+                                    <div class="flex items-center gap-2 mb-2">
+                                        ${getSectionIcon(section)}
+                                        <h3 class="font-semibold text-gray-700">${getSectionTitle(section)}</h3>
+                                    </div>
+                                    <div class="space-y-2">
+                                        ${groupedTasks[section].map(task => renderTaskItem(task, childKey)).join('')}
+                                    </div>
+                                </div>
+                            `).join('')}
+
+                            <!-- Weekly Tasks Section (only show if there are weekly tasks) -->
+                            ${groupedTasks.weekly && groupedTasks.weekly.length > 0 ? `
+                                <div class="border-t pt-4 mt-4">
+                                    <div class="flex items-center gap-2 mb-2">
+                                        ${getSectionIcon('weekly')}
+                                        <h3 class="font-semibold text-blue-700">${getSectionTitle('weekly')}</h3>
+                                        <span class="text-xs text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full">Complete once this week</span>
+                                    </div>
+                                    <div class="space-y-2">
+                                        ${groupedTasks.weekly.map(task => renderTaskItem(task, childKey)).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+
+                            <!-- Monthly Tasks Section (only show if there are monthly tasks) -->
+                            ${groupedTasks.monthly && groupedTasks.monthly.length > 0 ? `
+                                <div class="border-t pt-4 mt-4">
+                                    <div class="flex items-center gap-2 mb-2">
+                                        ${getSectionIcon('monthly')}
+                                        <h3 class="font-semibold text-purple-700">${getSectionTitle('monthly')}</h3>
+                                        <span class="text-xs text-purple-500 bg-purple-50 px-2 py-0.5 rounded-full">Complete once this month</span>
+                                    </div>
+                                    <div class="space-y-2">
+                                        ${groupedTasks.monthly.map(task => renderTaskItem(task, childKey)).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+
+                            <!-- One-Time Tasks Section (only show if there are one-time tasks) -->
+                            ${groupedTasks.oneTime && groupedTasks.oneTime.length > 0 ? `
+                                <div class="border-t pt-4 mt-4">
+                                    <div class="flex items-center gap-2 mb-2">
+                                        ${getSectionIcon('oneTime')}
+                                        <h3 class="font-semibold text-orange-700">${getSectionTitle('oneTime')}</h3>
+                                        <span class="text-xs text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full">Special tasks</span>
+                                    </div>
+                                    <div class="space-y-2">
+                                        ${groupedTasks.oneTime.map(task => renderTaskItem(task, childKey)).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    ` : `
+                        <p class="text-sm text-gray-500 italic text-center py-4">
+                            View only - switch to this account to mark chores
+                        </p>
+                    `}
+                </div>
+            `;
+        }
+
+        function renderWeeklyHistory() {
+            if (!state.showHistory || !state.selectedHistoryChild) return '';
+            
+            const weekDates = getWeekDates();
+            
+            return `
+                <div class="space-y-4">
+                    ${weekDates.map(date => {
+                        const dateObj = new Date(date);
+                        const isToday = date === new Date().toDateString();
+                        const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+                        const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                        const completedForDay = isToday 
+                            ? state.completedTasks[state.selectedHistoryChild]
+                            : (state.completionHistory[state.selectedHistoryChild][date] || []);
+                        const skippedForDay = isToday
+                            ? state.skippedTasks[state.selectedHistoryChild]
+                            : (state.skippedHistory[state.selectedHistoryChild][date] || []);
+                        
+                        const activeTasks = state.tasks.filter(t => !skippedForDay.includes(t.id));
+
+                        return `
+                            <div class="border border-gray-200 rounded-lg p-4">
+                                <div class="flex justify-between items-center mb-3">
+                                    <h4 class="font-semibold text-gray-800">
+                                        ${dayName}, ${dateStr} ${isToday ? '(Today)' : ''}
+                                    </h4>
+                                    <span class="text-sm text-gray-600">
+                                        ${completedForDay.length} / ${activeTasks.length} completed
+                                    </span>
+                                </div>
+                                <div class="grid grid-cols-1 gap-2">
+                                    ${state.tasks.map(task => {
+                                        const isCompleted = completedForDay.includes(task.id);
+                                        const isSkipped = skippedForDay.includes(task.id);
+                                        
+                                        return `
+                                            <div class="flex gap-2">
+                                                <button
+                                                    onclick="${isToday 
+                                                        ? `toggleTaskSkipped('${state.selectedHistoryChild}', ${task.id})` 
+                                                        : `toggleHistorySkipped('${state.selectedHistoryChild}', '${date}', ${task.id})`}"
+                                                    class="px-2 py-2 rounded border transition ${
+                                                        isSkipped
+                                                            ? 'bg-gray-200 border-gray-400 text-gray-600'
+                                                            : 'bg-white border-gray-300 text-gray-400 hover:border-gray-400'
+                                                    }"
+                                                    title="${isSkipped ? 'Unskip' : 'Skip (N/A)'}"
+                                                >
+                                                    ${isSkipped ? '↺' : '—'}
+                                                </button>
+                                                <button
+                                                    onclick="${isSkipped ? '' : isToday
+                                                        ? `toggleTaskComplete('${state.selectedHistoryChild}', ${task.id}, ${task.payout}, event)`
+                                                        : `toggleHistoryTask('${state.selectedHistoryChild}', '${date}', ${task.id})`}"
+                                                    ${isSkipped ? 'disabled' : ''}
+                                                    class="flex-1 text-left p-2 rounded border transition ${
+                                                        isSkipped
+                                                            ? 'bg-gray-100 border-gray-300 opacity-50 cursor-not-allowed'
+                                                            : isCompleted
+                                                            ? 'bg-green-50 border-green-300'
+                                                            : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                                                    }"
+                                                >
+                                                    <div class="flex items-center gap-2">
+                                                        <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                                                            isSkipped
+                                                                ? 'bg-gray-300 border-gray-400'
+                                                                : isCompleted 
+                                                                ? 'bg-green-500 border-green-500' 
+                                                                : 'border-gray-300'
+                                                        }">
+                                                            ${isSkipped ? `
+                                                                <span class="text-white text-xs">—</span>
+                                                            ` : isCompleted ? `
+                                                                <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                                                </svg>
+                                                            ` : ''}
+                                                        </div>
+                                                        <span class="text-xs ${
+                                                            isSkipped 
+                                                                ? 'text-gray-400 line-through'
+                                                                : isCompleted 
+                                                                ? 'text-gray-600' 
+                                                                : 'text-gray-700'
+                                                        }">
+                                                            ${task.name}
+                                                        </span>
+                                                    </div>
+                                                </button>
+                                            </div>
+                                        `;
+                                    }).join('')}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+
+        function renderManageTaskItem(task) {
+            return `
+                <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    ${state.editingTaskName === task.id ? `
+                        <div class="flex gap-2 flex-1 mr-3">
+                            <input
+                                type="text"
+                                value="${state.tempTaskName}"
+                                oninput="state.tempTaskName = this.value"
+                                onkeypress="if(event.key === 'Enter') updateTaskName(${task.id}, state.tempTaskName)"
+                                class="flex-1 px-3 py-1 border border-gray-300 rounded"
+                                autofocus
+                            />
+                            <button
+                                onclick="updateTaskName(${task.id}, state.tempTaskName)"
+                                class="p-1 bg-green-500 text-white rounded hover:bg-green-600"
+                            >
+                                <div class="w-4 h-4">${Icons.Check}</div>
+                            </button>
+                        </div>
+                    ` : `
+                        <span
+                            onclick="state.editingTaskName=${task.id}; state.tempTaskName='${task.name.replace(/'/g, "\\'")}'; render();"
+                            class="text-gray-700 flex-1 cursor-pointer hover:text-green-600 mr-3"
+                        >
+                            ${task.name}
+                        </span>
+                    `}
+                    <div class="flex items-center gap-3">
+                        ${state.editingSection === task.id ? `
+                            <select
+                                value="${task.section}"
+                                onchange="updateTaskSection(${task.id}, this.value)"
+                                onblur="state.editingSection=null; render();"
+                                class="px-2 py-1 border border-gray-300 rounded text-sm"
+                                autofocus
+                            >
+                                <option value="morning">Morning</option>
+                                <option value="afterSchool">After School/Afternoon</option>
+                                <option value="evening">Evening</option>
+                                <option value="bonus">Bonus (Optional)</option>
+                            </select>
+                        ` : `
+                            <span
+                                onclick="state.editingSection=${task.id}; render();"
+                                class="text-sm text-gray-500 cursor-pointer hover:text-gray-700"
+                            >
+                                ${getSectionTitle(task.section)}
+                            </span>
+                        `}
+                        ${state.editingDays === task.id ? `
+                            <div class="flex flex-col gap-1 p-2 border border-gray-300 rounded bg-white shadow-lg">
+                                <div class="text-xs font-semibold text-gray-700 mb-1 px-2">Select Days:</div>
+                                <div class="grid grid-cols-4 gap-1">
+                                    <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-1 py-1 rounded">
+                                        <input type="checkbox" ${(task.days || []).includes('monday') ? 'checked' : ''} onchange="toggleEditTaskDay(${task.id}, 'monday')" class="w-3 h-3 text-green-600 rounded" />
+                                        <span class="text-xs">M</span>
+                                    </label>
+                                    <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-1 py-1 rounded">
+                                        <input type="checkbox" ${(task.days || []).includes('tuesday') ? 'checked' : ''} onchange="toggleEditTaskDay(${task.id}, 'tuesday')" class="w-3 h-3 text-green-600 rounded" />
+                                        <span class="text-xs">T</span>
+                                    </label>
+                                    <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-1 py-1 rounded">
+                                        <input type="checkbox" ${(task.days || []).includes('wednesday') ? 'checked' : ''} onchange="toggleEditTaskDay(${task.id}, 'wednesday')" class="w-3 h-3 text-green-600 rounded" />
+                                        <span class="text-xs">W</span>
+                                    </label>
+                                    <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-1 py-1 rounded">
+                                        <input type="checkbox" ${(task.days || []).includes('thursday') ? 'checked' : ''} onchange="toggleEditTaskDay(${task.id}, 'thursday')" class="w-3 h-3 text-green-600 rounded" />
+                                        <span class="text-xs">Th</span>
+                                    </label>
+                                    <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-1 py-1 rounded">
+                                        <input type="checkbox" ${(task.days || []).includes('friday') ? 'checked' : ''} onchange="toggleEditTaskDay(${task.id}, 'friday')" class="w-3 h-3 text-green-600 rounded" />
+                                        <span class="text-xs">F</span>
+                                    </label>
+                                    <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-1 py-1 rounded">
+                                        <input type="checkbox" ${(task.days || []).includes('saturday') ? 'checked' : ''} onchange="toggleEditTaskDay(${task.id}, 'saturday')" class="w-3 h-3 text-blue-600 rounded" />
+                                        <span class="text-xs">Sa</span>
+                                    </label>
+                                    <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-1 py-1 rounded">
+                                        <input type="checkbox" ${(task.days || []).includes('sunday') ? 'checked' : ''} onchange="toggleEditTaskDay(${task.id}, 'sunday')" class="w-3 h-3 text-blue-600 rounded" />
+                                        <span class="text-xs">Su</span>
+                                    </label>
+                                    <button onclick="toggleAllDaysForTask(${task.id})" class="text-xs px-1 py-1 bg-gray-200 hover:bg-gray-300 rounded">All</button>
+                                </div>
+                                <div class="border-t border-gray-200 pt-2 mt-2">
+                                    <div class="text-xs font-semibold text-gray-700 mb-1 px-2">Or special frequency:</div>
+                                    <div class="grid grid-cols-3 gap-1">
+                                        <label class="flex items-center gap-1 cursor-pointer hover:bg-orange-50 px-1 py-1 rounded border ${(task.days || []).includes('oneTime') ? 'border-orange-400 bg-orange-50' : 'border-gray-200'}">
+                                            <input type="checkbox" ${(task.days || []).includes('oneTime') ? 'checked' : ''} onchange="toggleEditTaskDay(${task.id}, 'oneTime')" class="w-3 h-3 text-orange-600 rounded" />
+                                            <span class="text-xs">One-Time</span>
+                                        </label>
+                                        <label class="flex items-center gap-1 cursor-pointer hover:bg-blue-50 px-1 py-1 rounded border ${(task.days || []).includes('weekly') ? 'border-blue-400 bg-blue-50' : 'border-gray-200'}">
+                                            <input type="checkbox" ${(task.days || []).includes('weekly') ? 'checked' : ''} onchange="toggleEditTaskDay(${task.id}, 'weekly')" class="w-3 h-3 text-blue-600 rounded" />
+                                            <span class="text-xs">Weekly</span>
+                                        </label>
+                                        <label class="flex items-center gap-1 cursor-pointer hover:bg-purple-50 px-1 py-1 rounded border ${(task.days || []).includes('monthly') ? 'border-purple-400 bg-purple-50' : 'border-gray-200'}">
+                                            <input type="checkbox" ${(task.days || []).includes('monthly') ? 'checked' : ''} onchange="toggleEditTaskDay(${task.id}, 'monthly')" class="w-3 h-3 text-purple-600 rounded" />
+                                            <span class="text-xs">Monthly</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <button
+                                    onclick="state.editingDays=null; render();"
+                                    class="mt-2 px-2 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600"
+                                >
+                                    Done
+                                </button>
+                            </div>
+                        ` : `
+                            <span
+                                onclick="state.editingDays=${task.id}; render();"
+                                class="text-sm text-blue-500 cursor-pointer hover:text-blue-700"
+                            >
+                                ${getDayLabel(task.days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'])}
+                            </span>
+                        `}
+                        ${state.editingPayout === task.id ? `
+                            <div class="flex items-center gap-2">
+                                <span class="text-gray-600">$</span>
+                                <input
+                                    type="number"
+                                    step="0.05"
+                                    value="${task.payout}"
+                                    onkeypress="if(event.key === 'Enter') updateTaskPayout(${task.id}, this.value)"
+                                    onblur="updateTaskPayout(${task.id}, this.value)"
+                                    class="w-20 px-2 py-1 border border-gray-300 rounded"
+                                    autofocus
+                                />
+                            </div>
+                        ` : `
+                            <span
+                                onclick="state.editingPayout=${task.id}; render();"
+                                class="font-bold text-green-600 cursor-pointer hover:text-green-700"
+                            >
+                                $${task.payout.toFixed(2)}
+                            </span>
+                        `}
+                        <button
+                            onclick="toggleTaskJoint(${task.id})"
+                            class="text-xs px-2 py-1 rounded transition ${
+                                task.isJoint ? 'bg-pink-100 text-pink-700 border border-pink-300' : 'bg-gray-100 text-gray-500'
+                            }"
+                            title="${task.isJoint ? 'Joint task - both kids must complete' : 'Individual task - click to make joint'}"
+                        >
+                            ${task.isJoint ? '👯 Joint' : '👤'}
+                        </button>
+                        <div class="flex flex-col gap-0.5">
+                            <button
+                                onclick="moveTaskUp(${task.id})"
+                                class="p-1 text-gray-500 hover:bg-gray-200 rounded transition text-xs leading-none"
+                                title="Move up"
+                            >
+                                ▲
+                            </button>
+                            <button
+                                onclick="moveTaskDown(${task.id})"
+                                class="p-1 text-gray-500 hover:bg-gray-200 rounded transition text-xs leading-none"
+                                title="Move down"
+                            >
+                                ▼
+                            </button>
+                        </div>
+                        <button
+                            onclick="deleteTask(${task.id})"
+                            class="p-1 text-red-500 hover:bg-red-50 rounded transition"
+                        >
+                            <div class="w-5 h-5">${Icons.X}</div>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderTaskManagement() {
+            if (!state.currentUser.isParent) return '';
+
+            const groupedTasks = groupAllTasks();
+            
+            return `
+                <div class="bg-white rounded-lg shadow-lg p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-bold text-gray-800">Manage Chores</h3>
+                        <button
+                            onclick="state.showAddTask = !state.showAddTask; render();"
+                            class="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition"
+                        >
+                            <div class="w-5 h-5">${Icons.Plus}</div>
+                            Add Chore
+                        </button>
+                    </div>
+
+                    ${state.showAddTask ? `
+                        <div class="mb-4 space-y-2">
+                            <input
+                                type="text"
+                                value="${state.newTaskName}"
+                                oninput="state.newTaskName = this.value"
+                                onkeypress="if(event.key === 'Enter') addTask()"
+                                placeholder="Enter new chore name..."
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                            />
+                            <div class="flex gap-2">
+                                <select
+                                    value="${state.newTaskSection}"
+                                    onchange="state.newTaskSection = this.value"
+                                    class="flex-1 px-4 py-2 border border-gray-300 rounded-lg"
+                                >
+                                    <option value="morning">Morning</option>
+                                    <option value="afterSchool">After School/Afternoon</option>
+                                    <option value="evening">Evening</option>
+                                    <option value="bonus">Bonus (Optional)</option>
+                                </select>
+                            </div>
+                            <div class="border border-gray-300 rounded-lg p-3">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Which days does this chore apply?</label>
+                                <div class="grid grid-cols-4 gap-2 mb-3">
+                                    <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
+                                        <input type="checkbox" ${state.newTaskDays.includes('monday') ? 'checked' : ''} onchange="toggleTaskDay('monday'); render();" class="w-4 h-4 text-green-600 rounded" />
+                                        <span class="text-sm">Mon</span>
+                                    </label>
+                                    <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
+                                        <input type="checkbox" ${state.newTaskDays.includes('tuesday') ? 'checked' : ''} onchange="toggleTaskDay('tuesday'); render();" class="w-4 h-4 text-green-600 rounded" />
+                                        <span class="text-sm">Tue</span>
+                                    </label>
+                                    <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
+                                        <input type="checkbox" ${state.newTaskDays.includes('wednesday') ? 'checked' : ''} onchange="toggleTaskDay('wednesday'); render();" class="w-4 h-4 text-green-600 rounded" />
+                                        <span class="text-sm">Wed</span>
+                                    </label>
+                                    <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
+                                        <input type="checkbox" ${state.newTaskDays.includes('thursday') ? 'checked' : ''} onchange="toggleTaskDay('thursday'); render();" class="w-4 h-4 text-green-600 rounded" />
+                                        <span class="text-sm">Thu</span>
+                                    </label>
+                                    <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
+                                        <input type="checkbox" ${state.newTaskDays.includes('friday') ? 'checked' : ''} onchange="toggleTaskDay('friday'); render();" class="w-4 h-4 text-green-600 rounded" />
+                                        <span class="text-sm">Fri</span>
+                                    </label>
+                                    <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
+                                        <input type="checkbox" ${state.newTaskDays.includes('saturday') ? 'checked' : ''} onchange="toggleTaskDay('saturday'); render();" class="w-4 h-4 text-blue-600 rounded" />
+                                        <span class="text-sm">Sat</span>
+                                    </label>
+                                    <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
+                                        <input type="checkbox" ${state.newTaskDays.includes('sunday') ? 'checked' : ''} onchange="toggleTaskDay('sunday'); render();" class="w-4 h-4 text-blue-600 rounded" />
+                                        <span class="text-sm">Sun</span>
+                                    </label>
+                                    <button onclick="toggleAllDays(); render();" class="text-xs px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded">All/None</button>
+                                </div>
+                                <div class="border-t border-gray-200 pt-2 mt-2">
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Or choose a special frequency:</label>
+                                    <div class="grid grid-cols-3 gap-2">
+                                        <label class="flex items-center gap-1 cursor-pointer hover:bg-orange-50 px-2 py-1 rounded border ${state.newTaskDays.includes('oneTime') ? 'border-orange-400 bg-orange-50' : 'border-gray-200'}">
+                                            <input type="checkbox" ${state.newTaskDays.includes('oneTime') ? 'checked' : ''} onchange="toggleTaskDay('oneTime'); render();" class="w-4 h-4 text-orange-600 rounded" />
+                                            <span class="text-xs">⚡ One-Time</span>
+                                        </label>
+                                        <label class="flex items-center gap-1 cursor-pointer hover:bg-blue-50 px-2 py-1 rounded border ${state.newTaskDays.includes('weekly') ? 'border-blue-400 bg-blue-50' : 'border-gray-200'}">
+                                            <input type="checkbox" ${state.newTaskDays.includes('weekly') ? 'checked' : ''} onchange="toggleTaskDay('weekly'); render();" class="w-4 h-4 text-blue-600 rounded" />
+                                            <span class="text-xs">📆 Weekly</span>
+                                        </label>
+                                        <label class="flex items-center gap-1 cursor-pointer hover:bg-purple-50 px-2 py-1 rounded border ${state.newTaskDays.includes('monthly') ? 'border-purple-400 bg-purple-50' : 'border-gray-200'}">
+                                            <input type="checkbox" ${state.newTaskDays.includes('monthly') ? 'checked' : ''} onchange="toggleTaskDay('monthly'); render();" class="w-4 h-4 text-purple-600 rounded" />
+                                            <span class="text-xs">🗓️ Monthly</span>
+                                        </label>
+                                    </div>
+                                    <p class="text-xs text-gray-500 mt-1">One-Time: today only | Weekly: Sundays | Monthly: 1st of month</p>
+                                </div>
+                            </div>
+                            <button
+                                onclick="addTask()"
+                                class="w-full px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                            >
+                                Add Chore
+                            </button>
+                        </div>
+                    ` : ''}
+
+                    <div class="space-y-4">
+                        ${['morning', 'afterSchool', 'evening', 'bonus'].map(section => `
+                            <div>
+                                <div class="flex items-center gap-2 mb-2">
+                                    ${getSectionIcon(section)}
+                                    <h4 class="font-semibold text-gray-700">${getSectionTitle(section)}</h4>
+                                </div>
+                                <div class="space-y-2">
+                                    ${groupedTasks[section].map(task => renderManageTaskItem(task)).join('')}
+                                </div>
+                            </div>
+                        `).join('')}
+
+                        ${groupedTasks.weekly && groupedTasks.weekly.length > 0 ? `
+                            <div>
+                                <div class="flex items-center gap-2 mb-2">
+                                    <span class="text-blue-500 text-xl">📆</span>
+                                    <h4 class="font-semibold text-blue-700">Weekly Tasks</h4>
+                                </div>
+                                <div class="space-y-2">
+                                    ${groupedTasks.weekly.map(task => renderManageTaskItem(task)).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+
+                        ${groupedTasks.monthly && groupedTasks.monthly.length > 0 ? `
+                            <div>
+                                <div class="flex items-center gap-2 mb-2">
+                                    <span class="text-purple-500 text-xl">🗓️</span>
+                                    <h4 class="font-semibold text-purple-700">Monthly Tasks</h4>
+                                </div>
+                                <div class="space-y-2">
+                                    ${groupedTasks.monthly.map(task => renderManageTaskItem(task)).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+
+                        ${groupedTasks.oneTime && groupedTasks.oneTime.length > 0 ? `
+                            <div>
+                                <div class="flex items-center gap-2 mb-2">
+                                    <span class="text-orange-500 text-xl">⚡</span>
+                                    <h4 class="font-semibold text-orange-700">One-Time Tasks</h4>
+                                </div>
+                                <div class="space-y-2">
+                                    ${groupedTasks.oneTime.map(task => renderManageTaskItem(task)).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderMainApp() {
+            return `
+                <div class="min-h-screen relative overflow-hidden p-4">
+                    <!-- Background Photo Collage -->
+                    <div class="absolute inset-0 grid grid-cols-5 grid-rows-2 gap-0">
+                        <img src="https://i.imgur.com/hs554rR.jpeg" alt="" class="w-full h-full object-cover" />
+                        <img src="https://i.imgur.com/UxW60hx.jpeg" alt="" class="w-full h-full object-cover" />
+                        <img src="https://i.imgur.com/bVp8I7u.jpeg" alt="" class="w-full h-full object-cover" />
+                        <img src="https://i.imgur.com/3QiGgLa.jpeg" alt="" class="w-full h-full object-cover" />
+                        <img src="https://i.imgur.com/uPMRhnF.jpeg" alt="" class="w-full h-full object-cover" />
+                        <img src="https://i.imgur.com/1Nb2UMs.jpeg" alt="" class="w-full h-full object-cover" />
+                        <img src="https://i.imgur.com/p9E9lai.jpeg" alt="" class="w-full h-full object-cover" />
+                        <img src="https://i.imgur.com/K3nSDpT.jpeg" alt="" class="w-full h-full object-cover" />
+                        <img src="https://i.imgur.com/9d0xZsc.jpeg" alt="" class="w-full h-full object-cover" />
+                        <img src="https://i.imgur.com/GFf8aZe.jpeg" alt="" class="w-full h-full object-cover" />
+                    </div>
+                    <!-- Gradient Overlay -->
+                    <div class="absolute inset-0 bg-gradient-to-br from-green-100/70 to-emerald-100/70"></div>
+                    
+                    <div class="max-w-6xl mx-auto relative z-10">
+                        <!-- Header -->
+                        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="flex items-center gap-3">
+                                    <!-- Capybara SVG - More realistic style -->
+                                    <svg width="48" height="48" viewBox="0 0 64 64" class="drop-shadow-md">
+                                        <ellipse cx="32" cy="44" rx="24" ry="16" fill="#8B6914"/>
+                                        <ellipse cx="28" cy="36" rx="18" ry="12" fill="#9A7B2C"/>
+                                        <rect x="12" y="16" rx="8" ry="8" width="40" height="28" fill="#A68B5B"/>
+                                        <rect x="16" y="24" rx="6" ry="6" width="32" height="18" fill="#C4A97D"/>
+                                        <ellipse cx="32" cy="36" rx="14" ry="8" fill="#D4BC94"/>
+                                        <ellipse cx="27" cy="33" rx="2.5" ry="2" fill="#5D4A2A"/>
+                                        <ellipse cx="37" cy="33" rx="2.5" ry="2" fill="#5D4A2A"/>
+                                        <path d="M 26 38 Q 32 42 38 38" stroke="#5D4A2A" stroke-width="2" fill="none" stroke-linecap="round"/>
+                                        <ellipse cx="22" cy="24" rx="3" ry="4" fill="#2D1F14"/>
+                                        <ellipse cx="42" cy="24" rx="3" ry="4" fill="#2D1F14"/>
+                                        <ellipse cx="22.5" cy="23" rx="1" ry="1.5" fill="white"/>
+                                        <ellipse cx="42.5" cy="23" rx="1" ry="1.5" fill="white"/>
+                                        <ellipse cx="16" cy="14" rx="4" ry="3" fill="#8B6914"/>
+                                        <ellipse cx="48" cy="14" rx="4" ry="3" fill="#8B6914"/>
+                                        <ellipse cx="16" cy="14" rx="2.5" ry="1.5" fill="#A68B5B"/>
+                                        <ellipse cx="48" cy="14" rx="2.5" ry="1.5" fill="#A68B5B"/>
+                                        <ellipse cx="18" cy="30" rx="3" ry="2" fill="#FFB6C1" opacity="0.4"/>
+                                        <ellipse cx="46" cy="30" rx="3" ry="2" fill="#FFB6C1" opacity="0.4"/>
+                                    </svg>
+                                    <!-- Money Sack SVG -->
+                                    <svg width="48" height="48" viewBox="0 0 64 64" class="drop-shadow-md">
+                                        <ellipse cx="32" cy="42" rx="24" ry="18" fill="#C9A227"/>
+                                        <ellipse cx="32" cy="42" rx="20" ry="14" fill="#E6BE44"/>
+                                        <ellipse cx="32" cy="22" rx="12" ry="8" fill="#C9A227"/>
+                                        <rect x="26" y="20" width="12" height="8" fill="#C9A227"/>
+                                        <ellipse cx="32" cy="18" rx="8" ry="4" fill="#8B6914"/>
+                                        <rect x="28" y="14" width="8" height="6" fill="#A37F1A"/>
+                                        <ellipse cx="26" cy="12" rx="6" ry="5" fill="#E6BE44"/>
+                                        <ellipse cx="38" cy="12" rx="6" ry="5" fill="#E6BE44"/>
+                                        <ellipse cx="32" cy="10" rx="5" ry="4" fill="#C9A227"/>
+                                        <text x="32" y="48" text-anchor="middle" font-size="20" font-weight="bold" fill="#5D4408">$</text>
+                                        <ellipse cx="22" cy="36" rx="4" ry="6" fill="white" opacity="0.3"/>
+                                    </svg>
+                                    <div>
+                                        <h1 class="text-3xl font-bold text-gray-800">Gabriel Weekly Allowance Challenge</h1>
+                                        <div class="flex items-center gap-3">
+                                            <p class="text-sm text-gray-600">Logged in as: ${state.currentUser.name}</p>
+                                            ${getSyncStatusIndicator()}
+                                        </div>
+                                    </div>
+                                    <!-- Squishmallow SVG - Grey with white belly, lop ears from top -->
+                                    <svg width="48" height="48" viewBox="0 0 64 64" class="drop-shadow-md">
+                                        <path d="M 18 14 C 16 6, 10 4, 6 8 C 0 14, -2 28, 0 42 C 1 48, 4 52, 6 52 C 10 52, 12 46, 12 38 C 12 28, 14 18, 18 14" fill="#9CA3AF"/>
+                                        <path d="M 46 14 C 48 6, 54 4, 58 8 C 64 14, 66 28, 64 42 C 63 48, 60 52, 58 52 C 54 52, 52 46, 52 38 C 52 28, 50 18, 46 14" fill="#9CA3AF"/>
+                                        <ellipse cx="32" cy="34" rx="26" ry="24" fill="#9CA3AF"/>
+                                        <ellipse cx="32" cy="38" rx="20" ry="18" fill="#E5E7EB"/>
+                                        <ellipse cx="32" cy="40" rx="14" ry="12" fill="#F9FAFB"/>
+                                        <path d="M 20 30 Q 24 26 28 30" stroke="#374151" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+                                        <path d="M 36 30 Q 40 26 44 30" stroke="#374151" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+                                        <ellipse cx="32" cy="36" rx="2" ry="1.5" fill="#9CA3AF"/>
+                                        <path d="M 28 40 Q 32 44 36 40" stroke="#374151" stroke-width="2" fill="none" stroke-linecap="round"/>
+                                        <ellipse cx="18" cy="36" rx="4" ry="3" fill="#FDA4AF" opacity="0.6"/>
+                                        <ellipse cx="46" cy="36" rx="4" ry="3" fill="#FDA4AF" opacity="0.6"/>
+                                        <ellipse cx="24" cy="24" rx="5" ry="3" fill="white" opacity="0.4"/>
+                                    </svg>
+                                </div>
+                                <div class="flex gap-2">
+                                    ${state.currentUser.isParent ? `
+                                        <button
+                                            onclick="manualSync()"
+                                            class="p-2 hover:bg-gray-100 rounded-lg transition"
+                                            title="Sync chores from Reward Challenge"
+                                        >
+                                            <div class="w-6 h-6 text-gray-600">${Icons.RefreshCw}</div>
+                                        </button>
+                                        <button
+                                            onclick="state.showSettings = !state.showSettings; render();"
+                                            class="p-2 hover:bg-gray-100 rounded-lg transition"
+                                        >
+                                            <div class="w-6 h-6 text-gray-600">${Icons.Settings}</div>
+                                        </button>
+                                    ` : ''}
+                                    <button
+                                        onclick="startEditingAccount()"
+                                        class="flex items-center gap-2 px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition"
+                                        title="Edit your account"
+                                    >
+                                        My Account
+                                    </button>
+                                    <button
+                                        onclick="handleLogout()"
+                                        class="flex items-center gap-2 px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg transition"
+                                    >
+                                        <div class="w-5 h-5">${Icons.LogOut}</div>
+                                        Logout
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Account Editing Panel -->
+                            ${state.editingAccount ? `
+                                <div class="bg-blue-50 rounded-lg p-4 mb-4 border-2 border-blue-200">
+                                    <h3 class="font-semibold mb-3 text-blue-800">Edit My Account</h3>
+                                    <div class="space-y-3">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                                            <input
+                                                type="text"
+                                                value="${state.tempAccountName}"
+                                                oninput="state.tempAccountName = this.value"
+                                                class="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">New Password (leave blank to keep current)</label>
+                                            <input
+                                                type="password"
+                                                value="${state.tempAccountPassword}"
+                                                oninput="state.tempAccountPassword = this.value"
+                                                placeholder="Enter new password"
+                                                class="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+                                            <input
+                                                type="password"
+                                                value="${state.tempAccountConfirmPassword}"
+                                                oninput="state.tempAccountConfirmPassword = this.value"
+                                                placeholder="Confirm new password"
+                                                class="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                            />
+                                        </div>
+                                        <div class="flex gap-2 pt-2">
+                                            <button
+                                                onclick="saveAccountChanges()"
+                                                class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
+                                            >
+                                                Save Changes
+                                            </button>
+                                            <button
+                                                onclick="cancelEditingAccount()"
+                                                class="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition"
+                                            >
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ` : ''}
+
+                            <!-- Settings Panel -->
+                            ${state.showSettings && state.currentUser.isParent ? `
+                                <div class="bg-gray-50 rounded-lg p-4 mb-4">
+                                    <h3 class="font-semibold mb-3 text-gray-700">Settings</h3>
+                                    
+                                    <!-- Default Payout -->
+                                    <div class="mb-4">
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                                            Default Payout for New Tasks
+                                        </label>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-gray-600">$</span>
+                                            <input
+                                                type="number"
+                                                step="0.05"
+                                                value="${state.defaultPayout}"
+                                                oninput="state.defaultPayout = parseFloat(this.value) || 0"
+                                                class="w-32 px-3 py-2 border border-gray-300 rounded-lg"
+                                            />
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Weekly Streak Bonus -->
+                                    <div class="mb-4 pb-4 border-b border-gray-300">
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                                            Weekly Streak Bonus (Complete All Tasks Every Day for 7 Days)
+                                        </label>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-gray-600">$</span>
+                                            <input
+                                                type="number"
+                                                step="0.50"
+                                                value="${state.weeklyStreakBonus}"
+                                                oninput="state.weeklyStreakBonus = parseFloat(this.value) || 0; saveState();"
+                                                class="w-32 px-3 py-2 border border-gray-300 rounded-lg"
+                                            />
+                                            <span class="text-xs text-gray-500 ml-2">🔥 Streak bonus</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Goal Management -->
+                                    <div class="border-t border-gray-300 pt-4 mb-4">
+                                        <h4 class="font-semibold text-gray-700 mb-3">Goals Management</h4>
+                                        
+                                        ${['maria', 'helena'].map(childKey => `
+                                            <div class="mb-3 p-3 bg-white rounded-lg border border-gray-200">
+                                                <div class="flex items-center justify-between mb-2">
+                                                    <span class="font-medium text-gray-800">${state.users[childKey].name}</span>
+                                                    ${state.goals[childKey].active ? `
+                                                        <span class="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full">Active Goal</span>
+                                                    ` : `
+                                                        <span class="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-full">No Goal</span>
+                                                    `}
+                                                </div>
+                                                
+                                                ${state.editingGoal === childKey ? `
+                                                    <div class="space-y-2">
+                                                        <input
+                                                            type="text"
+                                                            value="${state.tempGoalName}"
+                                                            oninput="state.tempGoalName = this.value"
+                                                            placeholder="Goal name (e.g., Nintendo Switch)"
+                                                            class="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                                                        />
+                                                        <div class="flex items-center gap-2">
+                                                            <span class="text-gray-600">$</span>
+                                                            <input
+                                                                type="number"
+                                                                step="0.01"
+                                                                value="${state.tempGoalAmount}"
+                                                                oninput="state.tempGoalAmount = this.value"
+                                                                placeholder="Amount"
+                                                                class="flex-1 px-3 py-2 border border-gray-300 rounded text-sm"
+                                                            />
+                                                        </div>
+                                                        <div class="flex gap-2">
+                                                            <button
+                                                                onclick="setGoal('${childKey}')"
+                                                                class="flex-1 px-3 py-2 bg-purple-500 text-white text-sm rounded hover:bg-purple-600"
+                                                            >
+                                                                Save Goal
+                                                            </button>
+                                                            <button
+                                                                onclick="state.editingGoal=null; render();"
+                                                                class="px-3 py-2 bg-gray-300 text-gray-700 text-sm rounded hover:bg-gray-400"
+                                                            >
+                                                                Cancel
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ` : `
+                                                    ${state.goals[childKey].active ? `
+                                                        <div class="text-sm text-gray-700 mb-2">
+                                                            <div class="font-medium">${state.goals[childKey].name}</div>
+                                                            <div class="text-gray-600">Target: $${state.goals[childKey].amount.toFixed(2)}</div>
+                                                        </div>
+                                                        <div class="flex gap-2">
+                                                            <button
+                                                                onclick="state.editingGoal='${childKey}'; state.tempGoalName='${state.goals[childKey].name}'; state.tempGoalAmount=${state.goals[childKey].amount}; render();"
+                                                                class="flex-1 px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
+                                                            >
+                                                                Edit
+                                                            </button>
+                                                            <button
+                                                                onclick="deactivateGoal('${childKey}')"
+                                                                class="flex-1 px-3 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
+                                                            >
+                                                                Deactivate
+                                                            </button>
+                                                        </div>
+                                                    ` : `
+                                                        <button
+                                                            onclick="state.editingGoal='${childKey}'; state.tempGoalName=''; state.tempGoalAmount=0; render();"
+                                                            class="w-full px-3 py-2 bg-purple-500 text-white text-sm rounded hover:bg-purple-600"
+                                                        >
+                                                            Set Goal
+                                                        </button>
+                                                    `}
+                                                `}
+                                            </div>
+                                        `).join('')}
+                                    </div>
+
+                                    <!-- Child Account Credentials -->
+                                    <div class="border-t border-gray-300 pt-4 mb-4">
+                                        <h4 class="font-semibold text-gray-700 mb-3">👧 Child Account Credentials</h4>
+                                        <p class="text-xs text-gray-500 mb-3">View usernames and passwords for child accounts</p>
+                                        <div class="space-y-2">
+                                            ${['maria', 'helena'].map(childKey => `
+                                                <div class="p-3 bg-white rounded-lg border border-gray-200">
+                                                    <div class="flex items-center justify-between">
+                                                        <span class="font-medium text-gray-800">${state.users[childKey].name}</span>
+                                                    </div>
+                                                    <div class="mt-2 text-sm text-gray-600">
+                                                        <div class="flex items-center gap-2">
+                                                            <span class="text-gray-500">Username:</span>
+                                                            <span class="font-mono bg-gray-100 px-2 py-0.5 rounded">${state.users[childKey].name}</span>
+                                                        </div>
+                                                        <div class="flex items-center gap-2 mt-1">
+                                                            <span class="text-gray-500">Password:</span>
+                                                            <span class="font-mono bg-gray-100 px-2 py-0.5 rounded">${state.users[childKey].password}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            `).join('')}
+                                        </div>
+                                    </div>
+
+                                    <!-- Reset Chores -->
+                                    <div class="border-t border-gray-300 pt-4 mb-4">
+                                        <h4 class="font-semibold text-gray-700 mb-3">🔄 Reset Chores</h4>
+                                        <div class="space-y-2">
+                                            <button
+                                                onclick="resetToDefaultChores()"
+                                                class="w-full px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition flex items-center justify-center gap-2 font-semibold"
+                                            >
+                                                <span>🔄</span>
+                                                Reset to Every Day
+                                            </button>
+                                            <button
+                                                onclick="resetToWeekdayChores()"
+                                                class="w-full px-4 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition flex items-center justify-center gap-2 font-semibold"
+                                            >
+                                                <span>📅</span>
+                                                Reset to Weekdays Only (Mon-Fri)
+                                            </button>
+                                        </div>
+                                        <p class="text-xs text-gray-500 mt-2">Restores all 14 default chores (Morning, After School, Evening)</p>
+                                    </div>
+
+                                    <!-- Testing Reset -->
+                                    <div class="border-t border-gray-300 pt-4 mb-4">
+                                        <h4 class="font-semibold text-gray-700 mb-3">🧪 Testing Reset</h4>
+                                        <button
+                                            onclick="resetAllDataForTesting()"
+                                            class="w-full px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition flex items-center justify-center gap-2 font-semibold"
+                                        >
+                                            <span>🗑️</span>
+                                            Reset All Data for Testing
+                                        </button>
+                                        <p class="text-xs text-gray-500 mt-2">Clears ALL accumulated money, payout history, completed tasks, and resets task payouts to $0.15. Use for fresh testing.</p>
+                                    </div>
+
+                                    <!-- Backup & Restore -->
+                                    <div class="border-t border-gray-300 pt-4 mb-4">
+                                        <h4 class="font-semibold text-gray-700 mb-3">📦 Backup & Restore</h4>
+                                        <div class="space-y-2">
+                                            <button
+                                                onclick="exportAllData()"
+                                                class="w-full px-4 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition flex items-center justify-center gap-2 font-semibold"
+                                            >
+                                                <span>📥</span>
+                                                Export All Data
+                                            </button>
+                                            <div class="relative">
+                                                <input
+                                                    type="file"
+                                                    id="importFile"
+                                                    accept=".json"
+                                                    onchange="importData(event)"
+                                                    class="hidden"
+                                                />
+                                                <button
+                                                    onclick="document.getElementById('importFile').click()"
+                                                    class="w-full px-4 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition flex items-center justify-center gap-2 font-semibold"
+                                                >
+                                                    <span>📤</span>
+                                                    Import Data
+                                                </button>
+                                            </div>
+                                            <p class="text-xs text-gray-600 italic">
+                                                💡 Export before updating to save your chores and settings. Import to restore from a backup.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Weekly Payout -->
+                                    <div class="border-t border-gray-300 pt-4">
+                                        <h4 class="font-semibold text-gray-700 mb-3">Weekly Payout</h4>
+                                        ${['maria', 'helena'].map(childKey => `
+                                            <div class="mb-2 p-3 bg-white rounded-lg border border-gray-200 flex items-center justify-between">
+                                                <div>
+                                                    <div class="font-medium text-gray-800">${state.users[childKey].name}</div>
+                                                    <div class="text-sm text-gray-600">Week Total: $${state.earnings[childKey].weekTotal.toFixed(2)}</div>
+                                                    <div class="text-xs text-blue-600">${new Date().getFullYear()} Total: $${getYearlyEarnings(childKey).toFixed(2)}</div>
+                                                </div>
+                                                <button
+                                                    onclick="processWeeklyPayout('${childKey}')"
+                                                    class="px-4 py-2 ${state.earnings[childKey].weekTotal > 0 ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-300'} text-white rounded-lg text-sm font-semibold transition"
+                                                    ${state.earnings[childKey].weekTotal === 0 ? 'disabled' : ''}
+                                                >
+                                                    💰 Pay Out
+                                                </button>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+
+                        <!-- Individual Child Trackers -->
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                            ${renderChildTracker('maria', state.users.maria)}
+                            ${renderChildTracker('helena', state.users.helena)}
+                        </div>
+
+                        <!-- Weekly History Section -->
+                        ${state.currentUser.isParent ? `
+                            <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+                                <div class="flex justify-between items-center mb-4">
+                                    <h3 class="text-xl font-bold text-gray-800">Weekly History & Edit</h3>
+                                    <button
+                                        onclick="state.showHistory = !state.showHistory; render();"
+                                        class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
+                                    >
+                                        ${state.showHistory ? 'Hide History' : 'Show History'}
+                                    </button>
+                                </div>
+
+                                ${state.showHistory ? `
+                                    <div class="space-y-6">
+                                        <!-- Child Selector -->
+                                        <div class="flex gap-4">
+                                            <button
+                                                onclick="state.selectedHistoryChild = 'maria'; render();"
+                                                class="flex-1 py-2 px-4 rounded-lg font-semibold transition ${
+                                                    state.selectedHistoryChild === 'maria'
+                                                        ? 'bg-green-500 text-white'
+                                                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                                }"
+                                            >
+                                                Maria
+                                            </button>
+                                            <button
+                                                onclick="state.selectedHistoryChild = 'helena'; render();"
+                                                class="flex-1 py-2 px-4 rounded-lg font-semibold transition ${
+                                                    state.selectedHistoryChild === 'helena'
+                                                        ? 'bg-green-500 text-white'
+                                                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                                }"
+                                            >
+                                                Helena
+                                            </button>
+                                        </div>
+
+                                        ${state.selectedHistoryChild ? renderWeeklyHistory() : `
+                                            <p class="text-center text-gray-500 py-8">
+                                                Select Maria or Helena to view their weekly history
+                                            </p>
+                                        `}
+                                    </div>
+                                ` : ''}
+                            </div>
+                        ` : ''}
+
+                        <!-- Task Management -->
+                        ${state.currentUser.isParent ? renderTaskManagement() : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        function render() {
+            const app = document.getElementById('app');
+            app.innerHTML = state.currentUser ? renderMainApp() : renderLoginScreen();
+        }
+
+        // Initialize
+        loadState();
+        setupRealtimeSync();
+        syncFromReward();
+        checkDailyReset();
+        render();
+
+        // Check for daily reset every minute
+        setInterval(() => {
+            checkDailyReset();
+            render();
+        }, 60000);
+    </script>
+</body>
+</html>
