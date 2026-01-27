@@ -431,8 +431,45 @@
             tempAccountConfirmPassword: ''
         };
 
-        // Sanitize state helper function
+        // Sanitize state helper function - ensures all required properties exist
         function sanitizeState() {
+            // Ensure all required nested objects exist
+            if (!state.users) {
+                state.users = {
+                    mom: { name: 'Mom', password: 'mom123', isParent: true },
+                    dad: { name: 'Dad', password: 'dad123', isParent: true },
+                    maria: { name: 'Maria', password: 'maria', isParent: false },
+                    helena: { name: 'Helena', password: 'helena', isParent: false }
+                };
+            }
+            if (!state.earnings) state.earnings = { maria: { weekTotal: 0, todayTotal: 0 }, helena: { weekTotal: 0, todayTotal: 0 } };
+            if (!state.earnings.maria) state.earnings.maria = { weekTotal: 0, todayTotal: 0 };
+            if (!state.earnings.helena) state.earnings.helena = { weekTotal: 0, todayTotal: 0 };
+            if (!state.completedTasks) state.completedTasks = { maria: [], helena: [] };
+            if (!state.completedTasks.maria) state.completedTasks.maria = [];
+            if (!state.completedTasks.helena) state.completedTasks.helena = [];
+            if (!state.skippedTasks) state.skippedTasks = { maria: [], helena: [] };
+            if (!state.skippedTasks.maria) state.skippedTasks.maria = [];
+            if (!state.skippedTasks.helena) state.skippedTasks.helena = [];
+            if (!state.completionHistory) state.completionHistory = { maria: {}, helena: {} };
+            if (!state.completionHistory.maria) state.completionHistory.maria = {};
+            if (!state.completionHistory.helena) state.completionHistory.helena = {};
+            if (!state.skippedHistory) state.skippedHistory = { maria: {}, helena: {} };
+            if (!state.skippedHistory.maria) state.skippedHistory.maria = {};
+            if (!state.skippedHistory.helena) state.skippedHistory.helena = {};
+            if (!state.payoutHistory) state.payoutHistory = { maria: [], helena: [] };
+            if (!state.payoutHistory.maria) state.payoutHistory.maria = [];
+            if (!state.payoutHistory.helena) state.payoutHistory.helena = [];
+            if (!state.goals) state.goals = { maria: null, helena: null };
+            if (!state.weeklyStreakAwarded) state.weeklyStreakAwarded = { maria: {}, helena: {} };
+            if (!state.weeklyStreakAwarded.maria) state.weeklyStreakAwarded.maria = {};
+            if (!state.weeklyStreakAwarded.helena) state.weeklyStreakAwarded.helena = {};
+            if (!state.yearlyEarnings) state.yearlyEarnings = { maria: {}, helena: {} };
+            if (!state.yearlyEarnings.maria) state.yearlyEarnings.maria = {};
+            if (!state.yearlyEarnings.helena) state.yearlyEarnings.helena = {};
+            if (!state.tasks) state.tasks = [];
+            if (!state.lastResetDate) state.lastResetDate = new Date().toDateString();
+
             // Sanitize: Ensure earnings are never negative
             ['maria', 'helena'].forEach(childKey => {
                 if (state.earnings[childKey]) {
@@ -445,11 +482,9 @@
                 }
             });
 
-            // Migrate: Initialize yearlyEarnings if not present
-            if (!state.yearlyEarnings) {
-                state.yearlyEarnings = { maria: {}, helena: {} };
-                // Calculate from existing payout history
-                ['maria', 'helena'].forEach(childKey => {
+            // Migrate: Initialize yearlyEarnings from payout history if empty
+            ['maria', 'helena'].forEach(childKey => {
+                if (Object.keys(state.yearlyEarnings[childKey]).length === 0) {
                     (state.payoutHistory[childKey] || []).forEach(payout => {
                         const year = new Date(payout.date).getFullYear().toString();
                         if (!state.yearlyEarnings[childKey][year]) {
@@ -457,8 +492,8 @@
                         }
                         state.yearlyEarnings[childKey][year] += payout.amount;
                     });
-                });
-            }
+                }
+            });
         }
 
         // Load state from localStorage (immediate) then sync with Firebase
@@ -471,11 +506,12 @@
                     Object.assign(state, parsed);
                     state.currentUser = null; // Don't persist login
                     state.loginForm = { username: '', password: '' };
-                    sanitizeState();
                 }
             } catch (e) {
                 console.log('Could not load state from localStorage');
             }
+            // Always sanitize to ensure all required properties exist
+            sanitizeState();
 
             // Then sync with Firebase (will update if newer data exists)
             syncStatus = 'syncing';
