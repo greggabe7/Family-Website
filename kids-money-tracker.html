@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gabriel Weekly Allowance Challenge</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -144,6 +147,23 @@
     <div id="app"></div>
 
     <script>
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyARiateAk1EJggk09iMDdCvNZDPDNcu7EU",
+            authDomain: "gabriel-family-allowance.firebaseapp.com",
+            databaseURL: "https://gabriel-family-allowance-default-rtdb.firebaseio.com",
+            projectId: "gabriel-family-allowance",
+            storageBucket: "gabriel-family-allowance.firebasestorage.app",
+            messagingSenderId: "351490113717",
+            appId: "1:351490113717:web:01af4592fa8f08039dfefc"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // Sync status tracking
+        let syncStatus = 'connecting'; // 'connected', 'syncing', 'offline', 'connecting'
+        let lastSyncTime = null;
+
         // Lucide icons as SVG strings
         const Icons = {
             DollarSign: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>`,
@@ -310,7 +330,7 @@
             newTaskSection: 'morning',
             newTaskDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], // All days by default
             lastResetDate: new Date().toDateString(),
-            defaultPayout: 0.25,
+            defaultPayout: 0.15,
             syncedFromReward: false,
             editingName: null,
             tempName: '',
@@ -328,20 +348,20 @@
             tempGoalAmount: 0,
             
             tasks: [
-                { id: 1, name: 'Brush teeth and hair without being asked', section: 'morning', payout: 0.25, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
-                { id: 2, name: 'Make bed', section: 'morning', payout: 0.25, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
-                { id: 3, name: 'Take vitamins', section: 'morning', payout: 0.25, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
-                { id: 4, name: 'Fill water bottle', section: 'morning', payout: 0.25, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
-                { id: 5, name: 'Out door by 7:45', section: 'morning', payout: 0.25, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
-                { id: 6, name: 'Hang backpack and coat up', section: 'afterSchool', payout: 0.25, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
-                { id: 7, name: 'Empty lunch and/or snack box', section: 'afterSchool', payout: 0.25, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
-                { id: 8, name: 'Put water bottle at sink', section: 'afterSchool', payout: 0.25, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
-                { id: 9, name: 'Practice a skill 10 mins', section: 'evening', payout: 0.25, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
-                { id: 10, name: 'Schoolwork for 20 mins', section: 'evening', payout: 0.25, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
-                { id: 11, name: 'Brush teeth and rinse nose without being asked', section: 'evening', payout: 0.25, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
-                { id: 12, name: 'Prepare backpack for following day', section: 'evening', payout: 0.25, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
-                { id: 13, name: 'Clean up living room and garage', section: 'evening', payout: 0.25, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
-                { id: 14, name: 'Shower AND hang up towel', section: 'evening', payout: 0.25, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false }
+                { id: 1, name: 'Brush teeth and hair without being asked', section: 'morning', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
+                { id: 2, name: 'Make bed', section: 'morning', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
+                { id: 3, name: 'Take vitamins', section: 'morning', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
+                { id: 4, name: 'Fill water bottle', section: 'morning', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
+                { id: 5, name: 'Out door by 7:45', section: 'morning', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
+                { id: 6, name: 'Hang backpack and coat up', section: 'afterSchool', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
+                { id: 7, name: 'Empty lunch and/or snack box', section: 'afterSchool', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
+                { id: 8, name: 'Put water bottle at sink', section: 'afterSchool', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
+                { id: 9, name: 'Practice a skill 10 mins', section: 'evening', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
+                { id: 10, name: 'Schoolwork for 20 mins', section: 'evening', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
+                { id: 11, name: 'Brush teeth and rinse nose without being asked', section: 'evening', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
+                { id: 12, name: 'Prepare backpack for following day', section: 'evening', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
+                { id: 13, name: 'Clean up living room and garage', section: 'evening', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
+                { id: 14, name: 'Shower AND hang up towel', section: 'evening', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false }
             ],
             
             users: {
@@ -411,8 +431,39 @@
             tempAccountConfirmPassword: ''
         };
 
-        // Load state from localStorage
+        // Sanitize state helper function
+        function sanitizeState() {
+            // Sanitize: Ensure earnings are never negative
+            ['maria', 'helena'].forEach(childKey => {
+                if (state.earnings[childKey]) {
+                    if (state.earnings[childKey].weekTotal < 0) {
+                        state.earnings[childKey].weekTotal = 0;
+                    }
+                    if (state.earnings[childKey].todayTotal < 0) {
+                        state.earnings[childKey].todayTotal = 0;
+                    }
+                }
+            });
+
+            // Migrate: Initialize yearlyEarnings if not present
+            if (!state.yearlyEarnings) {
+                state.yearlyEarnings = { maria: {}, helena: {} };
+                // Calculate from existing payout history
+                ['maria', 'helena'].forEach(childKey => {
+                    (state.payoutHistory[childKey] || []).forEach(payout => {
+                        const year = new Date(payout.date).getFullYear().toString();
+                        if (!state.yearlyEarnings[childKey][year]) {
+                            state.yearlyEarnings[childKey][year] = 0;
+                        }
+                        state.yearlyEarnings[childKey][year] += payout.amount;
+                    });
+                });
+            }
+        }
+
+        // Load state from localStorage (immediate) then sync with Firebase
         function loadState() {
+            // First load from localStorage for immediate display
             try {
                 const saved = localStorage.getItem('moneyTrackerState');
                 if (saved) {
@@ -420,38 +471,158 @@
                     Object.assign(state, parsed);
                     state.currentUser = null; // Don't persist login
                     state.loginForm = { username: '', password: '' };
-
-                    // Migrate: Initialize yearlyEarnings if not present
-                    if (!state.yearlyEarnings) {
-                        state.yearlyEarnings = { maria: {}, helena: {} };
-                        // Calculate from existing payout history
-                        ['maria', 'helena'].forEach(childKey => {
-                            (state.payoutHistory[childKey] || []).forEach(payout => {
-                                const year = new Date(payout.date).getFullYear().toString();
-                                if (!state.yearlyEarnings[childKey][year]) {
-                                    state.yearlyEarnings[childKey][year] = 0;
-                                }
-                                state.yearlyEarnings[childKey][year] += payout.amount;
-                            });
-                        });
-                        saveState();
-                    }
+                    sanitizeState();
                 }
             } catch (e) {
-                console.log('Could not load state');
+                console.log('Could not load state from localStorage');
+            }
+
+            // Then sync with Firebase (will update if newer data exists)
+            syncStatus = 'syncing';
+            database.ref('allowanceData').once('value')
+                .then(snapshot => {
+                    if (snapshot.exists()) {
+                        const firebaseData = snapshot.val();
+                        const currentUser = state.currentUser; // Preserve login
+                        Object.assign(state, firebaseData);
+                        state.currentUser = currentUser;
+                        state.loginForm = { username: '', password: '' };
+                        sanitizeState();
+                        localStorage.setItem('moneyTrackerState', JSON.stringify(firebaseData));
+                        lastSyncTime = new Date();
+                        syncStatus = 'connected';
+                        render();
+                    } else {
+                        // No data in Firebase yet, migrate local data
+                        migrateToFirebase();
+                        syncStatus = 'connected';
+                    }
+                })
+                .catch(err => {
+                    console.error('Firebase load error:', err);
+                    syncStatus = 'offline';
+                    render();
+                });
+        }
+
+        // Save state to localStorage and Firebase
+        function saveState() {
+            const toSave = { ...state };
+            delete toSave.currentUser;
+            delete toSave.loginForm;
+
+            // Save to localStorage as backup
+            try {
+                localStorage.setItem('moneyTrackerState', JSON.stringify(toSave));
+            } catch (e) {
+                console.log('Could not save state to localStorage');
+            }
+
+            // Save to Firebase
+            syncStatus = 'syncing';
+            render();
+            database.ref('allowanceData').set(toSave)
+                .then(() => {
+                    lastSyncTime = new Date();
+                    syncStatus = 'connected';
+                    render();
+                })
+                .catch(err => {
+                    console.error('Firebase save error:', err);
+                    syncStatus = 'offline';
+                    render();
+                });
+        }
+
+        // Setup real-time sync listener for changes from other devices
+        function setupRealtimeSync() {
+            database.ref('allowanceData').on('value', (snapshot) => {
+                if (snapshot.exists()) {
+                    const firebaseData = snapshot.val();
+                    // Create comparison objects without transient state
+                    const currentData = { ...state };
+                    delete currentData.currentUser;
+                    delete currentData.loginForm;
+                    const currentJson = JSON.stringify(currentData);
+                    const newJson = JSON.stringify(firebaseData);
+
+                    // Only update if data is different (avoid infinite loops)
+                    if (currentJson !== newJson) {
+                        const currentUser = state.currentUser; // Preserve login
+                        Object.assign(state, firebaseData);
+                        state.currentUser = currentUser;
+                        state.loginForm = { username: '', password: '' };
+                        sanitizeState();
+                        localStorage.setItem('moneyTrackerState', JSON.stringify(firebaseData));
+                        lastSyncTime = new Date();
+                        syncStatus = 'connected';
+                        render();
+                    }
+                }
+            }, (err) => {
+                console.error('Firebase realtime sync error:', err);
+                syncStatus = 'offline';
+                render();
+            });
+
+            // Monitor connection state
+            database.ref('.info/connected').on('value', (snapshot) => {
+                if (snapshot.val() === true) {
+                    syncStatus = 'connected';
+                } else {
+                    syncStatus = 'offline';
+                }
+                render();
+            });
+        }
+
+        // Migrate existing localStorage data to Firebase on first use
+        function migrateToFirebase() {
+            const migrated = localStorage.getItem('firebaseMigrated');
+            if (!migrated) {
+                const saved = localStorage.getItem('moneyTrackerState');
+                if (saved) {
+                    const data = JSON.parse(saved);
+                    database.ref('allowanceData').set(data)
+                        .then(() => {
+                            localStorage.setItem('firebaseMigrated', 'true');
+                            console.log('Data migrated to Firebase successfully');
+                            syncStatus = 'connected';
+                            lastSyncTime = new Date();
+                        })
+                        .catch(err => {
+                            console.error('Migration error:', err);
+                        });
+                } else {
+                    localStorage.setItem('firebaseMigrated', 'true');
+                }
             }
         }
 
-        // Save state to localStorage
-        function saveState() {
-            try {
-                const toSave = { ...state };
-                delete toSave.currentUser;
-                delete toSave.loginForm;
-                localStorage.setItem('moneyTrackerState', JSON.stringify(toSave));
-            } catch (e) {
-                console.log('Could not save state');
-            }
+        // Get sync status indicator HTML
+        function getSyncStatusIndicator() {
+            const colors = {
+                connected: 'bg-green-500',
+                syncing: 'bg-yellow-500 animate-pulse',
+                offline: 'bg-red-500',
+                connecting: 'bg-yellow-500 animate-pulse'
+            };
+            const labels = {
+                connected: 'Synced',
+                syncing: 'Syncing...',
+                offline: 'Offline',
+                connecting: 'Connecting...'
+            };
+            const color = colors[syncStatus] || colors.connecting;
+            const label = labels[syncStatus] || labels.connecting;
+            const timeStr = lastSyncTime ? lastSyncTime.toLocaleTimeString() : '';
+
+            return `
+                <div class="flex items-center gap-2 text-xs text-gray-500" title="Last synced: ${timeStr}">
+                    <div class="w-2 h-2 rounded-full ${color}"></div>
+                    <span>${label}</span>
+                </div>
+            `;
         }
 
         // Check for daily reset
@@ -546,20 +717,20 @@
 
             const allDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
             state.tasks = [
-                { id: 1, name: 'Brush teeth and hair without being asked', section: 'morning', payout: 0.25, days: [...allDays], frequency: 'daily', isJoint: false },
-                { id: 2, name: 'Make bed', section: 'morning', payout: 0.25, days: [...allDays], frequency: 'daily', isJoint: false },
-                { id: 3, name: 'Take vitamins', section: 'morning', payout: 0.25, days: [...allDays], frequency: 'daily', isJoint: false },
-                { id: 4, name: 'Fill water bottle', section: 'morning', payout: 0.25, days: [...allDays], frequency: 'daily', isJoint: false },
-                { id: 5, name: 'Out door by 7:45', section: 'morning', payout: 0.25, days: [...allDays], frequency: 'daily', isJoint: false },
-                { id: 6, name: 'Hang backpack and coat up', section: 'afterSchool', payout: 0.25, days: [...allDays], frequency: 'daily', isJoint: false },
-                { id: 7, name: 'Empty lunch and/or snack box', section: 'afterSchool', payout: 0.25, days: [...allDays], frequency: 'daily', isJoint: false },
-                { id: 8, name: 'Put water bottle at sink', section: 'afterSchool', payout: 0.25, days: [...allDays], frequency: 'daily', isJoint: false },
-                { id: 9, name: 'Practice a skill 10 mins', section: 'evening', payout: 0.25, days: [...allDays], frequency: 'daily', isJoint: false },
-                { id: 10, name: 'Schoolwork for 20 mins', section: 'evening', payout: 0.25, days: [...allDays], frequency: 'daily', isJoint: false },
-                { id: 11, name: 'Brush teeth and rinse nose without being asked', section: 'evening', payout: 0.25, days: [...allDays], frequency: 'daily', isJoint: false },
-                { id: 12, name: 'Prepare backpack for following day', section: 'evening', payout: 0.25, days: [...allDays], frequency: 'daily', isJoint: false },
-                { id: 13, name: 'Clean up living room and garage', section: 'evening', payout: 0.25, days: [...allDays], frequency: 'daily', isJoint: false },
-                { id: 14, name: 'Shower AND hang up towel', section: 'evening', payout: 0.25, days: [...allDays], frequency: 'daily', isJoint: false }
+                { id: 1, name: 'Brush teeth and hair without being asked', section: 'morning', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
+                { id: 2, name: 'Make bed', section: 'morning', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
+                { id: 3, name: 'Take vitamins', section: 'morning', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
+                { id: 4, name: 'Fill water bottle', section: 'morning', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
+                { id: 5, name: 'Out door by 7:45', section: 'morning', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
+                { id: 6, name: 'Hang backpack and coat up', section: 'afterSchool', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
+                { id: 7, name: 'Empty lunch and/or snack box', section: 'afterSchool', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
+                { id: 8, name: 'Put water bottle at sink', section: 'afterSchool', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
+                { id: 9, name: 'Practice a skill 10 mins', section: 'evening', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
+                { id: 10, name: 'Schoolwork for 20 mins', section: 'evening', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
+                { id: 11, name: 'Brush teeth and rinse nose without being asked', section: 'evening', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
+                { id: 12, name: 'Prepare backpack for following day', section: 'evening', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
+                { id: 13, name: 'Clean up living room and garage', section: 'evening', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
+                { id: 14, name: 'Shower AND hang up towel', section: 'evening', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false }
             ];
 
             saveState();
@@ -572,24 +743,77 @@
 
             const weekdays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
             state.tasks = [
-                { id: 1, name: 'Brush teeth and hair without being asked', section: 'morning', payout: 0.25, days: [...weekdays], frequency: 'daily', isJoint: false },
-                { id: 2, name: 'Make bed', section: 'morning', payout: 0.25, days: [...weekdays], frequency: 'daily', isJoint: false },
-                { id: 3, name: 'Take vitamins', section: 'morning', payout: 0.25, days: [...weekdays], frequency: 'daily', isJoint: false },
-                { id: 4, name: 'Fill water bottle', section: 'morning', payout: 0.25, days: [...weekdays], frequency: 'daily', isJoint: false },
-                { id: 5, name: 'Out door by 7:45', section: 'morning', payout: 0.25, days: [...weekdays], frequency: 'daily', isJoint: false },
-                { id: 6, name: 'Hang backpack and coat up', section: 'afterSchool', payout: 0.25, days: [...weekdays], frequency: 'daily', isJoint: false },
-                { id: 7, name: 'Empty lunch and/or snack box', section: 'afterSchool', payout: 0.25, days: [...weekdays], frequency: 'daily', isJoint: false },
-                { id: 8, name: 'Put water bottle at sink', section: 'afterSchool', payout: 0.25, days: [...weekdays], frequency: 'daily', isJoint: false },
-                { id: 9, name: 'Practice a skill 10 mins', section: 'evening', payout: 0.25, days: [...weekdays], frequency: 'daily', isJoint: false },
-                { id: 10, name: 'Schoolwork for 20 mins', section: 'evening', payout: 0.25, days: [...weekdays], frequency: 'daily', isJoint: false },
-                { id: 11, name: 'Brush teeth and rinse nose without being asked', section: 'evening', payout: 0.25, days: [...weekdays], frequency: 'daily', isJoint: false },
-                { id: 12, name: 'Prepare backpack for following day', section: 'evening', payout: 0.25, days: [...weekdays], frequency: 'daily', isJoint: false },
-                { id: 13, name: 'Clean up living room and garage', section: 'evening', payout: 0.25, days: [...weekdays], frequency: 'daily', isJoint: false },
-                { id: 14, name: 'Shower AND hang up towel', section: 'evening', payout: 0.25, days: [...weekdays], frequency: 'daily', isJoint: false }
+                { id: 1, name: 'Brush teeth and hair without being asked', section: 'morning', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
+                { id: 2, name: 'Make bed', section: 'morning', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
+                { id: 3, name: 'Take vitamins', section: 'morning', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
+                { id: 4, name: 'Fill water bottle', section: 'morning', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
+                { id: 5, name: 'Out door by 7:45', section: 'morning', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
+                { id: 6, name: 'Hang backpack and coat up', section: 'afterSchool', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
+                { id: 7, name: 'Empty lunch and/or snack box', section: 'afterSchool', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
+                { id: 8, name: 'Put water bottle at sink', section: 'afterSchool', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
+                { id: 9, name: 'Practice a skill 10 mins', section: 'evening', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
+                { id: 10, name: 'Schoolwork for 20 mins', section: 'evening', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
+                { id: 11, name: 'Brush teeth and rinse nose without being asked', section: 'evening', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
+                { id: 12, name: 'Prepare backpack for following day', section: 'evening', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
+                { id: 13, name: 'Clean up living room and garage', section: 'evening', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
+                { id: 14, name: 'Shower AND hang up towel', section: 'evening', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false }
             ];
 
             saveState();
             alert('Chores have been reset to defaults (Weekdays Only: Mon-Fri)!');
+            render();
+        }
+
+        function resetAllDataForTesting() {
+            if (!confirm('⚠️ WARNING: This will clear ALL accumulated money, payout history, completed tasks, and reset everything to fresh defaults. This cannot be undone!\n\nAre you sure you want to reset all data for testing?')) return;
+
+            // Reset earnings to zero
+            state.earnings = {
+                maria: { weekTotal: 0, todayTotal: 0 },
+                helena: { weekTotal: 0, todayTotal: 0 }
+            };
+
+            // Clear payout history
+            state.payoutHistory = {
+                maria: [],
+                helena: []
+            };
+
+            // Clear yearly earnings
+            state.yearlyEarnings = {
+                maria: {},
+                helena: {}
+            };
+
+            // Clear completed tasks
+            state.completedTasks = { maria: [], helena: [] };
+
+            // Clear skipped tasks
+            state.skippedTasks = { maria: [], helena: [] };
+
+            // Clear completion history
+            state.completionHistory = { maria: {}, helena: {} };
+
+            // Clear skipped history
+            state.skippedHistory = { maria: {}, helena: {} };
+
+            // Clear daily bonus awarded
+            state.dailyBonusAwarded = { maria: {}, helena: {} };
+
+            // Reset default payout to 0.15
+            state.defaultPayout = 0.15;
+
+            // Reset all task payouts to default 0.15
+            state.tasks.forEach(task => {
+                task.payout = 0.15;
+            });
+
+            // Clear goals progress (keep goals but reset saved amount)
+            state.goals.maria.saved = 0;
+            state.goals.helena.saved = 0;
+
+            saveState();
+            alert('All data has been reset for testing! All earnings, payouts, and task completions have been cleared. Task payouts set to $0.15.');
             render();
         }
 
@@ -712,22 +936,41 @@
                     otherChildPayout = taskPayout; // Other child also gets paid now
                 } else if (!thisCompleted && otherCompleted) {
                     // This child unchecked, other still has it - remove payout from BOTH
-                    actualPayout = -taskPayout;
-                    otherChildPayout = -taskPayout; // Other child loses payout too
+                    // Use positive values here; the subtraction happens below
+                    actualPayout = taskPayout;
+                    otherChildPayout = taskPayout;
                 } else {
                     // Only one has completed (or both unchecked) - no payout yet
                     actualPayout = 0;
                 }
             }
 
+            // Calculate the change: subtract when unchecking (isCompleted=true), add when checking
             const pointChange = isCompleted ? -actualPayout : actualPayout;
-            state.earnings[childKey].weekTotal += pointChange;
-            state.earnings[childKey].todayTotal += pointChange;
+
+            // Prevent earnings from going negative
+            if (pointChange < 0) {
+                const newWeekTotal = state.earnings[childKey].weekTotal + pointChange;
+                const newTodayTotal = state.earnings[childKey].todayTotal + pointChange;
+                state.earnings[childKey].weekTotal = Math.max(0, newWeekTotal);
+                state.earnings[childKey].todayTotal = Math.max(0, newTodayTotal);
+            } else {
+                state.earnings[childKey].weekTotal += pointChange;
+                state.earnings[childKey].todayTotal += pointChange;
+            }
 
             // For joint tasks, also update the other child's earnings
             if (task && task.isJoint && otherChildPayout !== 0) {
-                state.earnings[otherChild].weekTotal += otherChildPayout;
-                state.earnings[otherChild].todayTotal += otherChildPayout;
+                const otherPointChange = isCompleted ? -otherChildPayout : otherChildPayout;
+                if (otherPointChange < 0) {
+                    const newOtherWeekTotal = state.earnings[otherChild].weekTotal + otherPointChange;
+                    const newOtherTodayTotal = state.earnings[otherChild].todayTotal + otherPointChange;
+                    state.earnings[otherChild].weekTotal = Math.max(0, newOtherWeekTotal);
+                    state.earnings[otherChild].todayTotal = Math.max(0, newOtherTodayTotal);
+                } else {
+                    state.earnings[otherChild].weekTotal += otherPointChange;
+                    state.earnings[otherChild].todayTotal += otherPointChange;
+                }
             }
 
             checkDailyBonus(childKey);
@@ -743,15 +986,15 @@
 
         function toggleTaskSkipped(childKey, taskId) {
             if (!state.currentUser?.isParent) return;
-            
+
             const isSkipped = state.skippedTasks[childKey].includes(taskId);
             const isCompleted = state.completedTasks[childKey].includes(taskId);
-            
+
             if (isSkipped && isCompleted) {
                 const task = state.tasks.find(t => t.id === taskId);
                 state.completedTasks[childKey] = state.completedTasks[childKey].filter(id => id !== taskId);
-                state.earnings[childKey].weekTotal -= task.payout;
-                state.earnings[childKey].todayTotal -= task.payout;
+                state.earnings[childKey].weekTotal = Math.max(0, state.earnings[childKey].weekTotal - task.payout);
+                state.earnings[childKey].todayTotal = Math.max(0, state.earnings[childKey].todayTotal - task.payout);
             }
             
             if (isSkipped) {
@@ -1270,7 +1513,11 @@
             const task = state.tasks.find(t => t.id === taskId);
             if (task) {
                 const pointChange = isCompleted ? -task.payout : task.payout;
-                state.earnings[childKey].weekTotal += pointChange;
+                if (pointChange < 0) {
+                    state.earnings[childKey].weekTotal = Math.max(0, state.earnings[childKey].weekTotal + pointChange);
+                } else {
+                    state.earnings[childKey].weekTotal += pointChange;
+                }
             }
 
             saveState();
@@ -1281,16 +1528,16 @@
             if (!state.skippedHistory[childKey][date]) {
                 state.skippedHistory[childKey][date] = [];
             }
-            
+
             const dateSkipped = state.skippedHistory[childKey][date];
             const isSkipped = dateSkipped.includes(taskId);
             const dateCompleted = state.completionHistory[childKey][date] || [];
             const isCompleted = dateCompleted.includes(taskId);
-            
+
             if (isSkipped && isCompleted) {
                 const task = state.tasks.find(t => t.id === taskId);
                 state.completionHistory[childKey][date] = dateCompleted.filter(id => id !== taskId);
-                state.earnings[childKey].weekTotal -= task.payout;
+                state.earnings[childKey].weekTotal = Math.max(0, state.earnings[childKey].weekTotal - task.payout);
             }
             
             if (isSkipped) {
@@ -2462,7 +2709,7 @@
                                 <span class="text-gray-600">$</span>
                                 <input
                                     type="number"
-                                    step="0.25"
+                                    step="0.05"
                                     value="${task.payout}"
                                     onkeypress="if(event.key === 'Enter') updateTaskPayout(${task.id}, this.value)"
                                     onblur="updateTaskPayout(${task.id}, this.value)"
@@ -2729,7 +2976,10 @@
                                     </svg>
                                     <div>
                                         <h1 class="text-3xl font-bold text-gray-800">Gabriel Weekly Allowance Challenge</h1>
-                                        <p class="text-sm text-gray-600">Logged in as: ${state.currentUser.name}</p>
+                                        <div class="flex items-center gap-3">
+                                            <p class="text-sm text-gray-600">Logged in as: ${state.currentUser.name}</p>
+                                            ${getSyncStatusIndicator()}
+                                        </div>
                                     </div>
                                     <!-- Squishmallow SVG - Grey with white belly, lop ears from top -->
                                     <svg width="48" height="48" viewBox="0 0 64 64" class="drop-shadow-md">
@@ -2846,7 +3096,7 @@
                                             <span class="text-gray-600">$</span>
                                             <input
                                                 type="number"
-                                                step="0.25"
+                                                step="0.05"
                                                 value="${state.defaultPayout}"
                                                 oninput="state.defaultPayout = parseFloat(this.value) || 0"
                                                 class="w-32 px-3 py-2 border border-gray-300 rounded-lg"
@@ -3002,6 +3252,19 @@
                                         <p class="text-xs text-gray-500 mt-2">Restores all 14 default chores (Morning, After School, Evening)</p>
                                     </div>
 
+                                    <!-- Testing Reset -->
+                                    <div class="border-t border-gray-300 pt-4 mb-4">
+                                        <h4 class="font-semibold text-gray-700 mb-3">🧪 Testing Reset</h4>
+                                        <button
+                                            onclick="resetAllDataForTesting()"
+                                            class="w-full px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition flex items-center justify-center gap-2 font-semibold"
+                                        >
+                                            <span>🗑️</span>
+                                            Reset All Data for Testing
+                                        </button>
+                                        <p class="text-xs text-gray-500 mt-2">Clears ALL accumulated money, payout history, completed tasks, and resets task payouts to $0.15. Use for fresh testing.</p>
+                                    </div>
+
                                     <!-- Backup & Restore -->
                                     <div class="border-t border-gray-300 pt-4 mb-4">
                                         <h4 class="font-semibold text-gray-700 mb-3">📦 Backup & Restore</h4>
@@ -3128,6 +3391,7 @@
 
         // Initialize
         loadState();
+        setupRealtimeSync();
         syncFromReward();
         checkDailyReset();
         render();
