@@ -630,11 +630,29 @@
             const today = new Date().toDateString();
             if (today !== state.lastResetDate) {
                 const yesterday = new Date(state.lastResetDate).toDateString();
+
+                // Ensure history objects exist
+                if (!state.completionHistory) state.completionHistory = { maria: {}, helena: {} };
+                if (!state.completionHistory.maria) state.completionHistory.maria = {};
+                if (!state.completionHistory.helena) state.completionHistory.helena = {};
+                if (!state.skippedHistory) state.skippedHistory = { maria: {}, helena: {} };
+                if (!state.skippedHistory.maria) state.skippedHistory.maria = {};
+                if (!state.skippedHistory.helena) state.skippedHistory.helena = {};
+                if (!state.completedTasks) state.completedTasks = { maria: [], helena: [] };
+                if (!state.completedTasks.maria) state.completedTasks.maria = [];
+                if (!state.completedTasks.helena) state.completedTasks.helena = [];
+                if (!state.skippedTasks) state.skippedTasks = { maria: [], helena: [] };
+                if (!state.skippedTasks.maria) state.skippedTasks.maria = [];
+                if (!state.skippedTasks.helena) state.skippedTasks.helena = [];
+                if (!state.earnings) state.earnings = { maria: { weekTotal: 0, todayTotal: 0 }, helena: { weekTotal: 0, todayTotal: 0 } };
+                if (!state.earnings.maria) state.earnings.maria = { weekTotal: 0, todayTotal: 0 };
+                if (!state.earnings.helena) state.earnings.helena = { weekTotal: 0, todayTotal: 0 };
+
                 state.completionHistory.maria[yesterday] = [...state.completedTasks.maria];
                 state.completionHistory.helena[yesterday] = [...state.completedTasks.helena];
                 state.skippedHistory.maria[yesterday] = [...state.skippedTasks.maria];
                 state.skippedHistory.helena[yesterday] = [...state.skippedTasks.helena];
-                
+
                 state.completedTasks = { maria: [], helena: [] };
                 state.skippedTasks = { maria: [], helena: [] };
                 state.earnings.maria.todayTotal = 0;
