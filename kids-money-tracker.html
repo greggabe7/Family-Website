@@ -464,6 +464,9 @@
             if (!state.weeklyStreakAwarded) state.weeklyStreakAwarded = { maria: {}, helena: {} };
             if (!state.weeklyStreakAwarded.maria) state.weeklyStreakAwarded.maria = {};
             if (!state.weeklyStreakAwarded.helena) state.weeklyStreakAwarded.helena = {};
+            if (!state.dailyBonusAwarded) state.dailyBonusAwarded = { maria: {}, helena: {} };
+            if (!state.dailyBonusAwarded.maria) state.dailyBonusAwarded.maria = {};
+            if (!state.dailyBonusAwarded.helena) state.dailyBonusAwarded.helena = {};
             if (!state.yearlyEarnings) state.yearlyEarnings = { maria: {}, helena: {} };
             if (!state.yearlyEarnings.maria) state.yearlyEarnings.maria = {};
             if (!state.yearlyEarnings.helena) state.yearlyEarnings.helena = {};
@@ -854,18 +857,25 @@
             // Clear daily bonus awarded
             state.dailyBonusAwarded = { maria: {}, helena: {} };
 
+            // Clear weekly streak awarded
+            state.weeklyStreakAwarded = { maria: {}, helena: {} };
+
             // Reset default payout to 0.15
             state.defaultPayout = 0.15;
 
             // Reset all task payouts to default 0.15
-            state.tasks.forEach(task => {
-                task.payout = 0.15;
-            });
+            if (state.tasks && state.tasks.length > 0) {
+                state.tasks.forEach(task => {
+                    task.payout = 0.15;
+                });
+            }
 
             // Clear goals progress (keep goals but reset saved amount)
-            state.goals.maria.saved = 0;
-            state.goals.helena.saved = 0;
+            if (state.goals && state.goals.maria) state.goals.maria.saved = 0;
+            if (state.goals && state.goals.helena) state.goals.helena.saved = 0;
 
+            // Ensure all state properties are properly initialized
+            sanitizeState();
             saveState();
             alert('All data has been reset for testing! All earnings, payouts, and task completions have been cleared. Task payouts set to $0.15.');
             render();
