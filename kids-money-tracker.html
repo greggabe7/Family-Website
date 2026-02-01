@@ -2685,16 +2685,15 @@
                     <div class="flex items-center gap-3">
                         ${state.editingSection === task.id ? `
                             <select
-                                value="${task.section}"
                                 onchange="updateTaskSection(${task.id}, this.value)"
                                 onblur="state.editingSection=null; render();"
                                 class="px-2 py-1 border border-gray-300 rounded text-sm"
                                 autofocus
                             >
-                                <option value="morning">Morning</option>
-                                <option value="afterSchool">After School/Afternoon</option>
-                                <option value="evening">Evening</option>
-                                <option value="bonus">Bonus (Optional)</option>
+                                <option value="morning" ${task.section === 'morning' ? 'selected' : ''}>Morning</option>
+                                <option value="afterSchool" ${task.section === 'afterSchool' ? 'selected' : ''}>After School/Afternoon</option>
+                                <option value="evening" ${task.section === 'evening' ? 'selected' : ''}>Evening</option>
+                                <option value="bonus" ${task.section === 'bonus' ? 'selected' : ''}>Bonus (Optional)</option>
                             </select>
                         ` : `
                             <span
@@ -2868,14 +2867,13 @@
                                     />
                                 </div>
                                 <select
-                                    value="${state.newTaskSection}"
                                     onchange="state.newTaskSection = this.value"
                                     class="flex-1 px-4 py-2 border border-gray-300 rounded-lg"
                                 >
-                                    <option value="morning">Morning</option>
-                                    <option value="afterSchool">After School/Afternoon</option>
-                                    <option value="evening">Evening</option>
-                                    <option value="bonus">Bonus (Optional)</option>
+                                    <option value="morning" ${state.newTaskSection === 'morning' ? 'selected' : ''}>Morning</option>
+                                    <option value="afterSchool" ${state.newTaskSection === 'afterSchool' ? 'selected' : ''}>After School/Afternoon</option>
+                                    <option value="evening" ${state.newTaskSection === 'evening' ? 'selected' : ''}>Evening</option>
+                                    <option value="bonus" ${state.newTaskSection === 'bonus' ? 'selected' : ''}>Bonus (Optional)</option>
                                 </select>
                             </div>
                             <div class="border border-gray-300 rounded-lg p-3">
