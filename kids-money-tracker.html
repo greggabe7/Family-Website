@@ -528,6 +528,7 @@
                         state.currentUser = currentUser;
                         state.loginForm = { username: '', password: '' };
                         sanitizeState();
+                        checkDailyReset();
                         localStorage.setItem('moneyTrackerState', JSON.stringify(firebaseData));
                         lastSyncTime = new Date();
                         syncStatus = 'connected';
@@ -535,6 +536,7 @@
                     } else {
                         // No data in Firebase yet, migrate local data
                         migrateToFirebase();
+                        checkDailyReset();
                         syncStatus = 'connected';
                     }
                 })
@@ -3468,7 +3470,6 @@
         loadState();
         setupRealtimeSync();
         syncFromReward();
-        checkDailyReset();
         render();
 
         // Check for daily reset every minute
