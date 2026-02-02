@@ -720,6 +720,10 @@
                 state.skippedHistory.maria[yesterday] = [...state.skippedTasks.maria];
                 state.skippedHistory.helena[yesterday] = [...state.skippedTasks.helena];
 
+                // Check daily bonus for yesterday before clearing today's data
+                checkHistoryDailyBonus('maria', yesterday);
+                checkHistoryDailyBonus('helena', yesterday);
+
                 state.completedTasks = { maria: [], helena: [] };
                 state.skippedTasks = { maria: [], helena: [] };
                 state.earnings.maria.todayTotal = 0;
@@ -1596,6 +1600,43 @@
             }
         }
 
+        function checkHistoryDailyBonus(childKey, date) {
+            const dateObj = new Date(date);
+            const completedForDay = state.completionHistory[childKey][date] || [];
+            const skippedForDay = state.skippedHistory[childKey][date] || [];
+
+            const dailyTasks = state.tasks.filter(t => {
+                if (skippedForDay.includes(t.id)) return false;
+                if (t.days && (t.days.includes('weekly') || t.days.includes('monthly') || t.days.includes('oneTime'))) return false;
+                if (t.section === 'bonus') return false;
+                return taskAppliesToDate(t, dateObj, childKey);
+            });
+
+            const allComplete = dailyTasks.length > 0 && dailyTasks.every(t => completedForDay.includes(t.id));
+            const bonusAwarded = state.dailyBonusAwarded[childKey][date];
+
+            if (allComplete && !bonusAwarded) {
+                state.earnings[childKey].weekTotal += 1.00;
+                state.dailyBonusAwarded[childKey][date] = true;
+            } else if (!allComplete && bonusAwarded) {
+                state.earnings[childKey].weekTotal = Math.max(0, state.earnings[childKey].weekTotal - 1.00);
+                state.dailyBonusAwarded[childKey][date] = false;
+            }
+        }
+
+        function toggleHistoryBonus(childKey, date) {
+            const bonusAwarded = state.dailyBonusAwarded[childKey][date];
+            if (bonusAwarded) {
+                state.earnings[childKey].weekTotal = Math.max(0, state.earnings[childKey].weekTotal - 1.00);
+                state.dailyBonusAwarded[childKey][date] = false;
+            } else {
+                state.earnings[childKey].weekTotal += 1.00;
+                state.dailyBonusAwarded[childKey][date] = true;
+            }
+            saveState();
+            render();
+        }
+
         function toggleHistoryTask(childKey, date, taskId) {
             if (!state.completionHistory[childKey][date]) {
                 state.completionHistory[childKey][date] = [];
@@ -1620,6 +1661,7 @@
                 }
             }
 
+            checkHistoryDailyBonus(childKey, date);
             saveState();
             render();
         }
@@ -1646,6 +1688,7 @@
                 state.skippedHistory[childKey][date].push(taskId);
             }
 
+            checkHistoryDailyBonus(childKey, date);
             saveState();
             render();
         }
@@ -2591,11 +2634,49 @@
             `;
         }
 
+        function taskAppliesToDate(task, dateObj, childKey) {
+            if (!task.days || task.days.length === 0) return false;
+            const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+            const dayName = dayNames[dateObj.getDay()];
+            const dateStr = dateObj.toDateString();
+            const isToday = dateStr === new Date().toDateString();
+
+            // One-time tasks only show on the day they were completed or today if not yet completed
+            if (task.days.includes('oneTime')) {
+                if (isToday) return true;
+                // For past days, only show if it was completed or skipped that day
+                if (childKey) {
+                    const completed = state.completionHistory[childKey]?.[dateStr] || [];
+                    const skipped = state.skippedHistory[childKey]?.[dateStr] || [];
+                    return completed.includes(task.id) || skipped.includes(task.id);
+                }
+                return false;
+            }
+
+            // Bonus section tasks only show on the day they were completed or today
+            if (task.section === 'bonus') {
+                if (isToday) return true;
+                if (childKey) {
+                    const completed = state.completionHistory[childKey]?.[dateStr] || [];
+                    const skipped = state.skippedHistory[childKey]?.[dateStr] || [];
+                    return completed.includes(task.id) || skipped.includes(task.id);
+                }
+                return false;
+            }
+
+            return task.days.some(d => {
+                if (d === dayName) return true;
+                if (d === 'weekly' && dateObj.getDay() === 0) return true; // Sundays
+                if (d === 'monthly' && dateObj.getDate() === 1) return true; // 1st of month
+                return false;
+            });
+        }
+
         function renderWeeklyHistory() {
             if (!state.showHistory || !state.selectedHistoryChild) return '';
-            
+
             const weekDates = getWeekDates();
-            
+
             return `
                 <div class="space-y-4">
                     ${weekDates.map(date => {
@@ -2603,14 +2684,17 @@
                         const isToday = date === new Date().toDateString();
                         const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
                         const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                        const completedForDay = isToday 
+                        const completedForDay = isToday
                             ? state.completedTasks[state.selectedHistoryChild]
                             : (state.completionHistory[state.selectedHistoryChild][date] || []);
                         const skippedForDay = isToday
                             ? state.skippedTasks[state.selectedHistoryChild]
                             : (state.skippedHistory[state.selectedHistoryChild][date] || []);
-                        
-                        const activeTasks = state.tasks.filter(t => !skippedForDay.includes(t.id));
+
+                        const dayTasks = state.tasks.filter(t => taskAppliesToDate(t, dateObj, state.selectedHistoryChild));
+                        const activeTasks = dayTasks.filter(t => !skippedForDay.includes(t.id));
+                        const completedCount = completedForDay.filter(id => dayTasks.some(t => t.id === id)).length;
+                        const bonusAwarded = state.dailyBonusAwarded[state.selectedHistoryChild] && state.dailyBonusAwarded[state.selectedHistoryChild][date];
 
                         return `
                             <div class="border border-gray-200 rounded-lg p-4">
@@ -2619,11 +2703,11 @@
                                         ${dayName}, ${dateStr} ${isToday ? '(Today)' : ''}
                                     </h4>
                                     <span class="text-sm text-gray-600">
-                                        ${completedForDay.length} / ${activeTasks.length} completed
+                                        ${completedCount} / ${activeTasks.length} completed
                                     </span>
                                 </div>
                                 <div class="grid grid-cols-1 gap-2">
-                                    ${state.tasks.map(task => {
+                                    ${dayTasks.map(task => {
                                         const isCompleted = completedForDay.includes(task.id);
                                         const isSkipped = skippedForDay.includes(task.id);
                                         
@@ -2685,6 +2769,22 @@
                                             </div>
                                         `;
                                     }).join('')}
+                                </div>
+                                <div class="mt-3 pt-3 border-t border-gray-200">
+                                    <button
+                                        onclick="${isToday ? '' : `toggleHistoryBonus('${state.selectedHistoryChild}', '${date}')`}"
+                                        class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                                            bonusAwarded
+                                                ? 'bg-yellow-100 border border-yellow-400 text-yellow-800'
+                                                : 'bg-gray-50 border border-gray-300 text-gray-500 hover:bg-gray-100'
+                                        } ${isToday ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}"
+                                        ${isToday ? 'disabled' : ''}
+                                        title="${isToday ? 'Bonus is managed automatically today' : (bonusAwarded ? 'Remove daily bonus' : 'Award daily bonus')}"
+                                    >
+                                        <span>${bonusAwarded ? '🏆' : '○'}</span>
+                                        <span>Daily Bonus (+$1.00)</span>
+                                        <span>${bonusAwarded ? '✓' : ''}</span>
+                                    </button>
                                 </div>
                             </div>
                         `;
