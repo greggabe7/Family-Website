@@ -164,6 +164,25 @@
         let syncStatus = 'connecting'; // 'connected', 'syncing', 'offline', 'connecting'
         let lastSyncTime = null;
 
+        // Sound effects — real audio files
+        const chaChingSound = new Audio('sounds/cha-ching.mp3');
+        const coinDropSound = new Audio('sounds/coin-drop.mp3');
+
+        function playChaChing() {
+            chaChingSound.currentTime = 0;
+            chaChingSound.play().catch(() => {});
+        }
+
+        function playPayoutSound() {
+            // Play cha-ching first, then coins
+            chaChingSound.currentTime = 0;
+            chaChingSound.play().catch(() => {});
+            setTimeout(() => {
+                coinDropSound.currentTime = 0;
+                coinDropSound.play().catch(() => {});
+            }, 400);
+        }
+
         // Lucide icons as SVG strings
         const Icons = {
             DollarSign: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>`,
@@ -552,6 +571,12 @@
             const toSave = { ...state };
             delete toSave.currentUser;
             delete toSave.loginForm;
+            delete toSave.showSettings;
+            delete toSave.editingName;
+            delete toSave.editingPayout;
+            delete toSave.editingSection;
+            delete toSave.editingDays;
+            delete toSave.showAddTask;
 
             // Save to localStorage as backup
             try {
@@ -761,6 +786,11 @@
             if (user) {
                 state.currentUser = { id: user[0], ...user[1] };
                 state.loginForm = { username: '', password: '' };
+                state.showSettings = false;
+                state.editingName = null;
+                state.editingPayout = null;
+                state.editingSection = null;
+                state.editingDays = null;
                 render();
             } else {
                 alert('Invalid username or password');
@@ -982,6 +1012,7 @@
                 }
             } else {
                 state.completedTasks[childKey].push(taskId);
+                playChaChing();
                 // Trigger fireworks when completing a task
                 if (event) {
                     createFireworks(event.clientX, event.clientY);
@@ -1315,6 +1346,7 @@
             }
 
             if (confirm(`Pay out $${weekTotal.toFixed(2)} to ${childName}?`)) {
+                playPayoutSound();
                 // Record the payout
                 state.payoutHistory[childKey].unshift({
                     date: new Date().toISOString(),
@@ -2279,6 +2311,11 @@
                                 Login
                             </button>
                         </form>
+                        <div class="mt-4 text-center">
+                            <a href="https://gabrielfamilywebsite.netlify.app/" class="text-sm text-gray-500 hover:text-green-600 transition">
+                                &larr; Back to Family Website
+                            </a>
+                        </div>
                     </div>
                 </div>
             `;
@@ -3076,13 +3113,6 @@
                                 </div>
                                 <div class="flex gap-2">
                                     ${state.currentUser.isParent ? `
-                                        <button
-                                            onclick="manualSync()"
-                                            class="p-2 hover:bg-gray-100 rounded-lg transition"
-                                            title="Sync chores from Reward Challenge"
-                                        >
-                                            <div class="w-6 h-6 text-gray-600">${Icons.RefreshCw}</div>
-                                        </button>
                                         <button
                                             onclick="state.showSettings = !state.showSettings; render();"
                                             class="p-2 hover:bg-gray-100 rounded-lg transition"
