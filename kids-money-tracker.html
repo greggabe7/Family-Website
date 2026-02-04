@@ -630,6 +630,27 @@
             state.earnings[childKey].todayTotal = Math.max(0, roundMoney(state.earnings[childKey].todayTotal - todayAmount));
         }
 
+        // HTML escape helper to prevent XSS attacks in user-provided content
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        // Safe function to start editing a task name (avoids XSS in onclick handlers)
+        function startEditingTaskName(taskId) {
+            const task = state.tasks.find(t => t.id === taskId);
+            if (task) {
+                state.editingTaskName = taskId;
+                state.tempTaskName = task.name;
+                render();
+            }
+        }
+
         // Lucide icons as SVG strings
         const Icons = {
             DollarSign: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>`,
@@ -645,14 +666,35 @@
         };
 
         // Fireworks effect function - Big and dramatic!
-        function createFireworks(x, y) {
-            const colors = [
-                '#ff0000', '#ff3300', '#ff6600', '#ff9900', '#ffcc00', '#ffff00',
-                '#00ff00', '#00ff99', '#00ffff', '#0099ff', '#0066ff', '#0000ff',
-                '#6600ff', '#9900ff', '#ff00ff', '#ff0099', '#ff69b4', '#ffffff'
-            ];
+        const FIREWORK_COLORS = [
+            '#ff0000', '#ff3300', '#ff6600', '#ff9900', '#ffcc00', '#ffff00',
+            '#00ff00', '#00ff99', '#00ffff', '#0099ff', '#0066ff', '#0000ff',
+            '#6600ff', '#9900ff', '#ff00ff', '#ff0099', '#ff69b4', '#ffffff'
+        ];
 
-            // Create multiple burst points for more drama
+        // Helper to create firework particles with configurable parameters
+        function createParticles(container, options) {
+            const { count, className, baseVelocity, velocityVariance, angleMode, angleOffset, delayMax, useColor } = options;
+            for (let i = 0; i < count; i++) {
+                const el = document.createElement('div');
+                el.className = className;
+                const angle = angleMode === 'random'
+                    ? Math.random() * Math.PI * 2
+                    : (i / count) * Math.PI * 2 + (angleOffset || 0);
+                const velocity = baseVelocity + Math.random() * velocityVariance;
+                el.style.setProperty('--tx', Math.cos(angle) * velocity + 'px');
+                el.style.setProperty('--ty', Math.sin(angle) * velocity + 'px');
+                if (useColor) {
+                    const color = FIREWORK_COLORS[Math.floor(Math.random() * FIREWORK_COLORS.length)];
+                    el.style.backgroundColor = color;
+                    el.style.color = color;
+                }
+                el.style.animationDelay = Math.random() * delayMax + 's';
+                container.appendChild(el);
+            }
+        }
+
+        function createFireworks(x, y) {
             const bursts = [
                 { offsetX: 0, offsetY: 0, delay: 0 },
                 { offsetX: -30, offsetY: -20, delay: 50 },
@@ -668,119 +710,22 @@
                     container.style.top = (y + burst.offsetY) + 'px';
                     document.body.appendChild(container);
 
-                    // Create large particles (outer ring)
-                    for (let i = 0; i < 16; i++) {
-                        const particle = document.createElement('div');
-                        particle.className = 'firework-particle large';
-                        const angle = (i / 16) * Math.PI * 2;
-                        const velocity = 120 + Math.random() * 60;
-                        const tx = Math.cos(angle) * velocity;
-                        const ty = Math.sin(angle) * velocity;
-                        particle.style.setProperty('--tx', tx + 'px');
-                        particle.style.setProperty('--ty', ty + 'px');
-                        const color = colors[Math.floor(Math.random() * colors.length)];
-                        particle.style.backgroundColor = color;
-                        particle.style.color = color;
-                        particle.style.animationDelay = Math.random() * 0.1 + 's';
-                        container.appendChild(particle);
-                    }
+                    // Large particles (outer ring)
+                    createParticles(container, { count: 16, className: 'firework-particle large', baseVelocity: 120, velocityVariance: 60, angleMode: 'even', delayMax: 0.1, useColor: true });
+                    // Medium particles (middle ring)
+                    createParticles(container, { count: 24, className: 'firework-particle medium', baseVelocity: 80, velocityVariance: 50, angleMode: 'even', angleOffset: 0.1, delayMax: 0.15, useColor: true });
+                    // Small particles (inner scatter)
+                    createParticles(container, { count: 30, className: 'firework-particle small', baseVelocity: 40, velocityVariance: 60, angleMode: 'random', delayMax: 0.2, useColor: true });
+                    // Large sparks
+                    createParticles(container, { count: 12, className: 'firework-spark large', baseVelocity: 100, velocityVariance: 50, angleMode: 'even', delayMax: 0.1, useColor: false });
+                    // Small sparks
+                    createParticles(container, { count: 20, className: 'firework-spark small', baseVelocity: 60, velocityVariance: 80, angleMode: 'random', delayMax: 0.2, useColor: false });
+                    // Trailing particles
+                    createParticles(container, { count: 25, className: 'firework-trail', baseVelocity: 30, velocityVariance: 100, angleMode: 'random', delayMax: 0.3, useColor: true });
+                    // Star bursts
+                    createParticles(container, { count: 8, className: 'firework-star', baseVelocity: 70, velocityVariance: 40, angleMode: 'even', delayMax: 0.15, useColor: true });
 
-                    // Create medium particles (middle ring)
-                    for (let i = 0; i < 24; i++) {
-                        const particle = document.createElement('div');
-                        particle.className = 'firework-particle medium';
-                        const angle = (i / 24) * Math.PI * 2 + 0.1;
-                        const velocity = 80 + Math.random() * 50;
-                        const tx = Math.cos(angle) * velocity;
-                        const ty = Math.sin(angle) * velocity;
-                        particle.style.setProperty('--tx', tx + 'px');
-                        particle.style.setProperty('--ty', ty + 'px');
-                        const color = colors[Math.floor(Math.random() * colors.length)];
-                        particle.style.backgroundColor = color;
-                        particle.style.color = color;
-                        particle.style.animationDelay = Math.random() * 0.15 + 's';
-                        container.appendChild(particle);
-                    }
-
-                    // Create small particles (inner scatter)
-                    for (let i = 0; i < 30; i++) {
-                        const particle = document.createElement('div');
-                        particle.className = 'firework-particle small';
-                        const angle = Math.random() * Math.PI * 2;
-                        const velocity = 40 + Math.random() * 60;
-                        const tx = Math.cos(angle) * velocity;
-                        const ty = Math.sin(angle) * velocity;
-                        particle.style.setProperty('--tx', tx + 'px');
-                        particle.style.setProperty('--ty', ty + 'px');
-                        const color = colors[Math.floor(Math.random() * colors.length)];
-                        particle.style.backgroundColor = color;
-                        particle.style.color = color;
-                        particle.style.animationDelay = Math.random() * 0.2 + 's';
-                        container.appendChild(particle);
-                    }
-
-                    // Create large bright sparks
-                    for (let i = 0; i < 12; i++) {
-                        const spark = document.createElement('div');
-                        spark.className = 'firework-spark large';
-                        const angle = (i / 12) * Math.PI * 2;
-                        const velocity = 100 + Math.random() * 50;
-                        const tx = Math.cos(angle) * velocity;
-                        const ty = Math.sin(angle) * velocity;
-                        spark.style.setProperty('--tx', tx + 'px');
-                        spark.style.setProperty('--ty', ty + 'px');
-                        spark.style.animationDelay = Math.random() * 0.1 + 's';
-                        container.appendChild(spark);
-                    }
-
-                    // Create small sparks
-                    for (let i = 0; i < 20; i++) {
-                        const spark = document.createElement('div');
-                        spark.className = 'firework-spark small';
-                        const angle = Math.random() * Math.PI * 2;
-                        const velocity = 60 + Math.random() * 80;
-                        const tx = Math.cos(angle) * velocity;
-                        const ty = Math.sin(angle) * velocity;
-                        spark.style.setProperty('--tx', tx + 'px');
-                        spark.style.setProperty('--ty', ty + 'px');
-                        spark.style.animationDelay = Math.random() * 0.2 + 's';
-                        container.appendChild(spark);
-                    }
-
-                    // Create trailing particles
-                    for (let i = 0; i < 25; i++) {
-                        const trail = document.createElement('div');
-                        trail.className = 'firework-trail';
-                        const angle = Math.random() * Math.PI * 2;
-                        const velocity = 30 + Math.random() * 100;
-                        const tx = Math.cos(angle) * velocity;
-                        const ty = Math.sin(angle) * velocity;
-                        trail.style.setProperty('--tx', tx + 'px');
-                        trail.style.setProperty('--ty', ty + 'px');
-                        trail.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-                        trail.style.animationDelay = Math.random() * 0.3 + 's';
-                        container.appendChild(trail);
-                    }
-
-                    // Create star bursts
-                    for (let i = 0; i < 8; i++) {
-                        const star = document.createElement('div');
-                        star.className = 'firework-star';
-                        const angle = (i / 8) * Math.PI * 2;
-                        const velocity = 70 + Math.random() * 40;
-                        const tx = Math.cos(angle) * velocity;
-                        const ty = Math.sin(angle) * velocity;
-                        star.style.setProperty('--tx', tx + 'px');
-                        star.style.setProperty('--ty', ty + 'px');
-                        star.style.color = colors[Math.floor(Math.random() * colors.length)];
-                        star.style.animationDelay = Math.random() * 0.15 + 's';
-                        container.appendChild(star);
-                    }
-
-                    // Remove container after animation
-                    setTimeout(() => {
-                        container.remove();
-                    }, 1500);
+                    setTimeout(() => container.remove(), 1500);
                 }, burst.delay);
             });
         }
@@ -962,9 +907,16 @@
             tempAccountConfirmPassword: ''
         };
 
+        // Sanitize state helper - ensures required child properties exist
+        function ensureChildProperty(propName, defaultValue) {
+            if (!state[propName]) state[propName] = { maria: defaultValue(), helena: defaultValue() };
+            if (!state[propName].maria) state[propName].maria = defaultValue();
+            if (!state[propName].helena) state[propName].helena = defaultValue();
+        }
+
         // Sanitize state helper function - ensures all required properties exist
         function sanitizeState() {
-            // Ensure all required nested objects exist
+            // Ensure users object exists
             if (!state.users) {
                 state.users = {
                     mom: { name: 'Mom', password: 'mom123', isParent: true },
@@ -973,34 +925,22 @@
                     helena: { name: 'Helena', password: 'helena', isParent: false }
                 };
             }
-            if (!state.earnings) state.earnings = { maria: { weekTotal: 0, todayTotal: 0 }, helena: { weekTotal: 0, todayTotal: 0 } };
-            if (!state.earnings.maria) state.earnings.maria = { weekTotal: 0, todayTotal: 0 };
-            if (!state.earnings.helena) state.earnings.helena = { weekTotal: 0, todayTotal: 0 };
-            if (!state.completedTasks) state.completedTasks = { maria: [], helena: [] };
-            if (!state.completedTasks.maria) state.completedTasks.maria = [];
-            if (!state.completedTasks.helena) state.completedTasks.helena = [];
-            if (!state.skippedTasks) state.skippedTasks = { maria: [], helena: [] };
-            if (!state.skippedTasks.maria) state.skippedTasks.maria = [];
-            if (!state.skippedTasks.helena) state.skippedTasks.helena = [];
-            if (!state.completionHistory) state.completionHistory = { maria: {}, helena: {} };
-            if (!state.completionHistory.maria) state.completionHistory.maria = {};
-            if (!state.completionHistory.helena) state.completionHistory.helena = {};
-            if (!state.skippedHistory) state.skippedHistory = { maria: {}, helena: {} };
-            if (!state.skippedHistory.maria) state.skippedHistory.maria = {};
-            if (!state.skippedHistory.helena) state.skippedHistory.helena = {};
-            if (!state.payoutHistory) state.payoutHistory = { maria: [], helena: [] };
-            if (!state.payoutHistory.maria) state.payoutHistory.maria = [];
-            if (!state.payoutHistory.helena) state.payoutHistory.helena = [];
+
+            // Ensure all child-specific properties exist
+            ensureChildProperty('earnings', () => ({ weekTotal: 0, todayTotal: 0 }));
+            ensureChildProperty('completedTasks', () => []);
+            ensureChildProperty('skippedTasks', () => []);
+            ensureChildProperty('completionHistory', () => ({}));
+            ensureChildProperty('skippedHistory', () => ({}));
+            ensureChildProperty('payoutHistory', () => []);
+            ensureChildProperty('weeklyStreakAwarded', () => ({}));
+            ensureChildProperty('dailyBonusAwarded', () => ({}));
+            ensureChildProperty('yearlyEarnings', () => ({}));
+
+            // Goals has a different default (null instead of empty container)
             if (!state.goals) state.goals = { maria: null, helena: null };
-            if (!state.weeklyStreakAwarded) state.weeklyStreakAwarded = { maria: {}, helena: {} };
-            if (!state.weeklyStreakAwarded.maria) state.weeklyStreakAwarded.maria = {};
-            if (!state.weeklyStreakAwarded.helena) state.weeklyStreakAwarded.helena = {};
-            if (!state.dailyBonusAwarded) state.dailyBonusAwarded = { maria: {}, helena: {} };
-            if (!state.dailyBonusAwarded.maria) state.dailyBonusAwarded.maria = {};
-            if (!state.dailyBonusAwarded.helena) state.dailyBonusAwarded.helena = {};
-            if (!state.yearlyEarnings) state.yearlyEarnings = { maria: {}, helena: {} };
-            if (!state.yearlyEarnings.maria) state.yearlyEarnings.maria = {};
-            if (!state.yearlyEarnings.helena) state.yearlyEarnings.helena = {};
+
+            // Non-child properties
             if (!state.tasks) state.tasks = [];
             if (!state.lastResetDate) state.lastResetDate = new Date().toDateString();
 
@@ -2643,7 +2583,7 @@
                                             ? 'text-gray-600 line-through'
                                             : 'text-gray-700'
                                     }">
-                                        ${task.isJoint ? '👯 ' : ''}${task.name}
+                                        ${task.isJoint ? '👯 ' : ''}${escapeHtml(task.name)}
                                     </span>
                                     ${weeklyCompletedEarlier ? `
                                         <span class="text-xs text-green-600">Done ${weeklyCompletionDate}${state.currentUser.isParent ? ' • Click to undo' : ''}</span>
@@ -2956,7 +2896,7 @@
             return `
                 <div class="min-h-screen relative overflow-hidden flex items-center justify-center p-4">
                     <!-- Background Photo Collage -->
-                    <div class="absolute inset-0 grid grid-cols-5 grid-rows-2 gap-0">
+                    <div class="absolute inset-0 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 grid-rows-5 md:grid-rows-4 lg:grid-rows-2 gap-0">
                         <img src="https://i.imgur.com/hs554rR.jpeg" alt="" class="w-full h-full object-cover" />
                         <img src="https://i.imgur.com/UxW60hx.jpeg" alt="" class="w-full h-full object-cover" />
                         <img src="https://i.imgur.com/bVp8I7u.jpeg" alt="" class="w-full h-full object-cover" />
@@ -3505,7 +3445,7 @@
                                                                 ? 'text-gray-600' 
                                                                 : 'text-gray-700'
                                                         }">
-                                                            ${task.name}
+                                                            ${escapeHtml(task.name)}
                                                         </span>
                                                     </div>
                                                 </button>
@@ -3566,10 +3506,10 @@
                         </div>
                     ` : `
                         <span
-                            onclick="state.editingTaskName=${task.id}; state.tempTaskName='${task.name.replace(/'/g, "\\'")}'; render();"
+                            onclick="startEditingTaskName(${task.id})"
                             class="text-gray-700 flex-1 cursor-pointer hover:text-green-600 mr-3"
                         >
-                            ${task.name}
+                            ${escapeHtml(task.name)}
                         </span>
                     `}
                     <div class="flex items-center gap-3">
@@ -3598,34 +3538,34 @@
                                 <div class="text-xs font-semibold text-gray-700 mb-1 px-2">Select Days:</div>
                                 <div class="grid grid-cols-4 gap-1">
                                     <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-1 py-1 rounded">
-                                        <input type="checkbox" ${(task.days || []).includes('monday') ? 'checked' : ''} onchange="toggleEditTaskDay(${task.id}, 'monday')" class="w-3 h-3 text-green-600 rounded" />
+                                        <input type="checkbox" ${(task.days || []).includes('monday') ? 'checked' : ''} onchange="toggleEditTaskDay(${task.id}, 'monday')" class="w-3 h-3 text-green-600 rounded" aria-label="Monday" />
                                         <span class="text-xs">M</span>
                                     </label>
                                     <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-1 py-1 rounded">
-                                        <input type="checkbox" ${(task.days || []).includes('tuesday') ? 'checked' : ''} onchange="toggleEditTaskDay(${task.id}, 'tuesday')" class="w-3 h-3 text-green-600 rounded" />
+                                        <input type="checkbox" ${(task.days || []).includes('tuesday') ? 'checked' : ''} onchange="toggleEditTaskDay(${task.id}, 'tuesday')" class="w-3 h-3 text-green-600 rounded" aria-label="Tuesday" />
                                         <span class="text-xs">T</span>
                                     </label>
                                     <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-1 py-1 rounded">
-                                        <input type="checkbox" ${(task.days || []).includes('wednesday') ? 'checked' : ''} onchange="toggleEditTaskDay(${task.id}, 'wednesday')" class="w-3 h-3 text-green-600 rounded" />
+                                        <input type="checkbox" ${(task.days || []).includes('wednesday') ? 'checked' : ''} onchange="toggleEditTaskDay(${task.id}, 'wednesday')" class="w-3 h-3 text-green-600 rounded" aria-label="Wednesday" />
                                         <span class="text-xs">W</span>
                                     </label>
                                     <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-1 py-1 rounded">
-                                        <input type="checkbox" ${(task.days || []).includes('thursday') ? 'checked' : ''} onchange="toggleEditTaskDay(${task.id}, 'thursday')" class="w-3 h-3 text-green-600 rounded" />
+                                        <input type="checkbox" ${(task.days || []).includes('thursday') ? 'checked' : ''} onchange="toggleEditTaskDay(${task.id}, 'thursday')" class="w-3 h-3 text-green-600 rounded" aria-label="Thursday" />
                                         <span class="text-xs">Th</span>
                                     </label>
                                     <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-1 py-1 rounded">
-                                        <input type="checkbox" ${(task.days || []).includes('friday') ? 'checked' : ''} onchange="toggleEditTaskDay(${task.id}, 'friday')" class="w-3 h-3 text-green-600 rounded" />
+                                        <input type="checkbox" ${(task.days || []).includes('friday') ? 'checked' : ''} onchange="toggleEditTaskDay(${task.id}, 'friday')" class="w-3 h-3 text-green-600 rounded" aria-label="Friday" />
                                         <span class="text-xs">F</span>
                                     </label>
                                     <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-1 py-1 rounded">
-                                        <input type="checkbox" ${(task.days || []).includes('saturday') ? 'checked' : ''} onchange="toggleEditTaskDay(${task.id}, 'saturday')" class="w-3 h-3 text-blue-600 rounded" />
+                                        <input type="checkbox" ${(task.days || []).includes('saturday') ? 'checked' : ''} onchange="toggleEditTaskDay(${task.id}, 'saturday')" class="w-3 h-3 text-blue-600 rounded" aria-label="Saturday" />
                                         <span class="text-xs">Sa</span>
                                     </label>
                                     <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-1 py-1 rounded">
-                                        <input type="checkbox" ${(task.days || []).includes('sunday') ? 'checked' : ''} onchange="toggleEditTaskDay(${task.id}, 'sunday')" class="w-3 h-3 text-blue-600 rounded" />
+                                        <input type="checkbox" ${(task.days || []).includes('sunday') ? 'checked' : ''} onchange="toggleEditTaskDay(${task.id}, 'sunday')" class="w-3 h-3 text-blue-600 rounded" aria-label="Sunday" />
                                         <span class="text-xs">Su</span>
                                     </label>
-                                    <button onclick="toggleAllDaysForTask(${task.id})" class="text-xs px-1 py-1 bg-gray-200 hover:bg-gray-300 rounded">All</button>
+                                    <button onclick="toggleAllDaysForTask(${task.id})" class="text-xs px-1 py-1 bg-gray-200 hover:bg-gray-300 rounded" aria-label="Select all days">All</button>
                                 </div>
                                 <div class="border-t border-gray-200 pt-2 mt-2">
                                     <div class="text-xs font-semibold text-gray-700 mb-1 px-2">Or special frequency:</div>
@@ -3759,34 +3699,34 @@
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Which days does this chore apply?</label>
                                 <div class="grid grid-cols-4 gap-2 mb-3">
                                     <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
-                                        <input type="checkbox" ${state.newTaskDays.includes('monday') ? 'checked' : ''} onchange="toggleTaskDay('monday'); render();" class="w-4 h-4 text-green-600 rounded" />
+                                        <input type="checkbox" ${state.newTaskDays.includes('monday') ? 'checked' : ''} onchange="toggleTaskDay('monday'); render();" class="w-4 h-4 text-green-600 rounded" aria-label="Monday" />
                                         <span class="text-sm">Mon</span>
                                     </label>
                                     <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
-                                        <input type="checkbox" ${state.newTaskDays.includes('tuesday') ? 'checked' : ''} onchange="toggleTaskDay('tuesday'); render();" class="w-4 h-4 text-green-600 rounded" />
+                                        <input type="checkbox" ${state.newTaskDays.includes('tuesday') ? 'checked' : ''} onchange="toggleTaskDay('tuesday'); render();" class="w-4 h-4 text-green-600 rounded" aria-label="Tuesday" />
                                         <span class="text-sm">Tue</span>
                                     </label>
                                     <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
-                                        <input type="checkbox" ${state.newTaskDays.includes('wednesday') ? 'checked' : ''} onchange="toggleTaskDay('wednesday'); render();" class="w-4 h-4 text-green-600 rounded" />
+                                        <input type="checkbox" ${state.newTaskDays.includes('wednesday') ? 'checked' : ''} onchange="toggleTaskDay('wednesday'); render();" class="w-4 h-4 text-green-600 rounded" aria-label="Wednesday" />
                                         <span class="text-sm">Wed</span>
                                     </label>
                                     <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
-                                        <input type="checkbox" ${state.newTaskDays.includes('thursday') ? 'checked' : ''} onchange="toggleTaskDay('thursday'); render();" class="w-4 h-4 text-green-600 rounded" />
+                                        <input type="checkbox" ${state.newTaskDays.includes('thursday') ? 'checked' : ''} onchange="toggleTaskDay('thursday'); render();" class="w-4 h-4 text-green-600 rounded" aria-label="Thursday" />
                                         <span class="text-sm">Thu</span>
                                     </label>
                                     <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
-                                        <input type="checkbox" ${state.newTaskDays.includes('friday') ? 'checked' : ''} onchange="toggleTaskDay('friday'); render();" class="w-4 h-4 text-green-600 rounded" />
+                                        <input type="checkbox" ${state.newTaskDays.includes('friday') ? 'checked' : ''} onchange="toggleTaskDay('friday'); render();" class="w-4 h-4 text-green-600 rounded" aria-label="Friday" />
                                         <span class="text-sm">Fri</span>
                                     </label>
                                     <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
-                                        <input type="checkbox" ${state.newTaskDays.includes('saturday') ? 'checked' : ''} onchange="toggleTaskDay('saturday'); render();" class="w-4 h-4 text-blue-600 rounded" />
+                                        <input type="checkbox" ${state.newTaskDays.includes('saturday') ? 'checked' : ''} onchange="toggleTaskDay('saturday'); render();" class="w-4 h-4 text-blue-600 rounded" aria-label="Saturday" />
                                         <span class="text-sm">Sat</span>
                                     </label>
                                     <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
-                                        <input type="checkbox" ${state.newTaskDays.includes('sunday') ? 'checked' : ''} onchange="toggleTaskDay('sunday'); render();" class="w-4 h-4 text-blue-600 rounded" />
+                                        <input type="checkbox" ${state.newTaskDays.includes('sunday') ? 'checked' : ''} onchange="toggleTaskDay('sunday'); render();" class="w-4 h-4 text-blue-600 rounded" aria-label="Sunday" />
                                         <span class="text-sm">Sun</span>
                                     </label>
-                                    <button onclick="toggleAllDays(); render();" class="text-xs px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded">All/None</button>
+                                    <button onclick="toggleAllDays(); render();" class="text-xs px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded" aria-label="Select all days or none">All/None</button>
                                 </div>
                                 <div class="border-t border-gray-200 pt-2 mt-2">
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Or choose a special frequency:</label>
@@ -3873,7 +3813,7 @@
             return `
                 <div class="min-h-screen relative overflow-hidden p-4">
                     <!-- Background Photo Collage -->
-                    <div class="absolute inset-0 grid grid-cols-5 grid-rows-2 gap-0">
+                    <div class="absolute inset-0 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 grid-rows-5 md:grid-rows-4 lg:grid-rows-2 gap-0">
                         <img src="https://i.imgur.com/hs554rR.jpeg" alt="" class="w-full h-full object-cover" />
                         <img src="https://i.imgur.com/UxW60hx.jpeg" alt="" class="w-full h-full object-cover" />
                         <img src="https://i.imgur.com/bVp8I7u.jpeg" alt="" class="w-full h-full object-cover" />
