@@ -918,6 +918,98 @@
             render();
         }
 
+        function recalculateEarningsFromHistory() {
+            if (!confirm('This will recalculate all earnings based on completion history.\n\nOrphaned task completions (deleted tasks) will be removed.\nDaily bonuses will be recalculated.\n\nContinue?')) return;
+
+            const validTaskIds = state.tasks.map(t => t.id);
+            const today = new Date().toDateString();
+            const weekDates = getWeekDates();
+
+            ['maria', 'helena'].forEach(childKey => {
+                let weekTotal = 0;
+                let todayTotal = 0;
+
+                // Clean up and recalculate from today's completed tasks
+                state.completedTasks[childKey] = state.completedTasks[childKey].filter(id => validTaskIds.includes(id));
+                state.skippedTasks[childKey] = state.skippedTasks[childKey].filter(id => validTaskIds.includes(id));
+
+                // Calculate today's earnings
+                state.completedTasks[childKey].forEach(taskId => {
+                    const task = state.tasks.find(t => t.id === taskId);
+                    if (task) {
+                        todayTotal += task.payout;
+                        weekTotal += task.payout;
+                    }
+                });
+
+                // Clean up and recalculate from completion history (this week only)
+                for (const date of weekDates) {
+                    if (date === today) continue; // Already handled above
+
+                    if (state.completionHistory[childKey][date]) {
+                        // Remove orphaned task IDs
+                        state.completionHistory[childKey][date] = state.completionHistory[childKey][date].filter(id => validTaskIds.includes(id));
+
+                        // Add up earnings for this day
+                        state.completionHistory[childKey][date].forEach(taskId => {
+                            const task = state.tasks.find(t => t.id === taskId);
+                            if (task) {
+                                weekTotal += task.payout;
+                            }
+                        });
+                    }
+
+                    if (state.skippedHistory[childKey][date]) {
+                        state.skippedHistory[childKey][date] = state.skippedHistory[childKey][date].filter(id => validTaskIds.includes(id));
+                    }
+                }
+
+                // Recalculate daily bonuses for this week
+                for (const date of weekDates) {
+                    const dateObj = new Date(date);
+                    const completedForDay = date === today
+                        ? state.completedTasks[childKey]
+                        : (state.completionHistory[childKey][date] || []);
+                    const skippedForDay = date === today
+                        ? state.skippedTasks[childKey]
+                        : (state.skippedHistory[childKey][date] || []);
+
+                    // Get applicable daily tasks (exclude weekly/monthly/oneTime/bonus section)
+                    const dailyTasks = state.tasks.filter(t => {
+                        if (skippedForDay.includes(t.id)) return false;
+                        if (t.days && (t.days.includes('weekly') || t.days.includes('monthly') || t.days.includes('oneTime'))) return false;
+                        if (t.section === 'bonus') return false;
+                        return taskAppliesToDate(t, dateObj, childKey);
+                    });
+
+                    const allComplete = dailyTasks.length > 0 && dailyTasks.every(t => completedForDay.includes(t.id));
+
+                    if (allComplete) {
+                        weekTotal += 1.00;
+                        if (date === today) todayTotal += 1.00;
+                        state.dailyBonusAwarded[childKey][date] = true;
+                    } else {
+                        state.dailyBonusAwarded[childKey][date] = false;
+                    }
+                }
+
+                // Check weekly streak bonus
+                const weekStart = weekDates[0];
+                if (state.weeklyStreakAwarded[childKey][weekStart]) {
+                    weekTotal += state.weeklyStreakBonus;
+                }
+
+                // Update earnings
+                state.earnings[childKey].weekTotal = weekTotal;
+                state.earnings[childKey].todayTotal = todayTotal;
+            });
+
+            saveState();
+            render();
+
+            alert('✅ Earnings recalculated!\n\nMaria: $' + state.earnings.maria.weekTotal.toFixed(2) + ' (week), $' + state.earnings.maria.todayTotal.toFixed(2) + ' (today)\nHelena: $' + state.earnings.helena.weekTotal.toFixed(2) + ' (week), $' + state.earnings.helena.todayTotal.toFixed(2) + ' (today)');
+        }
+
         function startEditingAccount() {
             state.editingAccount = true;
             state.tempAccountName = state.currentUser.name;
@@ -1169,7 +1261,43 @@
         }
 
         function deleteTask(taskId) {
-            state.tasks = state.tasks.filter(task => task.id !== taskId);
+            const task = state.tasks.find(t => t.id === taskId);
+            if (!task) return;
+
+            const payout = task.payout || 0;
+
+            // Clean up completion records for both kids
+            ['maria', 'helena'].forEach(childKey => {
+                // Remove from today's completed tasks and deduct earnings
+                if (state.completedTasks[childKey].includes(taskId)) {
+                    state.completedTasks[childKey] = state.completedTasks[childKey].filter(id => id !== taskId);
+                    state.earnings[childKey].weekTotal = Math.max(0, state.earnings[childKey].weekTotal - payout);
+                    state.earnings[childKey].todayTotal = Math.max(0, state.earnings[childKey].todayTotal - payout);
+                }
+
+                // Remove from today's skipped tasks
+                if (state.skippedTasks[childKey].includes(taskId)) {
+                    state.skippedTasks[childKey] = state.skippedTasks[childKey].filter(id => id !== taskId);
+                }
+
+                // Remove from completion history and deduct earnings
+                for (const date in state.completionHistory[childKey]) {
+                    if (state.completionHistory[childKey][date].includes(taskId)) {
+                        state.completionHistory[childKey][date] = state.completionHistory[childKey][date].filter(id => id !== taskId);
+                        state.earnings[childKey].weekTotal = Math.max(0, state.earnings[childKey].weekTotal - payout);
+                    }
+                }
+
+                // Remove from skipped history
+                for (const date in state.skippedHistory[childKey]) {
+                    if (state.skippedHistory[childKey][date].includes(taskId)) {
+                        state.skippedHistory[childKey][date] = state.skippedHistory[childKey][date].filter(id => id !== taskId);
+                    }
+                }
+            });
+
+            // Now remove the task itself
+            state.tasks = state.tasks.filter(t => t.id !== taskId);
             syncToReward();
             saveState();
             render();
