@@ -141,10 +141,365 @@
                 opacity: 0;
             }
         }
+
+        /* Pot of Gold Daily Bonus Animation */
+        .pot-of-gold-container {
+            position: fixed;
+            top: -150px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10000;
+            pointer-events: none;
+            animation: pot-float-down 2.5s ease-out forwards;
+        }
+
+        @keyframes pot-float-down {
+            0% {
+                top: -150px;
+                opacity: 0;
+            }
+            10% {
+                opacity: 1;
+            }
+            50% {
+                top: 30%;
+            }
+            70% {
+                top: 25%;
+                opacity: 1;
+            }
+            100% {
+                top: 20%;
+                opacity: 0;
+            }
+        }
+
+        .pot-of-gold {
+            font-size: 80px;
+            text-align: center;
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+            animation: pot-wobble 0.5s ease-in-out infinite;
+        }
+
+        @keyframes pot-wobble {
+            0%, 100% { transform: rotate(-3deg); }
+            50% { transform: rotate(3deg); }
+        }
+
+        .bonus-text {
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: #fbbf24;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5), 0 0 20px #fbbf24;
+            margin-top: 10px;
+            animation: bonus-pulse 0.5s ease-in-out infinite;
+        }
+
+        @keyframes bonus-pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .gold-coin {
+            position: absolute;
+            font-size: 24px;
+            animation: coin-fall 1.5s ease-in forwards;
+            opacity: 0;
+        }
+
+        @keyframes coin-fall {
+            0% {
+                transform: translateY(0) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(var(--fall-distance)) rotate(var(--rotation));
+                opacity: 0;
+            }
+        }
+
+        .gold-sparkle {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: radial-gradient(circle, #ffd700 0%, #ffaa00 50%, transparent 70%);
+            border-radius: 50%;
+            animation: sparkle-burst 1s ease-out forwards;
+        }
+
+        @keyframes sparkle-burst {
+            0% {
+                transform: translate(0, 0) scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(var(--tx), var(--ty)) scale(0);
+                opacity: 0;
+            }
+        }
+
+        /* Drag and Drop Styles */
+        .task-item-draggable {
+            cursor: grab;
+            transition: all 0.2s ease;
+        }
+
+        .task-item-draggable:active {
+            cursor: grabbing;
+        }
+
+        .task-item-draggable.dragging {
+            opacity: 0.5;
+            transform: scale(1.02);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .task-item-draggable.drag-over {
+            border-top: 3px solid #3b82f6 !important;
+            margin-top: -3px;
+        }
+
+        .drag-handle {
+            cursor: grab;
+            padding: 4px;
+            color: #9ca3af;
+            transition: color 0.2s;
+        }
+
+        .drag-handle:hover {
+            color: #6b7280;
+        }
+
+        .drag-handle:active {
+            cursor: grabbing;
+        }
+
+        /* Toast Notification Styles */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10001;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+        }
+
+        .toast {
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 280px;
+            max-width: 400px;
+            pointer-events: auto;
+            animation: toast-slide-in 0.3s ease-out;
+        }
+
+        .toast.toast-hiding {
+            animation: toast-slide-out 0.3s ease-in forwards;
+        }
+
+        .toast-error {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            border: 1px solid #f87171;
+            color: #991b1b;
+        }
+
+        .toast-warning {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border: 1px solid #f59e0b;
+            color: #92400e;
+        }
+
+        .toast-success {
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            border: 1px solid #34d399;
+            color: #065f46;
+        }
+
+        .toast-info {
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            border: 1px solid #60a5fa;
+            color: #1e40af;
+        }
+
+        .toast-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+        .toast-content {
+            flex: 1;
+        }
+
+        .toast-title {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 2px;
+        }
+
+        .toast-message {
+            font-size: 13px;
+            opacity: 0.9;
+        }
+
+        .toast-close {
+            background: none;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            opacity: 0.5;
+            transition: opacity 0.2s;
+            padding: 0;
+            line-height: 1;
+        }
+
+        .toast-close:hover {
+            opacity: 1;
+        }
+
+        @keyframes toast-slide-in {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes toast-slide-out {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+
+        /* Offline Banner Styles */
+        .offline-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border-bottom: 2px solid #f59e0b;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            z-index: 9998;
+            animation: banner-slide-down 0.3s ease-out;
+        }
+
+        .offline-banner.offline-error {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            border-bottom-color: #f87171;
+        }
+
+        @keyframes banner-slide-down {
+            from {
+                transform: translateY(-100%);
+            }
+            to {
+                transform: translateY(0);
+            }
+        }
+
+        .offline-banner-icon {
+            font-size: 18px;
+        }
+
+        .offline-banner-text {
+            font-size: 14px;
+            font-weight: 500;
+            color: #92400e;
+        }
+
+        .offline-banner.offline-error .offline-banner-text {
+            color: #991b1b;
+        }
+
+        .sync-status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 9999px;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .sync-status-badge.status-connected {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .sync-status-badge.status-syncing {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .sync-status-badge.status-offline {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .sync-status-badge.status-connecting {
+            background: #e0e7ff;
+            color: #3730a3;
+        }
+
+        .sync-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .sync-dot.dot-connected {
+            background: #10b981;
+        }
+
+        .sync-dot.dot-syncing {
+            background: #f59e0b;
+            animation: pulse-dot 1s ease-in-out infinite;
+        }
+
+        .sync-dot.dot-offline {
+            background: #ef4444;
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+
+        .sync-dot.dot-connecting {
+            background: #6366f1;
+            animation: pulse-dot 1s ease-in-out infinite;
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
+
+        /* Add padding to body when offline banner is shown */
+        body.has-offline-banner {
+            padding-top: 44px;
+        }
     </style>
 </head>
 <body>
     <div id="app"></div>
+    <div id="toast-container" class="toast-container"></div>
 
     <script>
         // Firebase Configuration
@@ -181,6 +536,98 @@
                 coinDropSound.currentTime = 0;
                 coinDropSound.play().catch(() => {});
             }, 400);
+        }
+
+        // Toast notification system
+        function showToast(type, title, message, duration = 5000) {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+
+            const icons = {
+                error: '❌',
+                warning: '⚠️',
+                success: '✅',
+                info: 'ℹ️'
+            };
+
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `
+                <span class="toast-icon">${icons[type] || icons.info}</span>
+                <div class="toast-content">
+                    <div class="toast-title">${title}</div>
+                    <div class="toast-message">${message}</div>
+                </div>
+                <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+            `;
+
+            container.appendChild(toast);
+
+            // Auto-remove after duration
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    toast.classList.add('toast-hiding');
+                    setTimeout(() => toast.remove(), 300);
+                }
+            }, duration);
+
+            return toast;
+        }
+
+        // Track last error time to prevent spam
+        let lastErrorTime = 0;
+        const ERROR_COOLDOWN = 10000; // 10 seconds between same error type
+
+        function showSyncError(errorType, details) {
+            const now = Date.now();
+            if (now - lastErrorTime < ERROR_COOLDOWN) return;
+            lastErrorTime = now;
+
+            const messages = {
+                load: {
+                    title: 'Could not load data',
+                    message: 'Using cached data. Changes may not sync until connection is restored.'
+                },
+                save: {
+                    title: 'Could not save changes',
+                    message: 'Your changes are saved locally and will sync when connection is restored.'
+                },
+                sync: {
+                    title: 'Sync interrupted',
+                    message: 'Real-time updates paused. Will retry automatically.'
+                },
+                offline: {
+                    title: 'You\'re offline',
+                    message: 'Changes will be saved locally and sync when you\'re back online.'
+                }
+            };
+
+            const msg = messages[errorType] || messages.sync;
+            showToast('warning', msg.title, msg.message);
+
+            if (details) {
+                console.error(`Sync error (${errorType}):`, details);
+            }
+        }
+
+        function showConnectionRestored() {
+            showToast('success', 'Connected!', 'Your data is now syncing across devices.', 3000);
+        }
+
+        // Helper to avoid floating-point precision errors in money calculations
+        // Rounds to 2 decimal places after each operation
+        function roundMoney(amount) {
+            return Math.round(amount * 100) / 100;
+        }
+
+        function addEarnings(childKey, weekAmount, todayAmount = 0) {
+            state.earnings[childKey].weekTotal = roundMoney(state.earnings[childKey].weekTotal + weekAmount);
+            state.earnings[childKey].todayTotal = roundMoney(state.earnings[childKey].todayTotal + todayAmount);
+        }
+
+        function subtractEarnings(childKey, weekAmount, todayAmount = 0) {
+            state.earnings[childKey].weekTotal = Math.max(0, roundMoney(state.earnings[childKey].weekTotal - weekAmount));
+            state.earnings[childKey].todayTotal = Math.max(0, roundMoney(state.earnings[childKey].todayTotal - todayAmount));
         }
 
         // Lucide icons as SVG strings
@@ -336,6 +783,70 @@
                     }, 1500);
                 }, burst.delay);
             });
+        }
+
+        // Daily Bonus Pot of Gold Animation
+        function showDailyBonusAnimation(childName) {
+            const container = document.createElement('div');
+            container.className = 'pot-of-gold-container';
+
+            // Create pot of gold
+            const pot = document.createElement('div');
+            pot.className = 'pot-of-gold';
+            pot.textContent = '🏆';
+            container.appendChild(pot);
+
+            // Create bonus text
+            const bonusText = document.createElement('div');
+            bonusText.className = 'bonus-text';
+            bonusText.innerHTML = `${childName}<br>+$1 BONUS!`;
+            container.appendChild(bonusText);
+
+            document.body.appendChild(container);
+
+            // Sprinkle gold coins
+            const coinEmojis = ['🪙', '💰', '✨', '⭐'];
+            let coinInterval = setInterval(() => {
+                for (let i = 0; i < 3; i++) {
+                    const coin = document.createElement('div');
+                    coin.className = 'gold-coin';
+                    coin.textContent = coinEmojis[Math.floor(Math.random() * coinEmojis.length)];
+                    coin.style.left = (Math.random() * 120 - 60) + 'px';
+                    coin.style.top = '40px';
+                    coin.style.setProperty('--fall-distance', (150 + Math.random() * 100) + 'px');
+                    coin.style.setProperty('--rotation', (Math.random() * 720 - 360) + 'deg');
+                    coin.style.animationDelay = (Math.random() * 0.3) + 's';
+                    container.appendChild(coin);
+
+                    // Remove coin after animation
+                    setTimeout(() => coin.remove(), 1800);
+                }
+
+                // Add sparkles
+                for (let i = 0; i < 5; i++) {
+                    const sparkle = document.createElement('div');
+                    sparkle.className = 'gold-sparkle';
+                    sparkle.style.left = (Math.random() * 100 - 50) + 'px';
+                    sparkle.style.top = (Math.random() * 60 + 20) + 'px';
+                    const angle = Math.random() * Math.PI * 2;
+                    const distance = 30 + Math.random() * 50;
+                    sparkle.style.setProperty('--tx', (Math.cos(angle) * distance) + 'px');
+                    sparkle.style.setProperty('--ty', (Math.sin(angle) * distance) + 'px');
+                    container.appendChild(sparkle);
+
+                    setTimeout(() => sparkle.remove(), 1000);
+                }
+            }, 200);
+
+            // Stop spawning coins after 2 seconds
+            setTimeout(() => {
+                clearInterval(coinInterval);
+            }, 2000);
+
+            // Remove container after animation completes
+            setTimeout(() => {
+                container.remove();
+            }, 3000);
         }
 
         // State management
@@ -560,7 +1071,7 @@
                     }
                 })
                 .catch(err => {
-                    console.error('Firebase load error:', err);
+                    showSyncError('load', err);
                     syncStatus = 'offline';
                     render();
                 });
@@ -595,7 +1106,7 @@
                     render();
                 })
                 .catch(err => {
-                    console.error('Firebase save error:', err);
+                    showSyncError('save', err);
                     syncStatus = 'offline';
                     render();
                 });
@@ -621,23 +1132,33 @@
                         state.loginForm = { username: '', password: '' };
                         sanitizeState();
                         localStorage.setItem('moneyTrackerState', JSON.stringify(firebaseData));
+                        checkDailyReset(); // Ensure daily reset runs after syncing Firebase data (saves if needed)
                         lastSyncTime = new Date();
                         syncStatus = 'connected';
                         render();
                     }
                 }
             }, (err) => {
-                console.error('Firebase realtime sync error:', err);
+                showSyncError('sync', err);
                 syncStatus = 'offline';
                 render();
             });
 
             // Monitor connection state
+            let wasOffline = false;
             database.ref('.info/connected').on('value', (snapshot) => {
                 if (snapshot.val() === true) {
+                    const previousStatus = syncStatus;
                     syncStatus = 'connected';
+                    // Show "connected" toast only if we were previously offline
+                    if (wasOffline || previousStatus === 'offline') {
+                        showConnectionRestored();
+                    }
+                    wasOffline = false;
                 } else {
                     syncStatus = 'offline';
+                    wasOffline = true;
+                    showSyncError('offline');
                 }
                 render();
             });
@@ -668,11 +1189,11 @@
 
         // Get sync status indicator HTML
         function getSyncStatusIndicator() {
-            const colors = {
-                connected: 'bg-green-500',
-                syncing: 'bg-yellow-500 animate-pulse',
-                offline: 'bg-red-500',
-                connecting: 'bg-yellow-500 animate-pulse'
+            const icons = {
+                connected: '✓',
+                syncing: '↻',
+                offline: '⚠',
+                connecting: '◌'
             };
             const labels = {
                 connected: 'Synced',
@@ -680,16 +1201,40 @@
                 offline: 'Offline',
                 connecting: 'Connecting...'
             };
-            const color = colors[syncStatus] || colors.connecting;
+            const icon = icons[syncStatus] || icons.connecting;
             const label = labels[syncStatus] || labels.connecting;
-            const timeStr = lastSyncTime ? lastSyncTime.toLocaleTimeString() : '';
+            const timeStr = lastSyncTime ? `Last synced: ${lastSyncTime.toLocaleTimeString()}` : 'Not synced yet';
 
             return `
-                <div class="flex items-center gap-2 text-xs text-gray-500" title="Last synced: ${timeStr}">
-                    <div class="w-2 h-2 rounded-full ${color}"></div>
+                <div class="sync-status-badge status-${syncStatus}" title="${timeStr}">
+                    <span class="sync-dot dot-${syncStatus}"></span>
                     <span>${label}</span>
                 </div>
             `;
+        }
+
+        // Offline banner management
+        function updateOfflineBanner() {
+            let banner = document.getElementById('offline-banner');
+
+            if (syncStatus === 'offline') {
+                if (!banner) {
+                    banner = document.createElement('div');
+                    banner.id = 'offline-banner';
+                    banner.className = 'offline-banner';
+                    banner.innerHTML = `
+                        <span class="offline-banner-icon">📡</span>
+                        <span class="offline-banner-text">You're offline — changes are saved locally and will sync when reconnected</span>
+                    `;
+                    document.body.insertBefore(banner, document.body.firstChild);
+                    document.body.classList.add('has-offline-banner');
+                }
+            } else {
+                if (banner) {
+                    banner.remove();
+                    document.body.classList.remove('has-offline-banner');
+                }
+            }
         }
 
         // Check for daily reset
@@ -1139,31 +1684,19 @@
                 }
             }
 
-            // Calculate the change: subtract when unchecking (isCompleted=true), add when checking
-            const pointChange = isCompleted ? -actualPayout : actualPayout;
-
-            // Prevent earnings from going negative
-            if (pointChange < 0) {
-                const newWeekTotal = state.earnings[childKey].weekTotal + pointChange;
-                const newTodayTotal = state.earnings[childKey].todayTotal + pointChange;
-                state.earnings[childKey].weekTotal = Math.max(0, newWeekTotal);
-                state.earnings[childKey].todayTotal = Math.max(0, newTodayTotal);
+            // Update earnings: subtract when unchecking (isCompleted=true), add when checking
+            if (isCompleted) {
+                subtractEarnings(childKey, actualPayout, actualPayout);
             } else {
-                state.earnings[childKey].weekTotal += pointChange;
-                state.earnings[childKey].todayTotal += pointChange;
+                addEarnings(childKey, actualPayout, actualPayout);
             }
 
             // For joint tasks, also update the other child's earnings
             if (task && task.isJoint && otherChildPayout !== 0) {
-                const otherPointChange = isCompleted ? -otherChildPayout : otherChildPayout;
-                if (otherPointChange < 0) {
-                    const newOtherWeekTotal = state.earnings[otherChild].weekTotal + otherPointChange;
-                    const newOtherTodayTotal = state.earnings[otherChild].todayTotal + otherPointChange;
-                    state.earnings[otherChild].weekTotal = Math.max(0, newOtherWeekTotal);
-                    state.earnings[otherChild].todayTotal = Math.max(0, newOtherTodayTotal);
+                if (isCompleted) {
+                    subtractEarnings(otherChild, otherChildPayout, otherChildPayout);
                 } else {
-                    state.earnings[otherChild].weekTotal += otherPointChange;
-                    state.earnings[otherChild].todayTotal += otherPointChange;
+                    addEarnings(otherChild, otherChildPayout, otherChildPayout);
                 }
             }
 
@@ -1226,15 +1759,11 @@
             const bonusAlreadyAwarded = state.dailyBonusAwarded[childKey][today];
 
             if (allDailyTasksComplete && !bonusAlreadyAwarded && dailyTasks.length > 0) {
-                const bonusAmount = 1.00;
-                state.earnings[childKey].weekTotal += bonusAmount;
-                state.earnings[childKey].todayTotal += bonusAmount;
+                addEarnings(childKey, 1.00, 1.00);
                 state.dailyBonusAwarded[childKey][today] = true;
-                alert(`🎉 ${state.users[childKey].name} earned a $1 bonus for completing all daily tasks!`);
+                showDailyBonusAnimation(state.users[childKey].name);
             } else if (!allDailyTasksComplete && bonusAlreadyAwarded) {
-                const bonusAmount = -1.00;
-                state.earnings[childKey].weekTotal += bonusAmount;
-                state.earnings[childKey].todayTotal += bonusAmount;
+                subtractEarnings(childKey, 1.00, 1.00);
                 state.dailyBonusAwarded[childKey][today] = false;
             }
         }
@@ -1264,6 +1793,8 @@
             const task = state.tasks.find(t => t.id === taskId);
             if (!task) return;
 
+            if (!confirm(`🗑️ Delete "${task.name}"?\n\nThis will remove the task and deduct any earnings from completed instances. This cannot be undone.`)) return;
+
             const payout = task.payout || 0;
 
             // Clean up completion records for both kids
@@ -1271,8 +1802,7 @@
                 // Remove from today's completed tasks and deduct earnings
                 if (state.completedTasks[childKey].includes(taskId)) {
                     state.completedTasks[childKey] = state.completedTasks[childKey].filter(id => id !== taskId);
-                    state.earnings[childKey].weekTotal = Math.max(0, state.earnings[childKey].weekTotal - payout);
-                    state.earnings[childKey].todayTotal = Math.max(0, state.earnings[childKey].todayTotal - payout);
+                    subtractEarnings(childKey, payout, payout);
                 }
 
                 // Remove from today's skipped tasks
@@ -1284,7 +1814,7 @@
                 for (const date in state.completionHistory[childKey]) {
                     if (state.completionHistory[childKey][date].includes(taskId)) {
                         state.completionHistory[childKey][date] = state.completionHistory[childKey][date].filter(id => id !== taskId);
-                        state.earnings[childKey].weekTotal = Math.max(0, state.earnings[childKey].weekTotal - payout);
+                        subtractEarnings(childKey, payout, 0);
                     }
                 }
 
@@ -1304,25 +1834,112 @@
         }
 
         function moveTaskUp(taskId) {
-            const index = state.tasks.findIndex(t => t.id === taskId);
-            if (index > 0) {
-                const task = state.tasks[index];
-                state.tasks.splice(index, 1);
-                state.tasks.splice(index - 1, 0, task);
+            const task = state.tasks.find(t => t.id === taskId);
+            if (!task) return;
+
+            // Get tasks in the same section, in their current order
+            const sectionTasks = state.tasks.filter(t => t.section === task.section);
+            const indexInSection = sectionTasks.findIndex(t => t.id === taskId);
+
+            if (indexInSection > 0) {
+                // Find the task above in the same section
+                const taskAbove = sectionTasks[indexInSection - 1];
+                const globalIndex = state.tasks.findIndex(t => t.id === taskId);
+                const globalIndexAbove = state.tasks.findIndex(t => t.id === taskAbove.id);
+
+                // Swap positions in the global array
+                state.tasks.splice(globalIndex, 1);
+                state.tasks.splice(globalIndexAbove, 0, task);
                 saveState();
                 render();
             }
         }
 
         function moveTaskDown(taskId) {
-            const index = state.tasks.findIndex(t => t.id === taskId);
-            if (index < state.tasks.length - 1) {
-                const task = state.tasks[index];
-                state.tasks.splice(index, 1);
-                state.tasks.splice(index + 1, 0, task);
+            const task = state.tasks.find(t => t.id === taskId);
+            if (!task) return;
+
+            // Get tasks in the same section, in their current order
+            const sectionTasks = state.tasks.filter(t => t.section === task.section);
+            const indexInSection = sectionTasks.findIndex(t => t.id === taskId);
+
+            if (indexInSection < sectionTasks.length - 1) {
+                // Find the task below in the same section
+                const taskBelow = sectionTasks[indexInSection + 1];
+                const globalIndex = state.tasks.findIndex(t => t.id === taskId);
+                const globalIndexBelow = state.tasks.findIndex(t => t.id === taskBelow.id);
+
+                // Swap positions in the global array
+                state.tasks.splice(globalIndex, 1);
+                state.tasks.splice(globalIndexBelow, 0, task);
                 saveState();
                 render();
             }
+        }
+
+        // Drag and Drop for task reordering
+        let draggedTaskId = null;
+        let draggedTaskSection = null;
+
+        function handleDragStart(e, taskId, section) {
+            draggedTaskId = taskId;
+            draggedTaskSection = section;
+            e.target.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', taskId);
+        }
+
+        function handleDragEnd(e) {
+            e.target.classList.remove('dragging');
+            // Remove drag-over class from all elements
+            document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+            draggedTaskId = null;
+            draggedTaskSection = null;
+        }
+
+        function handleDragOver(e, taskId, section) {
+            e.preventDefault();
+            // Only allow drop on tasks in the same section
+            if (draggedTaskSection !== section || draggedTaskId === taskId) return;
+
+            e.dataTransfer.dropEffect = 'move';
+            const target = e.target.closest('.task-item-draggable');
+            if (target && !target.classList.contains('dragging')) {
+                // Remove drag-over from other elements
+                document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+                target.classList.add('drag-over');
+            }
+        }
+
+        function handleDragLeave(e) {
+            const target = e.target.closest('.task-item-draggable');
+            if (target) {
+                target.classList.remove('drag-over');
+            }
+        }
+
+        function handleDrop(e, targetTaskId, section) {
+            e.preventDefault();
+            const target = e.target.closest('.task-item-draggable');
+            if (target) {
+                target.classList.remove('drag-over');
+            }
+
+            // Only allow drop on tasks in the same section
+            if (draggedTaskSection !== section || draggedTaskId === targetTaskId) return;
+
+            const draggedIndex = state.tasks.findIndex(t => t.id === draggedTaskId);
+            const targetIndex = state.tasks.findIndex(t => t.id === targetTaskId);
+
+            if (draggedIndex === -1 || targetIndex === -1) return;
+
+            // Remove dragged task and insert at target position
+            const [draggedTask] = state.tasks.splice(draggedIndex, 1);
+            const newTargetIndex = state.tasks.findIndex(t => t.id === targetTaskId);
+            state.tasks.splice(newTargetIndex, 0, draggedTask);
+
+            saveState();
+            render();
         }
 
         function updateTaskPayout(taskId, newPayout) {
@@ -1831,20 +2448,7 @@
             }
             return dates;
         }
-        
-        function updateTaskFrequency(taskId, newFrequency) {
-            const task = state.tasks.find(t => t.id === taskId);
-            if (task) {
-                task.frequency = newFrequency;
-                if (newFrequency === 'oneTime') {
-                    task.oneTimeDate = new Date().toDateString();
-                }
-                state.editingFrequency = null;
-                saveState();
-                render();
-            }
-        }
-        
+
         function toggleTaskJoint(taskId) {
             const task = state.tasks.find(t => t.id === taskId);
             if (task) {
@@ -1940,7 +2544,7 @@
             // Award streak bonus if they completed everything all week
             if (hasFullWeek && state.weeklyStreakBonus > 0) {
                 // Only add to weekTotal, not todayTotal (streak is a week achievement, not daily)
-                state.earnings[childKey].weekTotal += state.weeklyStreakBonus;
+                addEarnings(childKey, state.weeklyStreakBonus, 0);
                 state.weeklyStreakAwarded[childKey][weekStart] = true;
                 saveState();
                 alert(`🔥 ${state.users[childKey].name} earned a $${state.weeklyStreakBonus.toFixed(2)} WEEKLY STREAK BONUS for completing all tasks every day this week!`);
@@ -2934,7 +3538,15 @@
 
         function renderManageTaskItem(task) {
             return `
-                <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                <div
+                    class="flex justify-between items-center p-3 bg-gray-50 rounded-lg task-item-draggable"
+                    draggable="true"
+                    ondragstart="handleDragStart(event, ${task.id}, '${task.section}')"
+                    ondragend="handleDragEnd(event)"
+                    ondragover="handleDragOver(event, ${task.id}, '${task.section}')"
+                    ondragleave="handleDragLeave(event)"
+                    ondrop="handleDrop(event, ${task.id}, '${task.section}')"
+                >
                     ${state.editingTaskName === task.id ? `
                         <div class="flex gap-2 flex-1 mr-3">
                             <input
@@ -3077,21 +3689,10 @@
                         >
                             ${task.isJoint ? '👯 Joint' : '👤'}
                         </button>
-                        <div class="flex flex-col gap-0.5">
-                            <button
-                                onclick="moveTaskUp(${task.id})"
-                                class="p-1 text-gray-500 hover:bg-gray-200 rounded transition text-xs leading-none"
-                                title="Move up"
-                            >
-                                ▲
-                            </button>
-                            <button
-                                onclick="moveTaskDown(${task.id})"
-                                class="p-1 text-gray-500 hover:bg-gray-200 rounded transition text-xs leading-none"
-                                title="Move down"
-                            >
-                                ▼
-                            </button>
+                        <div class="drag-handle flex items-center px-1" title="Drag to reorder">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path>
+                            </svg>
                         </div>
                         <button
                             onclick="deleteTask(${task.id})"
@@ -3733,6 +4334,7 @@
         function render() {
             const app = document.getElementById('app');
             app.innerHTML = state.currentUser ? renderMainApp() : renderLoginScreen();
+            updateOfflineBanner();
         }
 
         // Initialize

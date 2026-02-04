@@ -124,24 +124,80 @@ The Weekly Allowance app already uses the ideal architecture (static HTML + Fire
 
 ---
 
+## Session Log: Feb 4, 2025 - Daily Reset Bug Fix
+
+### Issue Reported
+- App not resetting for new day - tasks from Feb 3 showing as completed on Feb 4
+- Streak showing 4/7 instead of 3/7 (counting stale data as today's completions)
+- Totals not matching expected values
+
+### Root Cause
+The `setupRealtimeSync()` function's `.on('value')` listener was overwriting local state with Firebase data WITHOUT calling `checkDailyReset()`. This caused:
+1. Yesterday's `completedTasks` to persist and display as completed
+2. Streak calculation to count stale `completedTasks` as today's data
+3. Daily bonus not being awarded for the previous day
+
+### Fix Applied
+Added `checkDailyReset()` call to the realtime sync handler in `setupRealtimeSync()`:
+- Location: Lines 616-627 in `kids-money-tracker.html`
+- Now when Firebase data syncs, daily reset logic runs immediately after
+- If it's a new day, tasks are archived to history, `completedTasks` is cleared, and `todayTotal` resets to 0
+
+### Lessons Learned
+5. **Always run reset checks after loading external data** - Firebase sync was bypassing the daily reset logic, causing stale state to persist
+
+### Additional Changes (Feb 4)
+
+1. **Daily Bonus Animation** - Replaced alert popup with pot of gold animation
+   - Trophy floats down from top of screen
+   - Sprinkles gold coins and sparkles
+   - Shows child's name and "+$1 BONUS!" text
+   - Auto-disappears after 3 seconds (no click required)
+
+2. **Confirmation Dialogs** - Added to `deleteTask()` function
+   - Shows task name and warns about earnings deduction
+   - Other destructive actions (reset data, weekly payout) already had confirmations
+
+3. **Task Reordering - Drag and Drop** - Replaced ▲/▼ buttons with drag-and-drop
+   - Tasks can now be dragged to reorder within their section
+   - Visual feedback: dragging task becomes semi-transparent, drop target shows blue border
+   - Drag handle icon (≡) indicates draggable items
+   - Tasks stay within their section (can't drag Morning task to Evening)
+
+4. **Better Error Messages** - Added toast notification system
+   - Shows user-friendly messages when Firebase sync fails
+   - Different messages for load/save/sync errors
+   - "Connected!" toast when connection is restored
+   - 10-second cooldown prevents toast spam
+   - Toasts auto-dismiss after 5 seconds (can also click to close)
+
+5. **Offline Mode Indicator** - Enhanced sync status visibility
+   - Fixed yellow banner at top of screen when offline
+   - Banner shows "You're offline — changes are saved locally and will sync when reconnected"
+   - Enhanced status badge with color-coded backgrounds (green=synced, yellow=syncing, red=offline)
+   - Pulsing dot animation for active states
+   - Banner auto-appears/disappears based on connection state
+
+---
+
 ## Remaining Improvements (Future Sessions)
 
 ### Priority 1: Quick Wins (Low Effort, High Impact)
 
-- [ ] **Confirmation dialogs** - Add "Are you sure?" before destructive actions (delete task, reset week, clear data)
-- [ ] **Undo for task completion** - Let kids un-check a task they accidentally marked complete (within same day)
-- [ ] **Better error messages** - Show user-friendly errors when Firebase sync fails instead of silent failures
+- [x] **Confirmation dialogs** - Add "Are you sure?" before destructive actions (delete task, reset week, clear data) ✅ Implemented Feb 4
+- [x] **Undo for task completion** - Kids can un-check tasks (already working)
+- [x] **Better error messages** - Toast notifications for sync errors ✅ Implemented Feb 4
 
 ### Priority 2: UX Improvements
 
-- [ ] **Offline mode indicator** - Make it clearer when app is offline vs syncing vs connected
-- [ ] **Task reordering** - Drag-and-drop to reorder tasks within sections
+- [x] **Offline mode indicator** - Prominent banner + enhanced status badge ✅ Implemented Feb 4
+- [x] **Task reordering** - Drag-and-drop to reorder tasks within sections ✅ Implemented Feb 4
 - [ ] **Bulk task operations** - Select multiple tasks for delete/edit (parent only)
 - [ ] **Keyboard shortcuts** - Quick keys for common actions (especially on desktop)
 
 ### Priority 3: Feature Ideas
 
-- [ ] **Savings goals** - Let kids set a target amount they're working toward (shows progress bar)
+- [x] **Savings goals** - Already implemented
 - [ ] **Data export** - Export earnings history to CSV/PDF for record-keeping
 - [ ] **Parent approval workflow** - Optional approval step for bonus tasks before payout counts
 - [ ] **Task notes** - Kids can add a note when completing a task ("cleaned the whole bathroom!")
