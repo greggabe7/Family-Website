@@ -1105,7 +1105,7 @@
                 state.skippedTasks[childKey].push(taskId);
             }
 
-            setTimeout(() => checkDailyBonus(childKey), 100);
+            checkDailyBonus(childKey);
             saveState();
             render();
         }
@@ -1811,8 +1811,8 @@
             
             // Award streak bonus if they completed everything all week
             if (hasFullWeek && state.weeklyStreakBonus > 0) {
+                // Only add to weekTotal, not todayTotal (streak is a week achievement, not daily)
                 state.earnings[childKey].weekTotal += state.weeklyStreakBonus;
-                state.earnings[childKey].todayTotal += state.weeklyStreakBonus;
                 state.weeklyStreakAwarded[childKey][weekStart] = true;
                 saveState();
                 alert(`🔥 ${state.users[childKey].name} earned a $${state.weeklyStreakBonus.toFixed(2)} WEEKLY STREAK BONUS for completing all tasks every day this week!`);
@@ -2637,7 +2637,8 @@
         function taskAppliesToDate(task, dateObj, childKey) {
             if (!task.days || task.days.length === 0) return false;
             const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-            const dayName = dayNames[dateObj.getDay()];
+            const dayOfWeek = dateObj.getDay();
+            const dayName = dayNames[dayOfWeek];
             const dateStr = dateObj.toDateString();
             const isToday = dateStr === new Date().toDateString();
 
@@ -2664,10 +2665,20 @@
                 return false;
             }
 
+            // Weekly tasks: show every day of the week (can be completed any day)
+            if (task.days.includes('weekly')) {
+                return true;
+            }
+
+            // Monthly tasks: show every day of the month (can be completed any day)
+            if (task.days.includes('monthly')) {
+                return true;
+            }
+
             return task.days.some(d => {
                 if (d === dayName) return true;
-                if (d === 'weekly' && dateObj.getDay() === 0) return true; // Sundays
-                if (d === 'monthly' && dateObj.getDate() === 1) return true; // 1st of month
+                // Support legacy 'weekday' format (Mon-Fri)
+                if (d === 'weekday' && dayOfWeek >= 1 && dayOfWeek <= 5) return true;
                 return false;
             });
         }
