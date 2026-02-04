@@ -1422,8 +1422,8 @@
                 state.completedTasks[childKey].forEach(taskId => {
                     const task = state.tasks.find(t => t.id === taskId);
                     if (task) {
-                        todayTotal += task.payout;
-                        weekTotal += task.payout;
+                        todayTotal = roundMoney(todayTotal + task.payout);
+                        weekTotal = roundMoney(weekTotal + task.payout);
                     }
                 });
 
@@ -1439,7 +1439,7 @@
                         state.completionHistory[childKey][date].forEach(taskId => {
                             const task = state.tasks.find(t => t.id === taskId);
                             if (task) {
-                                weekTotal += task.payout;
+                                weekTotal = roundMoney(weekTotal + task.payout);
                             }
                         });
                     }
@@ -1470,8 +1470,8 @@
                     const allComplete = dailyTasks.length > 0 && dailyTasks.every(t => completedForDay.includes(t.id));
 
                     if (allComplete) {
-                        weekTotal += 1.00;
-                        if (date === today) todayTotal += 1.00;
+                        weekTotal = roundMoney(weekTotal + 1.00);
+                        if (date === today) todayTotal = roundMoney(todayTotal + 1.00);
                         state.dailyBonusAwarded[childKey][date] = true;
                     } else {
                         state.dailyBonusAwarded[childKey][date] = false;
@@ -1481,12 +1481,12 @@
                 // Check weekly streak bonus
                 const weekStart = weekDates[0];
                 if (state.weeklyStreakAwarded[childKey][weekStart]) {
-                    weekTotal += state.weeklyStreakBonus;
+                    weekTotal = roundMoney(weekTotal + state.weeklyStreakBonus);
                 }
 
-                // Update earnings
-                state.earnings[childKey].weekTotal = weekTotal;
-                state.earnings[childKey].todayTotal = todayTotal;
+                // Update earnings (ensure proper rounding)
+                state.earnings[childKey].weekTotal = roundMoney(weekTotal);
+                state.earnings[childKey].todayTotal = roundMoney(todayTotal);
             });
 
             saveState();
@@ -1660,10 +1660,9 @@
             if (isSkipped && isCompleted) {
                 const task = state.tasks.find(t => t.id === taskId);
                 state.completedTasks[childKey] = state.completedTasks[childKey].filter(id => id !== taskId);
-                state.earnings[childKey].weekTotal = Math.max(0, state.earnings[childKey].weekTotal - task.payout);
-                state.earnings[childKey].todayTotal = Math.max(0, state.earnings[childKey].todayTotal - task.payout);
+                subtractEarnings(childKey, task.payout, task.payout);
             }
-            
+
             if (isSkipped) {
                 state.skippedTasks[childKey] = state.skippedTasks[childKey].filter(id => id !== taskId);
             } else {
@@ -2338,11 +2337,12 @@
 
             const task = state.tasks.find(t => t.id === taskId);
             if (task) {
-                const pointChange = isCompleted ? -task.payout : task.payout;
-                if (pointChange < 0) {
-                    state.earnings[childKey].weekTotal = Math.max(0, state.earnings[childKey].weekTotal + pointChange);
+                if (isCompleted) {
+                    // Was completed, now uncompleting - subtract earnings
+                    subtractEarnings(childKey, task.payout, 0);
                 } else {
-                    state.earnings[childKey].weekTotal += pointChange;
+                    // Was not completed, now completing - add earnings
+                    addEarnings(childKey, task.payout, 0);
                 }
             }
 
@@ -2364,9 +2364,9 @@
             if (isSkipped && isCompleted) {
                 const task = state.tasks.find(t => t.id === taskId);
                 state.completionHistory[childKey][date] = dateCompleted.filter(id => id !== taskId);
-                state.earnings[childKey].weekTotal = Math.max(0, state.earnings[childKey].weekTotal - task.payout);
+                subtractEarnings(childKey, task.payout, 0);
             }
-            
+
             if (isSkipped) {
                 state.skippedHistory[childKey][date] = dateSkipped.filter(id => id !== taskId);
             } else {
