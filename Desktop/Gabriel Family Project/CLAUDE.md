@@ -18,7 +18,7 @@ Landing page for the Gabriel family with a photo collage hero section and links 
 - **No backend** - pure static site
 
 ### Key Sections
-- Hero with 10-photo grid (5x2 grid at all screen sizes)
+- Hero with 10-photo responsive grid (2 cols mobile, 3 tablet, 5 desktop)
 - Family Apps section with two cards: Weekly Allowance and Trip Planner
 
 ### External Links
@@ -178,6 +178,18 @@ Added `checkDailyReset()` call to the realtime sync handler in `setupRealtimeSyn
    - Pulsing dot animation for active states
    - Banner auto-appears/disappears based on connection state
 
+6. **Code Quality Improvements** - Security and refactoring
+   - **XSS Prevention**: Added `escapeHtml()` helper and `startEditingTaskName()` safe function
+   - **Floating-Point Fix**: Added `roundMoney()` helper to prevent 0.15+0.15=0.29999 issues
+   - **createFireworks() Refactor**: Reduced ~140 lines to ~35 with `createParticles()` helper
+   - **sanitizeState() Refactor**: Added `ensureChildProperty()` helper to reduce duplication
+   - **Mobile Responsiveness**: Photo grid now responsive (2 cols mobile, 3 tablet, 5 desktop)
+   - **Accessibility**: Added ARIA labels to all day selection checkboxes
+
+**Commits (Feb 4):**
+- `4591392`: Update CLAUDE.md with session log and remaining improvements
+- `ada8d86`: Improve code quality: XSS prevention, refactoring, accessibility
+
 ---
 
 ## Remaining Improvements (Future Sessions)
@@ -205,10 +217,15 @@ Added `checkDailyReset()` call to the realtime sync handler in `setupRealtimeSyn
 
 ### Priority 4: Code Quality / Architecture
 
-- [ ] **Split into modules** - Current file is 3600+ lines; separate HTML, CSS, and JS
+- [ ] **Split into modules** - Current file is 4300+ lines; separate HTML, CSS, and JS
 - [ ] **Add error boundaries** - Catch and display JS errors gracefully instead of white screen
 - [ ] **Unit tests** - Test critical functions like earnings calculation, date filtering
 - [ ] **TypeScript migration** - Add type safety for state management
+- [x] **XSS prevention** - Escape user input in rendered HTML ✅ Implemented Feb 4
+- [x] **Code refactoring** - Reduce duplication in createFireworks and sanitizeState ✅ Implemented Feb 4
+- [x] **Floating-point precision** - Fix money calculation rounding ✅ Implemented Feb 4
+- [x] **Mobile responsiveness** - Photo grid adapts to screen size ✅ Implemented Feb 4
+- [x] **Accessibility** - ARIA labels on form controls ✅ Implemented Feb 4
 
 ### Priority 5: Data Management
 
@@ -220,10 +237,16 @@ Added `checkDailyReset()` call to the realtime sync handler in `setupRealtimeSyn
 
 ## Known Technical Debt
 
-1. **Single-file architecture** - All 3600+ lines in one HTML file makes maintenance harder
+1. **Single-file architecture** - All 4300+ lines in one HTML file makes maintenance harder
 2. **No build step** - Using CDN for Tailwind means no tree-shaking, larger payload
 3. **Manual state management** - Could benefit from a lightweight state library
 4. **No automated tests** - All testing is manual
+
+**Resolved (Feb 4):**
+- ~~XSS vulnerability in task name rendering~~ → Fixed with `escapeHtml()` helper
+- ~~Floating-point precision issues~~ → Fixed with `roundMoney()` helper
+- ~~Code duplication in particle/state functions~~ → Refactored with helper functions
+- ~~Hardcoded 5-column photo grid~~ → Now responsive
 
 ---
 
@@ -233,3 +256,6 @@ Added `checkDailyReset()` call to the realtime sync handler in `setupRealtimeSyn
 2. **Don't add async delays without clear reason** - The `setTimeout` in `toggleTaskSkipped` created race conditions
 3. **Recalculation tools are essential** - Having `recalculateEarningsFromHistory` saved hours of manual data fixing
 4. **Test with real data** - The orphaned ID bug only surfaced when testing with actual week-long usage data
+5. **Always run reset checks after loading external data** - Firebase sync was bypassing the daily reset logic, causing stale state to persist
+6. **Never interpolate user input into HTML without escaping** - Task names were vulnerable to XSS; always use helper functions like `escapeHtml()` for user-provided content
+7. **Use helper functions to reduce duplication** - Refactoring repetitive code (like particle creation) makes maintenance easier and reduces bugs
