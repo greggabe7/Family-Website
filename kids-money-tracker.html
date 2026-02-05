@@ -630,6 +630,102 @@
             state.earnings[childKey].todayTotal = Math.max(0, roundMoney(state.earnings[childKey].todayTotal - todayAmount));
         }
 
+        // Clean up invalid completions after sync (fixes race conditions from stale device data)
+        // Removes: orphan tasks (deleted), tasks completed on wrong day, duplicates
+        function cleanupInvalidCompletions() {
+            const validTaskIds = state.tasks.map(t => t.id);
+            let needsRecalc = false;
+
+            ['maria', 'helena'].forEach(childKey => {
+                // Clean today's completions: remove orphans and tasks not applicable today
+                if (state.completedTasks[childKey]) {
+                    const before = state.completedTasks[childKey].length;
+                    state.completedTasks[childKey] = state.completedTasks[childKey].filter(taskId => {
+                        const task = state.tasks.find(t => t.id === taskId);
+                        if (!task) return false; // Remove orphan
+                        return isTaskApplicableToday(task); // Remove if not applicable today
+                    });
+                    // Remove duplicates
+                    state.completedTasks[childKey] = [...new Set(state.completedTasks[childKey])];
+                    if (state.completedTasks[childKey].length !== before) needsRecalc = true;
+                }
+
+                // Clean skipped tasks similarly
+                if (state.skippedTasks[childKey]) {
+                    state.skippedTasks[childKey] = state.skippedTasks[childKey].filter(taskId => {
+                        const task = state.tasks.find(t => t.id === taskId);
+                        if (!task) return false;
+                        return isTaskApplicableToday(task);
+                    });
+                    state.skippedTasks[childKey] = [...new Set(state.skippedTasks[childKey])];
+                }
+
+                // Clean completion history: remove orphan task IDs
+                if (state.completionHistory[childKey]) {
+                    Object.keys(state.completionHistory[childKey]).forEach(date => {
+                        const before = state.completionHistory[childKey][date].length;
+                        state.completionHistory[childKey][date] = state.completionHistory[childKey][date].filter(id => validTaskIds.includes(id));
+                        state.completionHistory[childKey][date] = [...new Set(state.completionHistory[childKey][date])];
+                        if (state.completionHistory[childKey][date].length !== before) needsRecalc = true;
+                    });
+                }
+            });
+
+            // If we removed anything, recalculate earnings
+            if (needsRecalc) {
+                console.log('Cleaned up invalid completions after sync, recalculating earnings...');
+                silentRecalculateEarnings();
+            }
+        }
+
+        // Silent version of recalculate (no confirm dialog, no alert)
+        function silentRecalculateEarnings() {
+            const validTaskIds = state.tasks.map(t => t.id);
+            const today = new Date().toDateString();
+            const weekDates = getWeekDates();
+
+            ['maria', 'helena'].forEach(childKey => {
+                let weekTotal = 0;
+                let todayTotal = 0;
+
+                // Calculate today's earnings
+                state.completedTasks[childKey].forEach(taskId => {
+                    const task = state.tasks.find(t => t.id === taskId);
+                    if (task) {
+                        todayTotal = roundMoney(todayTotal + task.payout);
+                        weekTotal = roundMoney(weekTotal + task.payout);
+                    }
+                });
+
+                // Calculate from history (this week only)
+                for (const date of weekDates) {
+                    if (date === today) continue;
+
+                    if (state.completionHistory[childKey][date]) {
+                        state.completionHistory[childKey][date].forEach(taskId => {
+                            const task = state.tasks.find(t => t.id === taskId);
+                            if (task) {
+                                weekTotal = roundMoney(weekTotal + task.payout);
+                            }
+                        });
+                    }
+
+                    if (state.dailyBonusAwarded[childKey][date]) {
+                        weekTotal = roundMoney(weekTotal + 1.00);
+                    }
+                }
+
+                // Add today's daily bonus if earned
+                if (state.dailyBonusAwarded[childKey][today]) {
+                    todayTotal = roundMoney(todayTotal + 1.00);
+                    weekTotal = roundMoney(weekTotal + 1.00);
+                }
+
+                state.earnings[childKey].weekTotal = roundMoney(weekTotal);
+                state.earnings[childKey].todayTotal = roundMoney(todayTotal);
+            });
+        }
+
         // HTML escape helper to prevent XSS attacks in user-provided content
         function escapeHtml(str) {
             if (!str) return '';
@@ -1071,6 +1167,11 @@
                         state.currentUser = currentUser;
                         state.loginForm = { username: '', password: '' };
                         sanitizeState();
+
+                        // Clean up any invalid completions that may have been synced
+                        // (e.g., from stale data on another device)
+                        cleanupInvalidCompletions();
+
                         localStorage.setItem('moneyTrackerState', JSON.stringify(firebaseData));
                         checkDailyReset(); // Ensure daily reset runs after syncing Firebase data (saves if needed)
                         lastSyncTime = new Date();
@@ -1592,6 +1693,11 @@
                     }
                 }
             } else {
+                // Validate task is applicable today before adding (prevents data corruption)
+                if (task && !isTaskApplicableToday(task)) {
+                    console.warn(`Task "${task.name}" is not applicable today, skipping completion`);
+                    return;
+                }
                 state.completedTasks[childKey].push(taskId);
                 playChaChing();
                 // Trigger fireworks when completing a task
@@ -4137,6 +4243,19 @@
                                             </button>
                                         </div>
                                         <p class="text-xs text-gray-500 mt-2">Restores all 14 default chores (Morning, After School, Evening)</p>
+                                    </div>
+
+                                    <!-- Recalculate Earnings -->
+                                    <div class="border-t border-gray-300 pt-4 mb-4">
+                                        <h4 class="font-semibold text-gray-700 mb-3">🔧 Tools</h4>
+                                        <button
+                                            onclick="recalculateEarningsFromHistory()"
+                                            class="w-full px-4 py-3 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition flex items-center justify-center gap-2 font-semibold"
+                                        >
+                                            <span>🔄</span>
+                                            Recalculate Earnings from History
+                                        </button>
+                                        <p class="text-xs text-gray-500 mt-2">Recalculates all earnings based on completion history. Fixes any discrepancies from floating-point errors or sync issues.</p>
                                     </div>
 
                                     <!-- Testing Reset -->
