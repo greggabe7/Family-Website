@@ -1039,6 +1039,8 @@
             // Non-child properties
             if (!state.tasks) state.tasks = [];
             if (!state.lastResetDate) state.lastResetDate = new Date().toDateString();
+            // Initialize timestamp for sync conflict resolution (migration)
+            if (!state.lastModified) state.lastModified = Date.now();
 
             // Sanitize: Ensure earnings are never negative
             ['maria', 'helena'].forEach(childKey => {
@@ -1115,6 +1117,9 @@
 
         // Save state to localStorage and Firebase
         function saveState() {
+            // Add timestamp for conflict resolution
+            state.lastModified = Date.now();
+
             const toSave = { ...state };
             delete toSave.currentUser;
             delete toSave.loginForm;
@@ -1153,6 +1158,30 @@
             database.ref('allowanceData').on('value', (snapshot) => {
                 if (snapshot.exists()) {
                     const firebaseData = snapshot.val();
+
+                    // Timestamp-based conflict resolution
+                    const localTimestamp = state.lastModified || 0;
+                    const firebaseTimestamp = firebaseData.lastModified || 0;
+
+                    // If local data is newer, push it to Firebase instead of accepting stale data
+                    if (localTimestamp > firebaseTimestamp && firebaseTimestamp > 0) {
+                        console.log(`Local data is newer (${new Date(localTimestamp).toISOString()} vs ${new Date(firebaseTimestamp).toISOString()}), pushing to Firebase`);
+                        // Push local data to Firebase (will trigger another sync event)
+                        database.ref('allowanceData').set((() => {
+                            const toSave = { ...state };
+                            delete toSave.currentUser;
+                            delete toSave.loginForm;
+                            delete toSave.showSettings;
+                            delete toSave.editingName;
+                            delete toSave.editingPayout;
+                            delete toSave.editingSection;
+                            delete toSave.editingDays;
+                            delete toSave.showAddTask;
+                            return toSave;
+                        })());
+                        return;
+                    }
+
                     // Create comparison objects without transient state
                     const currentData = { ...state };
                     delete currentData.currentUser;
@@ -1162,6 +1191,7 @@
 
                     // Only update if data is different (avoid infinite loops)
                     if (currentJson !== newJson) {
+                        console.log(`Accepting Firebase data (timestamp: ${new Date(firebaseTimestamp).toISOString()})`);
                         const currentUser = state.currentUser; // Preserve login
                         Object.assign(state, firebaseData);
                         state.currentUser = currentUser;
