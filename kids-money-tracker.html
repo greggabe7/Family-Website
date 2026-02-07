@@ -744,8 +744,8 @@
             },
 
             goals: {
-                maria: { active: false, name: '', amount: 0 },
-                helena: { active: false, name: '', amount: 0 }
+                maria: { active: false, name: '', amount: 0, saved: 0 },
+                helena: { active: false, name: '', amount: 0, saved: 0 }
             },
 
             payoutHistory: {
@@ -1685,6 +1685,15 @@
         let draggedTaskId = null;
         let draggedTaskSection = null;
 
+        // Get effective section for drag-and-drop (accounts for frequency-based visual grouping)
+        function getDragSection(task) {
+            if (task.days && task.days.includes('weekly')) return '_weekly';
+            if (task.days && task.days.includes('monthly')) return '_monthly';
+            if (task.days && task.days.includes('oneTime')) return '_oneTime';
+            if (task.section === 'bonus') return '_bonus';
+            return task.section;
+        }
+
         function handleDragStart(e, taskId, section) {
             draggedTaskId = taskId;
             draggedTaskSection = section;
@@ -1868,7 +1877,8 @@
                 state.goals[childKey] = {
                     active: true,
                     name: state.tempGoalName.trim(),
-                    amount: parseFloat(state.tempGoalAmount)
+                    amount: parseFloat(state.tempGoalAmount),
+                    saved: state.goals[childKey].saved || 0 // Preserve cumulative savings
                 };
                 state.editingGoal = null;
                 state.tempGoalName = '';
@@ -1883,6 +1893,7 @@
         function deactivateGoal(childKey) {
             if (confirm(`Deactivate goal for ${state.users[childKey].name}?`)) {
                 state.goals[childKey].active = false;
+                state.goals[childKey].saved = 0;
                 state.editingGoal = null;
                 saveState();
                 render();
@@ -1916,6 +1927,11 @@
                     state.yearlyEarnings[childKey][currentYear] = 0;
                 }
                 state.yearlyEarnings[childKey][currentYear] = roundMoney(state.yearlyEarnings[childKey][currentYear] + weekTotal);
+
+                // Accumulate toward savings goal
+                if (state.goals[childKey].active) {
+                    state.goals[childKey].saved = roundMoney((state.goals[childKey].saved || 0) + weekTotal);
+                }
 
                 // Reset weekly total
                 state.earnings[childKey].weekTotal = 0;
@@ -2061,6 +2077,13 @@
                         });
                     }
 
+                    // Confirm before overwriting
+                    const exportDate = imported.exportDate ? new Date(imported.exportDate).toLocaleDateString() : 'unknown date';
+                    if (!confirm(`⚠️ Import will OVERWRITE current data with backup from ${exportDate}.\n\nThis affects tasks, earnings, history, and settings for all family members.\n\nCurrent data will be lost. Continue?`)) {
+                        event.target.value = '';
+                        return;
+                    }
+
                     // Apply imported data
                     if (data.tasks) state.tasks = data.tasks;
                     if (data.users) state.users = data.users;
@@ -2154,7 +2177,12 @@
             const completedForDay = state.completionHistory[childKey][date] || [];
             const skippedForDay = state.skippedHistory[childKey][date] || [];
 
+            // Only evaluate tasks that have a record for this day (completed or skipped)
+            // This prevents newly added tasks from retroactively affecting past bonuses
+            const knownTaskIds = new Set([...completedForDay, ...skippedForDay]);
+
             const dailyTasks = state.tasks.filter(t => {
+                if (!knownTaskIds.has(t.id)) return false; // Task had no record for this day
                 if (skippedForDay.includes(t.id)) return false;
                 if (t.days && (t.days.includes('weekly') || t.days.includes('monthly') || t.days.includes('oneTime'))) return false;
                 if (t.section === 'bonus') return false;
@@ -2867,7 +2895,7 @@
                                 <input
                                     type="text"
                                     id="username"
-                                    value="${state.loginForm.username}"
+                                    value="${escapeHtml(state.loginForm.username)}"
                                     oninput="state.loginForm.username = this.value"
                                     class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                                 />
@@ -2879,7 +2907,7 @@
                                 <input
                                     type="password"
                                     id="password"
-                                    value="${state.loginForm.password}"
+                                    value="${escapeHtml(state.loginForm.password)}"
                                     oninput="state.loginForm.password = this.value"
                                     class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                                 />
@@ -2928,7 +2956,7 @@
                             <div class="flex gap-2 flex-1">
                                 <input
                                     type="text"
-                                    value="${state.tempName}"
+                                    value="${escapeHtml(state.tempName)}"
                                     oninput="state.tempName = this.value"
                                     onkeypress="if(event.key === 'Enter') updateChildName('${childKey}', state.tempName)"
                                     class="flex-1 px-2 py-1 border border-gray-300 rounded"
@@ -2943,10 +2971,10 @@
                             </div>
                         ` : `
                             <h2
-                                onclick="${state.currentUser.isParent ? `state.editingName='${childKey}'; state.tempName='${childData.name}'; render();` : ''}"
+                                onclick="${state.currentUser.isParent ? `state.editingName='${childKey}'; state.tempName=${JSON.stringify(childData.name)}; render();` : ''}"
                                 class="text-xl font-bold text-gray-800 ${state.currentUser.isParent ? 'cursor-pointer hover:text-green-600' : ''}"
                             >
-                                ${childData.name}${isOwnCard && !state.currentUser.isParent ? ' (You)' : ''}
+                                ${escapeHtml(childData.name)}${isOwnCard && !state.currentUser.isParent ? ' (You)' : ''}
                             </h2>
                         `}
                     </div>
@@ -3086,19 +3114,19 @@
                                 <div class="flex items-center gap-2 mb-2">
                                     <span class="text-2xl">🎯</span>
                                     <div class="flex-1">
-                                        <div class="text-sm font-semibold text-purple-700">Saving for: ${state.goals[childKey].name}</div>
+                                        <div class="text-sm font-semibold text-purple-700">Saving for: ${escapeHtml(state.goals[childKey].name)}</div>
                                         <div class="text-xs text-purple-600">Goal: $${state.goals[childKey].amount.toFixed(2)}</div>
                                     </div>
                                 </div>
                                 <div class="bg-gray-200 rounded-full h-3 overflow-hidden">
-                                    <div class="bg-gradient-to-r from-purple-500 to-pink-500 h-full transition-all duration-500" 
-                                         style="width: ${Math.min(100, (state.earnings[childKey].weekTotal / state.goals[childKey].amount) * 100)}%">
+                                    <div class="bg-gradient-to-r from-purple-500 to-pink-500 h-full transition-all duration-500"
+                                         style="width: ${Math.min(100, ((state.goals[childKey].saved || 0) / state.goals[childKey].amount) * 100)}%">
                                     </div>
                                 </div>
                                 <div class="flex justify-between mt-1 text-xs">
-                                    <span class="text-purple-600 font-semibold">$${state.earnings[childKey].weekTotal.toFixed(2)} saved</span>
+                                    <span class="text-purple-600 font-semibold">$${(state.goals[childKey].saved || 0).toFixed(2)} saved</span>
                                     <span class="text-purple-600 font-semibold">
-                                        ${state.earnings[childKey].weekTotal >= state.goals[childKey].amount ? '🎉 Goal Reached!' : `$${(state.goals[childKey].amount - state.earnings[childKey].weekTotal).toFixed(2)} to go`}
+                                        ${(state.goals[childKey].saved || 0) >= state.goals[childKey].amount ? '🎉 Goal Reached!' : `$${(state.goals[childKey].amount - (state.goals[childKey].saved || 0)).toFixed(2)} to go`}
                                     </span>
                                 </div>
                             </div>
@@ -3342,21 +3370,22 @@
         }
 
         function renderManageTaskItem(task) {
+            const dragSection = getDragSection(task);
             return `
                 <div
                     class="flex justify-between items-center p-3 bg-gray-50 rounded-lg task-item-draggable"
                     draggable="true"
-                    ondragstart="handleDragStart(event, ${task.id}, '${task.section}')"
+                    ondragstart="handleDragStart(event, ${task.id}, '${dragSection}')"
                     ondragend="handleDragEnd(event)"
-                    ondragover="handleDragOver(event, ${task.id}, '${task.section}')"
+                    ondragover="handleDragOver(event, ${task.id}, '${dragSection}')"
                     ondragleave="handleDragLeave(event)"
-                    ondrop="handleDrop(event, ${task.id}, '${task.section}')"
+                    ondrop="handleDrop(event, ${task.id}, '${dragSection}')"
                 >
                     ${state.editingTaskName === task.id ? `
                         <div class="flex gap-2 flex-1 mr-3">
                             <input
                                 type="text"
-                                value="${state.tempTaskName}"
+                                value="${escapeHtml(state.tempTaskName)}"
                                 oninput="state.tempTaskName = this.value"
                                 onkeypress="if(event.key === 'Enter') updateTaskName(${task.id}, state.tempTaskName)"
                                 class="flex-1 px-3 py-1 border border-gray-300 rounded"
@@ -3736,7 +3765,7 @@
                                     <div>
                                         <h1 class="text-3xl font-bold text-gray-800">Gabriel Weekly Allowance Challenge</h1>
                                         <div class="flex items-center gap-3">
-                                            <p class="text-sm text-gray-600">Logged in as: ${state.currentUser.name}</p>
+                                            <p class="text-sm text-gray-600">Logged in as: ${escapeHtml(state.currentUser.name)}</p>
                                             ${getSyncStatusIndicator()}
                                         </div>
                                     </div>
@@ -3791,7 +3820,7 @@
                                             <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
                                             <input
                                                 type="text"
-                                                value="${state.tempAccountName}"
+                                                value="${escapeHtml(state.tempAccountName)}"
                                                 oninput="state.tempAccountName = this.value"
                                                 class="w-full px-3 py-2 border border-gray-300 rounded-lg"
                                             />
@@ -3800,7 +3829,7 @@
                                             <label class="block text-sm font-medium text-gray-700 mb-1">New Password (leave blank to keep current)</label>
                                             <input
                                                 type="password"
-                                                value="${state.tempAccountPassword}"
+                                                value="${escapeHtml(state.tempAccountPassword)}"
                                                 oninput="state.tempAccountPassword = this.value"
                                                 placeholder="Enter new password"
                                                 class="w-full px-3 py-2 border border-gray-300 rounded-lg"
@@ -3881,7 +3910,7 @@
                                         ${['maria', 'helena'].map(childKey => `
                                             <div class="mb-3 p-3 bg-white rounded-lg border border-gray-200">
                                                 <div class="flex items-center justify-between mb-2">
-                                                    <span class="font-medium text-gray-800">${state.users[childKey].name}</span>
+                                                    <span class="font-medium text-gray-800">${escapeHtml(state.users[childKey].name)}</span>
                                                     ${state.goals[childKey].active ? `
                                                         <span class="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full">Active Goal</span>
                                                     ` : `
@@ -3893,7 +3922,7 @@
                                                     <div class="space-y-2">
                                                         <input
                                                             type="text"
-                                                            value="${state.tempGoalName}"
+                                                            value="${escapeHtml(state.tempGoalName)}"
                                                             oninput="state.tempGoalName = this.value"
                                                             placeholder="Goal name (e.g., Nintendo Switch)"
                                                             class="w-full px-3 py-2 border border-gray-300 rounded text-sm"
@@ -3927,12 +3956,12 @@
                                                 ` : `
                                                     ${state.goals[childKey].active ? `
                                                         <div class="text-sm text-gray-700 mb-2">
-                                                            <div class="font-medium">${state.goals[childKey].name}</div>
+                                                            <div class="font-medium">${escapeHtml(state.goals[childKey].name)}</div>
                                                             <div class="text-gray-600">Target: $${state.goals[childKey].amount.toFixed(2)}</div>
                                                         </div>
                                                         <div class="flex gap-2">
                                                             <button
-                                                                onclick="state.editingGoal='${childKey}'; state.tempGoalName='${state.goals[childKey].name}'; state.tempGoalAmount=${state.goals[childKey].amount}; render();"
+                                                                onclick="state.editingGoal='${childKey}'; state.tempGoalName=${JSON.stringify(state.goals[childKey].name)}; state.tempGoalAmount=${state.goals[childKey].amount}; render();"
                                                                 class="flex-1 px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
                                                             >
                                                                 Edit
@@ -3965,16 +3994,16 @@
                                             ${['maria', 'helena'].map(childKey => `
                                                 <div class="p-3 bg-white rounded-lg border border-gray-200">
                                                     <div class="flex items-center justify-between">
-                                                        <span class="font-medium text-gray-800">${state.users[childKey].name}</span>
+                                                        <span class="font-medium text-gray-800">${escapeHtml(state.users[childKey].name)}</span>
                                                     </div>
                                                     <div class="mt-2 text-sm text-gray-600">
                                                         <div class="flex items-center gap-2">
                                                             <span class="text-gray-500">Username:</span>
-                                                            <span class="font-mono bg-gray-100 px-2 py-0.5 rounded">${state.users[childKey].name}</span>
+                                                            <span class="font-mono bg-gray-100 px-2 py-0.5 rounded">${escapeHtml(state.users[childKey].name)}</span>
                                                         </div>
                                                         <div class="flex items-center gap-2 mt-1">
                                                             <span class="text-gray-500">Password:</span>
-                                                            <span class="font-mono bg-gray-100 px-2 py-0.5 rounded">${state.users[childKey].password}</span>
+                                                            <span class="font-mono bg-gray-100 px-2 py-0.5 rounded">${escapeHtml(state.users[childKey].password)}</span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -4069,7 +4098,7 @@
                                         ${['maria', 'helena'].map(childKey => `
                                             <div class="mb-2 p-3 bg-white rounded-lg border border-gray-200 flex items-center justify-between">
                                                 <div>
-                                                    <div class="font-medium text-gray-800">${state.users[childKey].name}</div>
+                                                    <div class="font-medium text-gray-800">${escapeHtml(state.users[childKey].name)}</div>
                                                     <div class="text-sm text-gray-600">Week Total: $${state.earnings[childKey].weekTotal.toFixed(2)}</div>
                                                     <div class="text-xs text-blue-600">${new Date().getFullYear()} Total: $${getYearlyEarnings(childKey).toFixed(2)}</div>
                                                 </div>

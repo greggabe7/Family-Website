@@ -39,10 +39,10 @@
 
 ### MEDIUM Priority (Incorrect Behavior)
 
-- [ ] **Bug 5: `checkHistoryDailyBonus` uses today's task list for past days** (line ~1062)
+- [x] **Bug 5: `checkHistoryDailyBonus` uses today's task list for past days** (line ~1062) ✅ Fixed
   - Evaluates daily bonus for previous days against current `state.tasks`. If tasks were added/removed since then, bonus calculation is wrong.
 
-- [ ] **Bug 6: Savings goals progress resets every week** (line ~3087)
+- [x] **Bug 6: Savings goals progress resets every week** (line ~3087) ✅ Fixed
   - Progress bar uses `weekTotal`, which resets to $0 after weekly payout. Multi-week savings goals always show only current week's progress.
 
 - [x] **Bug 7: `checkHistoryDailyBonus` skips `roundMoney()`** (lines ~2161, ~2164) ✅ Fixed
@@ -56,11 +56,11 @@
 
 ### LOW Priority (XSS / Edge Cases)
 
-- [ ] **Bug 10: XSS in child names, goal names, passwords** (multiple locations)
+- [x] **Bug 10: XSS in child names, goal names, passwords** (multiple locations) ✅ Fixed
   - `escapeHtml()` not applied to child names (lines ~2939, ~2942), goal names (lines ~3082, ~3928), passwords (line ~3970), form input values (lines ~2924, ~3352). Names with quotes break onclick handlers.
 
-- [ ] **Bug 11: Drag-and-drop cross-section confusion** (line ~1697)
+- [x] **Bug 11: Drag-and-drop cross-section confusion** (line ~1697) ✅ Fixed
   - Weekly/monthly tasks have visual section but `task.section` is still `morning` etc. Drag uses `task.section` for same-section check.
 
-- [ ] **Bug 12: Import is a destructive overwrite** (line ~2057)
+- [x] **Bug 12: Import is a destructive overwrite** (line ~2057) ✅ Fixed
   - Import replaces state entirely with no merge, pushes immediately to Firebase, overwrites other devices.
