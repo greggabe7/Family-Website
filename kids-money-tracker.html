@@ -358,6 +358,7 @@
         // Sync status tracking
         let syncStatus = 'connecting'; // 'connected', 'syncing', 'offline', 'connecting'
         let lastSyncTime = null;
+        let firebaseLoaded = false; // Prevents checkDailyReset from running on stale localStorage before Firebase loads
 
         // Sound effects — real audio files
         const chaChingSound = new Audio('sounds/cha-ching.mp3');
@@ -832,9 +833,9 @@
             });
         }
 
-        // Load state from localStorage (immediate) then sync with Firebase
+        // Load state from localStorage for immediate display
+        // Firebase sync is handled entirely by setupRealtimeSync() to avoid race conditions
         function loadState() {
-            // First load from localStorage for immediate display
             try {
                 const saved = localStorage.getItem('moneyTrackerState');
                 if (saved) {
@@ -848,35 +849,7 @@
             }
             // Always sanitize to ensure all required properties exist
             sanitizeState();
-
-            // Then sync with Firebase (will update if newer data exists)
             syncStatus = 'syncing';
-            database.ref('allowanceData').once('value')
-                .then(snapshot => {
-                    if (snapshot.exists()) {
-                        const firebaseData = snapshot.val();
-                        const currentUser = state.currentUser; // Preserve login
-                        Object.assign(state, firebaseData);
-                        state.currentUser = currentUser;
-                        state.loginForm = { username: '', password: '' };
-                        sanitizeState();
-                        checkDailyReset();
-                        localStorage.setItem('moneyTrackerState', JSON.stringify(firebaseData));
-                        lastSyncTime = new Date();
-                        syncStatus = 'connected';
-                        render();
-                    } else {
-                        // No data in Firebase yet, migrate local data
-                        migrateToFirebase();
-                        checkDailyReset();
-                        syncStatus = 'connected';
-                    }
-                })
-                .catch(err => {
-                    console.error('Sync error (load):', err);
-                    syncStatus = 'offline';
-                    render();
-                });
         }
 
         // Save state to localStorage and Firebase
@@ -966,12 +939,34 @@
                         // (e.g., from stale data on another device)
                         cleanupInvalidCompletions();
 
-                        localStorage.setItem('moneyTrackerState', JSON.stringify(firebaseData));
                         checkDailyReset(); // Ensure daily reset runs after syncing Firebase data (saves if needed)
+
+                        // Update localStorage cache with current state (post-reset if applicable)
+                        try {
+                            const toCache = { ...state };
+                            delete toCache.currentUser;
+                            delete toCache.loginForm;
+                            delete toCache.showSettings;
+                            delete toCache.editingName;
+                            delete toCache.editingPayout;
+                            delete toCache.editingSection;
+                            delete toCache.editingDays;
+                            delete toCache.showAddTask;
+                            localStorage.setItem('moneyTrackerState', JSON.stringify(toCache));
+                        } catch (e) {}
+
                         lastSyncTime = new Date();
                         syncStatus = 'connected';
                         render();
                     }
+                    firebaseLoaded = true;
+                } else {
+                    // No data in Firebase yet, migrate local data
+                    migrateToFirebase();
+                    checkDailyReset();
+                    firebaseLoaded = true;
+                    syncStatus = 'connected';
+                    render();
                 }
             }, (err) => {
                 console.error('Sync error (sync):', err);
@@ -4158,10 +4153,12 @@
         syncFromReward();
         render();
 
-        // Check for daily reset every minute
+        // Check for daily reset every minute (only after Firebase has loaded to avoid stale data)
         setInterval(() => {
-            checkDailyReset();
-            render();
+            if (firebaseLoaded) {
+                checkDailyReset();
+                render();
+            }
         }, 60000);
     </script>
 </body>
