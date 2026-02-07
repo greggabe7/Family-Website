@@ -25,16 +25,16 @@
 
 ### HIGH Priority (Data Loss / Crashes)
 
-- [ ] **Bug 1: `deleteTask` deducts earnings from ALL history, not just current week** (line ~1611)
+- [x] **Bug 1: `deleteTask` deducts earnings from ALL history, not just current week** (line ~1611) ✅ Fixed
   - Loops through ALL `completionHistory` dates and subtracts payout for each from `weekTotal`. Old weeks already paid out get deducted again, can zero out current week's earnings.
 
-- [ ] **Bug 2: `toggleHistorySkipped` and `toggleTaskSkipped` crash on deleted tasks** (lines ~2225, ~1521)
+- [x] **Bug 2: `toggleHistorySkipped` and `toggleTaskSkipped` crash on deleted tasks** (lines ~2225, ~1521) ✅ Fixed
   - `state.tasks.find(...)` returns `undefined` for deleted tasks, then `.payout` access throws TypeError.
 
-- [ ] **Bug 3: Transient UI state (including passwords) leaking to Firebase** (lines ~856-891)
+- [x] **Bug 3: Transient UI state (including passwords) leaking to Firebase** (lines ~856-891) ✅ Fixed
   - `saveState()` strips some transient fields but misses `tempAccountPassword`, `tempAccountConfirmPassword`, `editingTaskName`, `tempTaskName`, `editingGoal`, `tempGoalName`, `showHistory`, `editingFrequency`, `editingJoint`, `selectedHistoryChild`, `editingAccount`, `newTaskName`, `newTaskPayout`, `newTaskSection`, `newTaskDays`, `syncedFromReward`, `tempName`.
 
-- [ ] **Bug 4: Firebase sync comparison always differs** (line ~930)
+- [x] **Bug 4: Firebase sync comparison always differs** (line ~930) ✅ Fixed
   - `currentJson !== newJson` compares full local state (with transient fields) against `firebaseData` (without them). They can never match, so every Firebase callback overwrites local state including in-progress editing.
 
 ### MEDIUM Priority (Incorrect Behavior)
@@ -45,13 +45,13 @@
 - [ ] **Bug 6: Savings goals progress resets every week** (line ~3087)
   - Progress bar uses `weekTotal`, which resets to $0 after weekly payout. Multi-week savings goals always show only current week's progress.
 
-- [ ] **Bug 7: `checkHistoryDailyBonus` skips `roundMoney()`** (lines ~2161, ~2164)
+- [x] **Bug 7: `checkHistoryDailyBonus` skips `roundMoney()`** (lines ~2161, ~2164) ✅ Fixed
   - Uses raw `+=` instead of `addEarnings`/`subtractEarnings`, risking floating-point display issues.
 
-- [ ] **Bug 8: `processWeeklyPayout` raw addition for yearly earnings** (line ~1911)
+- [x] **Bug 8: `processWeeklyPayout` raw addition for yearly earnings** (line ~1911) ✅ Fixed
   - `yearlyEarnings` accumulates with `+=` instead of `roundMoney`.
 
-- [ ] **Bug 9: `defaultPayout` change not persisted** (line ~3846)
+- [x] **Bug 9: `defaultPayout` change not persisted** (line ~3846) ✅ Fixed
   - `oninput` updates state but doesn't call `saveState()`. Change lost on reload.
 
 ### LOW Priority (XSS / Edge Cases)

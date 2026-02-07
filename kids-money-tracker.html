@@ -827,7 +827,7 @@
                         if (!state.yearlyEarnings[childKey][year]) {
                             state.yearlyEarnings[childKey][year] = 0;
                         }
-                        state.yearlyEarnings[childKey][year] += payout.amount;
+                        state.yearlyEarnings[childKey][year] = roundMoney(state.yearlyEarnings[childKey][year] + payout.amount);
                     });
                 }
             });
@@ -1521,7 +1521,7 @@
             if (isSkipped && isCompleted) {
                 const task = state.tasks.find(t => t.id === taskId);
                 state.completedTasks[childKey] = state.completedTasks[childKey].filter(id => id !== taskId);
-                subtractEarnings(childKey, task.payout, task.payout);
+                if (task) subtractEarnings(childKey, task.payout, task.payout);
             }
 
             if (isSkipped) {
@@ -1915,7 +1915,7 @@
                 if (!state.yearlyEarnings[childKey][currentYear]) {
                     state.yearlyEarnings[childKey][currentYear] = 0;
                 }
-                state.yearlyEarnings[childKey][currentYear] += weekTotal;
+                state.yearlyEarnings[childKey][currentYear] = roundMoney(state.yearlyEarnings[childKey][currentYear] + weekTotal);
 
                 // Reset weekly total
                 state.earnings[childKey].weekTotal = 0;
@@ -2083,7 +2083,7 @@
                                 if (!state.yearlyEarnings[childKey][year]) {
                                     state.yearlyEarnings[childKey][year] = 0;
                                 }
-                                state.yearlyEarnings[childKey][year] += payout.amount;
+                                state.yearlyEarnings[childKey][year] = roundMoney(state.yearlyEarnings[childKey][year] + payout.amount);
                             });
                         });
                         changes.push('Calculated yearly earnings from payout history');
@@ -2165,10 +2165,10 @@
             const bonusAwarded = state.dailyBonusAwarded[childKey][date];
 
             if (allComplete && !bonusAwarded) {
-                state.earnings[childKey].weekTotal += 1.00;
+                addEarnings(childKey, 1.00);
                 state.dailyBonusAwarded[childKey][date] = true;
             } else if (!allComplete && bonusAwarded) {
-                state.earnings[childKey].weekTotal = Math.max(0, state.earnings[childKey].weekTotal - 1.00);
+                subtractEarnings(childKey, 1.00);
                 state.dailyBonusAwarded[childKey][date] = false;
             }
         }
@@ -2176,10 +2176,10 @@
         function toggleHistoryBonus(childKey, date) {
             const bonusAwarded = state.dailyBonusAwarded[childKey][date];
             if (bonusAwarded) {
-                state.earnings[childKey].weekTotal = Math.max(0, state.earnings[childKey].weekTotal - 1.00);
+                subtractEarnings(childKey, 1.00);
                 state.dailyBonusAwarded[childKey][date] = false;
             } else {
-                state.earnings[childKey].weekTotal += 1.00;
+                addEarnings(childKey, 1.00);
                 state.dailyBonusAwarded[childKey][date] = true;
             }
             saveState();
@@ -2229,7 +2229,7 @@
             if (isSkipped && isCompleted) {
                 const task = state.tasks.find(t => t.id === taskId);
                 state.completionHistory[childKey][date] = dateCompleted.filter(id => id !== taskId);
-                subtractEarnings(childKey, task.payout, 0);
+                if (task) subtractEarnings(childKey, task.payout, 0);
             }
 
             if (isSkipped) {
@@ -3850,7 +3850,7 @@
                                                 type="number"
                                                 step="0.05"
                                                 value="${state.defaultPayout}"
-                                                oninput="state.defaultPayout = parseFloat(this.value) || 0"
+                                                oninput="state.defaultPayout = parseFloat(this.value) || 0; saveState();"
                                                 class="w-32 px-3 py-2 border border-gray-300 rounded-lg"
                                             />
                                         </div>
