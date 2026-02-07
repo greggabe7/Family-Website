@@ -852,20 +852,45 @@
             syncStatus = 'syncing';
         }
 
+        // Strip transient UI-only fields from state before persisting
+        // These should never be saved to localStorage or Firebase
+        function stripTransientFields(obj) {
+            const copy = { ...obj };
+            delete copy.currentUser;
+            delete copy.loginForm;
+            delete copy.showSettings;
+            delete copy.showAddTask;
+            delete copy.showHistory;
+            delete copy.selectedHistoryChild;
+            delete copy.editingName;
+            delete copy.tempName;
+            delete copy.editingPayout;
+            delete copy.editingSection;
+            delete copy.editingDays;
+            delete copy.editingTaskName;
+            delete copy.tempTaskName;
+            delete copy.editingFrequency;
+            delete copy.editingJoint;
+            delete copy.editingGoal;
+            delete copy.tempGoalName;
+            delete copy.tempGoalAmount;
+            delete copy.editingAccount;
+            delete copy.tempAccountName;
+            delete copy.tempAccountPassword;
+            delete copy.tempAccountConfirmPassword;
+            delete copy.newTaskName;
+            delete copy.newTaskPayout;
+            delete copy.newTaskSection;
+            delete copy.newTaskDays;
+            return copy;
+        }
+
         // Save state to localStorage and Firebase
         function saveState() {
             // Add timestamp for conflict resolution
             state.lastModified = Date.now();
 
-            const toSave = { ...state };
-            delete toSave.currentUser;
-            delete toSave.loginForm;
-            delete toSave.showSettings;
-            delete toSave.editingName;
-            delete toSave.editingPayout;
-            delete toSave.editingSection;
-            delete toSave.editingDays;
-            delete toSave.showAddTask;
+            const toSave = stripTransientFields(state);
 
             // Save to localStorage as backup
             try {
@@ -904,25 +929,12 @@
                     if (localTimestamp > firebaseTimestamp && firebaseTimestamp > 0) {
                         console.log(`Local data is newer (${new Date(localTimestamp).toISOString()} vs ${new Date(firebaseTimestamp).toISOString()}), pushing to Firebase`);
                         // Push local data to Firebase (will trigger another sync event)
-                        database.ref('allowanceData').set((() => {
-                            const toSave = { ...state };
-                            delete toSave.currentUser;
-                            delete toSave.loginForm;
-                            delete toSave.showSettings;
-                            delete toSave.editingName;
-                            delete toSave.editingPayout;
-                            delete toSave.editingSection;
-                            delete toSave.editingDays;
-                            delete toSave.showAddTask;
-                            return toSave;
-                        })());
+                        database.ref('allowanceData').set(stripTransientFields(state));
                         return;
                     }
 
                     // Create comparison objects without transient state
-                    const currentData = { ...state };
-                    delete currentData.currentUser;
-                    delete currentData.loginForm;
+                    const currentData = stripTransientFields(state);
                     const currentJson = JSON.stringify(currentData);
                     const newJson = JSON.stringify(firebaseData);
 
@@ -943,16 +955,7 @@
 
                         // Update localStorage cache with current state (post-reset if applicable)
                         try {
-                            const toCache = { ...state };
-                            delete toCache.currentUser;
-                            delete toCache.loginForm;
-                            delete toCache.showSettings;
-                            delete toCache.editingName;
-                            delete toCache.editingPayout;
-                            delete toCache.editingSection;
-                            delete toCache.editingDays;
-                            delete toCache.showAddTask;
-                            localStorage.setItem('moneyTrackerState', JSON.stringify(toCache));
+                            localStorage.setItem('moneyTrackerState', JSON.stringify(stripTransientFields(state)));
                         } catch (e) {}
 
                         lastSyncTime = new Date();
@@ -1607,11 +1610,15 @@
                     state.skippedTasks[childKey] = state.skippedTasks[childKey].filter(id => id !== taskId);
                 }
 
-                // Remove from completion history and deduct earnings
+                // Remove from completion history (only deduct earnings for current week)
+                const currentWeekDates = getWeekDates();
                 for (const date in state.completionHistory[childKey]) {
                     if (state.completionHistory[childKey][date].includes(taskId)) {
                         state.completionHistory[childKey][date] = state.completionHistory[childKey][date].filter(id => id !== taskId);
-                        subtractEarnings(childKey, payout, 0);
+                        // Only deduct from weekTotal for current week's completions
+                        if (currentWeekDates.includes(date)) {
+                            subtractEarnings(childKey, payout, 0);
+                        }
                     }
                 }
 
