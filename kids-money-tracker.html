@@ -276,160 +276,6 @@
         }
 
         /* Toast Notification Styles */
-        .toast-container {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 10001;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            pointer-events: none;
-        }
-
-        .toast {
-            padding: 12px 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            min-width: 280px;
-            max-width: 400px;
-            pointer-events: auto;
-            animation: toast-slide-in 0.3s ease-out;
-        }
-
-        .toast.toast-hiding {
-            animation: toast-slide-out 0.3s ease-in forwards;
-        }
-
-        .toast-error {
-            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-            border: 1px solid #f87171;
-            color: #991b1b;
-        }
-
-        .toast-warning {
-            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-            border: 1px solid #f59e0b;
-            color: #92400e;
-        }
-
-        .toast-success {
-            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-            border: 1px solid #34d399;
-            color: #065f46;
-        }
-
-        .toast-info {
-            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-            border: 1px solid #60a5fa;
-            color: #1e40af;
-        }
-
-        .toast-icon {
-            font-size: 20px;
-            flex-shrink: 0;
-        }
-
-        .toast-content {
-            flex: 1;
-        }
-
-        .toast-title {
-            font-weight: 600;
-            font-size: 14px;
-            margin-bottom: 2px;
-        }
-
-        .toast-message {
-            font-size: 13px;
-            opacity: 0.9;
-        }
-
-        .toast-close {
-            background: none;
-            border: none;
-            font-size: 18px;
-            cursor: pointer;
-            opacity: 0.5;
-            transition: opacity 0.2s;
-            padding: 0;
-            line-height: 1;
-        }
-
-        .toast-close:hover {
-            opacity: 1;
-        }
-
-        @keyframes toast-slide-in {
-            from {
-                transform: translateX(100%);
-                opacity: 0;
-            }
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
-        }
-
-        @keyframes toast-slide-out {
-            from {
-                transform: translateX(0);
-                opacity: 1;
-            }
-            to {
-                transform: translateX(100%);
-                opacity: 0;
-            }
-        }
-
-        /* Offline Banner Styles */
-        .offline-banner {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-            border-bottom: 2px solid #f59e0b;
-            padding: 8px 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            z-index: 9998;
-            animation: banner-slide-down 0.3s ease-out;
-        }
-
-        .offline-banner.offline-error {
-            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-            border-bottom-color: #f87171;
-        }
-
-        @keyframes banner-slide-down {
-            from {
-                transform: translateY(-100%);
-            }
-            to {
-                transform: translateY(0);
-            }
-        }
-
-        .offline-banner-icon {
-            font-size: 18px;
-        }
-
-        .offline-banner-text {
-            font-size: 14px;
-            font-weight: 500;
-            color: #92400e;
-        }
-
-        .offline-banner.offline-error .offline-banner-text {
-            color: #991b1b;
-        }
-
         .sync-status-badge {
             display: inline-flex;
             align-items: center;
@@ -491,16 +337,10 @@
             50% { opacity: 0.5; transform: scale(1.2); }
         }
 
-        /* Add padding to body when offline banner is shown */
-        body.has-offline-banner {
-            padding-top: 44px;
-        }
     </style>
 </head>
 <body>
     <div id="app"></div>
-    <div id="toast-container" class="toast-container"></div>
-
     <script>
         // Firebase Configuration
         const firebaseConfig = {
@@ -536,82 +376,6 @@
                 coinDropSound.currentTime = 0;
                 coinDropSound.play().catch(() => {});
             }, 400);
-        }
-
-        // Toast notification system
-        function showToast(type, title, message, duration = 5000) {
-            const container = document.getElementById('toast-container');
-            if (!container) return;
-
-            const icons = {
-                error: '❌',
-                warning: '⚠️',
-                success: '✅',
-                info: 'ℹ️'
-            };
-
-            const toast = document.createElement('div');
-            toast.className = `toast toast-${type}`;
-            toast.innerHTML = `
-                <span class="toast-icon">${icons[type] || icons.info}</span>
-                <div class="toast-content">
-                    <div class="toast-title">${title}</div>
-                    <div class="toast-message">${message}</div>
-                </div>
-                <button class="toast-close" onclick="this.parentElement.remove()">×</button>
-            `;
-
-            container.appendChild(toast);
-
-            // Auto-remove after duration
-            setTimeout(() => {
-                if (toast.parentElement) {
-                    toast.classList.add('toast-hiding');
-                    setTimeout(() => toast.remove(), 300);
-                }
-            }, duration);
-
-            return toast;
-        }
-
-        // Track last error time to prevent spam
-        let lastErrorTime = 0;
-        const ERROR_COOLDOWN = 10000; // 10 seconds between same error type
-
-        function showSyncError(errorType, details) {
-            const now = Date.now();
-            if (now - lastErrorTime < ERROR_COOLDOWN) return;
-            lastErrorTime = now;
-
-            const messages = {
-                load: {
-                    title: 'Could not load data',
-                    message: 'Using cached data. Changes may not sync until connection is restored.'
-                },
-                save: {
-                    title: 'Could not save changes',
-                    message: 'Your changes are saved locally and will sync when connection is restored.'
-                },
-                sync: {
-                    title: 'Sync interrupted',
-                    message: 'Real-time updates paused. Will retry automatically.'
-                },
-                offline: {
-                    title: 'You\'re offline',
-                    message: 'Changes will be saved locally and sync when you\'re back online.'
-                }
-            };
-
-            const msg = messages[errorType] || messages.sync;
-            showToast('warning', msg.title, msg.message);
-
-            if (details) {
-                console.error(`Sync error (${errorType}):`, details);
-            }
-        }
-
-        function showConnectionRestored() {
-            showToast('success', 'Connected!', 'Your data is now syncing across devices.', 3000);
         }
 
         // Helper to avoid floating-point precision errors in money calculations
@@ -1109,7 +873,7 @@
                     }
                 })
                 .catch(err => {
-                    showSyncError('load', err);
+                    console.error('Sync error (load):', err);
                     syncStatus = 'offline';
                     render();
                 });
@@ -1147,7 +911,7 @@
                     render();
                 })
                 .catch(err => {
-                    showSyncError('save', err);
+                    console.error('Sync error (save):', err);
                     syncStatus = 'offline';
                     render();
                 });
@@ -1210,27 +974,14 @@
                     }
                 }
             }, (err) => {
-                showSyncError('sync', err);
+                console.error('Sync error (sync):', err);
                 syncStatus = 'offline';
                 render();
             });
 
             // Monitor connection state
-            let wasOffline = false;
             database.ref('.info/connected').on('value', (snapshot) => {
-                if (snapshot.val() === true) {
-                    const previousStatus = syncStatus;
-                    syncStatus = 'connected';
-                    // Show "connected" toast only if we were previously offline
-                    if (wasOffline || previousStatus === 'offline') {
-                        showConnectionRestored();
-                    }
-                    wasOffline = false;
-                } else {
-                    syncStatus = 'offline';
-                    wasOffline = true;
-                    showSyncError('offline');
-                }
+                syncStatus = snapshot.val() === true ? 'connected' : 'offline';
                 render();
             });
         }
@@ -1282,30 +1033,6 @@
                     <span>${label}</span>
                 </div>
             `;
-        }
-
-        // Offline banner management
-        function updateOfflineBanner() {
-            let banner = document.getElementById('offline-banner');
-
-            if (syncStatus === 'offline') {
-                if (!banner) {
-                    banner = document.createElement('div');
-                    banner.id = 'offline-banner';
-                    banner.className = 'offline-banner';
-                    banner.innerHTML = `
-                        <span class="offline-banner-icon">📡</span>
-                        <span class="offline-banner-text">You're offline — changes are saved locally and will sync when reconnected</span>
-                    `;
-                    document.body.insertBefore(banner, document.body.firstChild);
-                    document.body.classList.add('has-offline-banner');
-                }
-            } else {
-                if (banner) {
-                    banner.remove();
-                    document.body.classList.remove('has-offline-banner');
-                }
-            }
         }
 
         // Check for daily reset
@@ -4423,7 +4150,6 @@
         function render() {
             const app = document.getElementById('app');
             app.innerHTML = state.currentUser ? renderMainApp() : renderLoginScreen();
-            updateOfflineBanner();
         }
 
         // Initialize
