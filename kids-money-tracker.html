@@ -445,11 +445,10 @@
 
         // Silent version of recalculate (no confirm dialog, no alert)
         function silentRecalculateEarnings() {
-            const validTaskIds = state.tasks.map(t => t.id);
             const today = new Date().toDateString();
-            const weekDates = getWeekDates();
 
             ['maria', 'helena'].forEach(childKey => {
+                const earningDates = getEarningPeriodDates(childKey);
                 let weekTotal = 0;
                 let todayTotal = 0;
 
@@ -462,8 +461,8 @@
                     }
                 });
 
-                // Calculate from history (this week only)
-                for (const date of weekDates) {
+                // Calculate from history (entire earning period)
+                for (const date of earningDates) {
                     if (date === today) continue;
 
                     if (state.completionHistory[childKey][date]) {
@@ -484,6 +483,61 @@
                 if (state.dailyBonusAwarded[childKey][today]) {
                     todayTotal = roundMoney(todayTotal + 1.00);
                     weekTotal = roundMoney(weekTotal + 1.00);
+                }
+
+                // Evaluate and award weekly streak bonuses for complete calendar weeks in the earning period
+                const processedWeeks = new Set();
+                for (const date of earningDates) {
+                    const calWeek = getCalendarWeekDates(new Date(date));
+                    const weekStart = calWeek[0];
+                    if (processedWeeks.has(weekStart)) continue;
+                    processedWeeks.add(weekStart);
+
+                    // Already awarded — just add to total
+                    if (state.weeklyStreakAwarded[childKey][weekStart]) {
+                        weekTotal = roundMoney(weekTotal + state.weeklyStreakBonus);
+                        continue;
+                    }
+
+                    // Only evaluate complete weeks (Saturday must be today or in the past)
+                    const weekEnd = calWeek[6];
+                    if (new Date(weekEnd) > new Date(today)) continue;
+
+                    let hasFullWeek = true;
+                    for (const wd of calWeek) {
+                        const wdObj = new Date(wd);
+                        const completedForDay = wd === today
+                            ? state.completedTasks[childKey]
+                            : (state.completionHistory[childKey][wd] || []);
+                        const skippedForDay = wd === today
+                            ? state.skippedTasks[childKey]
+                            : (state.skippedHistory[childKey][wd] || []);
+
+                        const applicableTasks = state.tasks.filter(task => {
+                            if (!task.days) return false;
+                            if (task.days.includes('weekly') || task.days.includes('monthly') || task.days.includes('oneTime')) return false;
+                            if (task.section === 'bonus') return false;
+                            const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+                            const dayName = dayNames[wdObj.getDay()];
+                            return task.days.some(d => {
+                                if (d === dayName) return true;
+                                if (d === 'weekday' && wdObj.getDay() >= 1 && wdObj.getDay() <= 5) return true;
+                                return false;
+                            });
+                        });
+
+                        const activeTasks = applicableTasks.filter(t => !skippedForDay.includes(t.id));
+                        if (activeTasks.length === 0) continue;
+                        if (!activeTasks.every(t => completedForDay.includes(t.id))) {
+                            hasFullWeek = false;
+                            break;
+                        }
+                    }
+
+                    if (hasFullWeek && state.weeklyStreakBonus > 0) {
+                        state.weeklyStreakAwarded[childKey][weekStart] = true;
+                        weekTotal = roundMoney(weekTotal + state.weeklyStreakBonus);
+                    }
                 }
 
                 state.earnings[childKey].weekTotal = roundMoney(weekTotal);
@@ -953,6 +1007,10 @@
 
                         checkDailyReset(); // Ensure daily reset runs after syncing Firebase data (saves if needed)
 
+                        // Always recalculate earnings from history after sync
+                        // (earnings are derived from completion data, not a source of truth)
+                        silentRecalculateEarnings();
+
                         // Update localStorage cache with current state (post-reset if applicable)
                         try {
                             localStorage.setItem('moneyTrackerState', JSON.stringify(stripTransientFields(state)));
@@ -1070,6 +1128,13 @@
                 state.earnings.maria.todayTotal = 0;
                 state.earnings.helena.todayTotal = 0;
                 state.lastResetDate = today;
+
+                // If we crossed a week boundary (today is Sunday), check weekly streak for the just-completed week
+                if (new Date(today).getDay() === 0) {
+                    checkWeeklyStreak('maria');
+                    checkWeeklyStreak('helena');
+                }
+
                 saveState();
             }
         }
@@ -1260,13 +1325,13 @@
         }
 
         function recalculateEarningsFromHistory() {
-            if (!confirm('This will recalculate all earnings based on completion history.\n\nOrphaned task completions (deleted tasks) will be removed.\nDaily bonuses will be recalculated.\n\nContinue?')) return;
+            if (!confirm('This will recalculate all earnings based on completion history.\n\nOrphaned task completions (deleted tasks) will be removed.\nDaily bonuses will be recalculated.\nWeekly streaks will be rechecked.\n\nContinue?')) return;
 
             const validTaskIds = state.tasks.map(t => t.id);
             const today = new Date().toDateString();
-            const weekDates = getWeekDates();
 
             ['maria', 'helena'].forEach(childKey => {
+                const earningDates = getEarningPeriodDates(childKey);
                 let weekTotal = 0;
                 let todayTotal = 0;
 
@@ -1283,8 +1348,8 @@
                     }
                 });
 
-                // Clean up and recalculate from completion history (this week only)
-                for (const date of weekDates) {
+                // Clean up and recalculate from completion history (entire earning period)
+                for (const date of earningDates) {
                     if (date === today) continue; // Already handled above
 
                     if (state.completionHistory[childKey][date]) {
@@ -1305,8 +1370,8 @@
                     }
                 }
 
-                // Recalculate daily bonuses for this week
-                for (const date of weekDates) {
+                // Recalculate daily bonuses for all dates in earning period
+                for (const date of earningDates) {
                     const dateObj = new Date(date);
                     const completedForDay = date === today
                         ? state.completedTasks[childKey]
@@ -1334,10 +1399,54 @@
                     }
                 }
 
-                // Check weekly streak bonus
-                const weekStart = weekDates[0];
-                if (state.weeklyStreakAwarded[childKey][weekStart]) {
-                    weekTotal = roundMoney(weekTotal + state.weeklyStreakBonus);
+                // Recalculate weekly streaks for all complete calendar weeks in the earning period
+                // Build set of unique calendar weeks that overlap the earning period
+                const processedWeeks = new Set();
+                for (const date of earningDates) {
+                    const calWeek = getCalendarWeekDates(new Date(date));
+                    const weekStart = calWeek[0];
+                    if (processedWeeks.has(weekStart)) continue;
+                    processedWeeks.add(weekStart);
+
+                    const weekEnd = calWeek[6];
+                    // Only evaluate complete weeks (all 7 days in the past or today)
+                    if (new Date(weekEnd) > new Date(today)) continue;
+
+                    let hasFullWeek = true;
+                    for (const wd of calWeek) {
+                        const wdObj = new Date(wd);
+                        const completedForDay = wd === today
+                            ? state.completedTasks[childKey]
+                            : (state.completionHistory[childKey][wd] || []);
+                        const skippedForDay = wd === today
+                            ? state.skippedTasks[childKey]
+                            : (state.skippedHistory[childKey][wd] || []);
+
+                        const applicableTasks = state.tasks.filter(task => {
+                            if (!task.days) return false;
+                            if (task.days.includes('weekly') || task.days.includes('monthly') || task.days.includes('oneTime')) return false;
+                            if (task.section === 'bonus') return false;
+                            const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+                            const dayName = dayNames[wdObj.getDay()];
+                            return task.days.some(d => {
+                                if (d === dayName) return true;
+                                if (d === 'weekday' && wdObj.getDay() >= 1 && wdObj.getDay() <= 5) return true;
+                                return false;
+                            });
+                        });
+
+                        const activeTasks = applicableTasks.filter(t => !skippedForDay.includes(t.id));
+                        if (activeTasks.length === 0) continue;
+                        if (!activeTasks.every(t => completedForDay.includes(t.id))) {
+                            hasFullWeek = false;
+                            break;
+                        }
+                    }
+
+                    if (hasFullWeek) {
+                        state.weeklyStreakAwarded[childKey][weekStart] = true;
+                        weekTotal = roundMoney(weekTotal + state.weeklyStreakBonus);
+                    }
                 }
 
                 // Update earnings (ensure proper rounding)
@@ -1348,7 +1457,7 @@
             saveState();
             render();
 
-            alert('✅ Earnings recalculated!\n\nMaria: $' + state.earnings.maria.weekTotal.toFixed(2) + ' (week), $' + state.earnings.maria.todayTotal.toFixed(2) + ' (today)\nHelena: $' + state.earnings.helena.weekTotal.toFixed(2) + ' (week), $' + state.earnings.helena.todayTotal.toFixed(2) + ' (today)');
+            alert('✅ Earnings recalculated!\n\nMaria: $' + state.earnings.maria.weekTotal.toFixed(2) + ' (period), $' + state.earnings.maria.todayTotal.toFixed(2) + ' (today)\nHelena: $' + state.earnings.helena.weekTotal.toFixed(2) + ' (period), $' + state.earnings.helena.todayTotal.toFixed(2) + ' (today)');
         }
 
         function startEditingAccount() {
@@ -1610,13 +1719,13 @@
                     state.skippedTasks[childKey] = state.skippedTasks[childKey].filter(id => id !== taskId);
                 }
 
-                // Remove from completion history (only deduct earnings for current week)
-                const currentWeekDates = getWeekDates();
+                // Remove from completion history (deduct earnings for entire earning period)
+                const earningDates = getEarningPeriodDates(childKey);
                 for (const date in state.completionHistory[childKey]) {
                     if (state.completionHistory[childKey][date].includes(taskId)) {
                         state.completionHistory[childKey][date] = state.completionHistory[childKey][date].filter(id => id !== taskId);
-                        // Only deduct from weekTotal for current week's completions
-                        if (currentWeekDates.includes(date)) {
+                        // Deduct from weekTotal for earning period completions
+                        if (earningDates.includes(date)) {
                             subtractEarnings(childKey, payout, 0);
                         }
                     }
@@ -1952,24 +2061,31 @@
         // Helper function to get yearly earnings (calculates from payout history if needed)
         function getYearlyEarnings(childKey, year) {
             year = year || new Date().getFullYear().toString();
+            const currentYear = new Date().getFullYear().toString();
 
-            // First check if we have it in the yearlyEarnings tracker
+            // Calculate from yearlyEarnings tracker or payout history
+            let paidTotal = 0;
             if (state.yearlyEarnings[childKey] && state.yearlyEarnings[childKey][year] !== undefined) {
-                return state.yearlyEarnings[childKey][year];
+                paidTotal = state.yearlyEarnings[childKey][year];
+            } else {
+                // Fallback: calculate from payout history
+                const yearStart = new Date(parseInt(year), 0, 1);
+                const yearEnd = new Date(parseInt(year) + 1, 0, 1);
+
+                paidTotal = (state.payoutHistory[childKey] || [])
+                    .filter(payout => {
+                        const payoutDate = new Date(payout.date);
+                        return payoutDate >= yearStart && payoutDate < yearEnd;
+                    })
+                    .reduce((sum, payout) => sum + payout.amount, 0);
             }
 
-            // Otherwise calculate from payout history
-            const yearStart = new Date(parseInt(year), 0, 1);
-            const yearEnd = new Date(parseInt(year) + 1, 0, 1);
+            // For current year, include unpaid earnings
+            if (year === currentYear) {
+                return roundMoney(paidTotal + state.earnings[childKey].weekTotal);
+            }
 
-            const yearlyTotal = (state.payoutHistory[childKey] || [])
-                .filter(payout => {
-                    const payoutDate = new Date(payout.date);
-                    return payoutDate >= yearStart && payoutDate < yearEnd;
-                })
-                .reduce((sum, payout) => sum + payout.amount, 0);
-
-            return yearlyTotal;
+            return paidTotal;
         }
 
         function exportAllData() {
@@ -2271,15 +2387,68 @@
             render();
         }
 
-        function getWeekDates() {
+        // Returns Sun-Sat calendar week dates for the week containing refDate
+        function getCalendarWeekDates(refDate) {
+            const d = new Date(refDate);
+            const dayOfWeek = d.getDay(); // 0=Sun, 6=Sat
+            const sunday = new Date(d);
+            sunday.setDate(d.getDate() - dayOfWeek);
             const dates = [];
-            const today = new Date();
-            for (let i = 6; i >= 0; i--) {
-                const date = new Date(today);
-                date.setDate(date.getDate() - i);
+            for (let i = 0; i < 7; i++) {
+                const date = new Date(sunday);
+                date.setDate(sunday.getDate() + i);
                 dates.push(date.toDateString());
             }
             return dates;
+        }
+
+        // Returns all dates from (last payout + 1 day) through today for earnings calculation
+        function getEarningPeriodDates(childKey) {
+            const today = new Date();
+            const todayStr = today.toDateString();
+            let startDate = null;
+
+            // Find the most recent payout date
+            const payouts = state.payoutHistory[childKey] || [];
+            if (payouts.length > 0) {
+                const lastPayout = new Date(payouts[0].date);
+                startDate = new Date(lastPayout);
+                startDate.setDate(startDate.getDate() + 1);
+                startDate.setHours(0, 0, 0, 0);
+            }
+
+            // If no payouts, find the earliest date in completionHistory
+            if (!startDate) {
+                const history = state.completionHistory[childKey] || {};
+                let earliest = null;
+                for (const dateStr in history) {
+                    const d = new Date(dateStr);
+                    if (!earliest || d < earliest) earliest = d;
+                }
+                // Also check dailyBonusAwarded for dates
+                const bonusHistory = state.dailyBonusAwarded[childKey] || {};
+                for (const dateStr in bonusHistory) {
+                    const d = new Date(dateStr);
+                    if (!earliest || d < earliest) earliest = d;
+                }
+                startDate = earliest || new Date(today);
+            }
+
+            startDate.setHours(0, 0, 0, 0);
+            today.setHours(0, 0, 0, 0);
+
+            const dates = [];
+            const current = new Date(startDate);
+            while (current <= today) {
+                dates.push(current.toDateString());
+                current.setDate(current.getDate() + 1);
+            }
+            return dates;
+        }
+
+        // Backward-compatible wrapper (delegates to calendar week)
+        function getWeekDates() {
+            return getCalendarWeekDates(new Date());
         }
 
         function toggleTaskJoint(taskId) {
@@ -2314,74 +2483,70 @@
         }
         
         function checkWeeklyStreak(childKey) {
-            // Check if they completed all active tasks every day this week
-            const weekDates = getWeekDates();
-            const today = new Date().toDateString();
-            
-            // Don't award streak bonus if already awarded this week
-            const weekStart = weekDates[0];
-            if (state.weeklyStreakAwarded[childKey][weekStart]) {
-                return;
-            }
-            
-            let hasFullWeek = true;
-            
-            for (const date of weekDates) {
-                const completedForDay = date === today 
-                    ? state.completedTasks[childKey]
-                    : (state.completionHistory[childKey][date] || []);
-                
-                const skippedForDay = date === today
-                    ? state.skippedTasks[childKey]
-                    : (state.skippedHistory[childKey][date] || []);
-                
-                // Get tasks that were applicable on that date
-                const dateObj = new Date(date);
-                const dayOfWeek = dateObj.getDay();
-                
-                const applicableTasks = state.tasks.filter(task => {
-                    // Check if task applies to this day of week
-                    if (!task.days) return false;
+            const today = new Date();
+            const todayStr = today.toDateString();
 
-                    // Exclude weekly, monthly, one-time, and bonus tasks from streak calculation
-                    if (task.days.includes('weekly') || task.days.includes('monthly') || task.days.includes('oneTime')) return false;
-                    // Exclude bonus section tasks (optional tasks don't count toward weekly streak)
-                    if (task.section === 'bonus') return false;
+            // Check both current and previous calendar week
+            const currentWeek = getCalendarWeekDates(today);
+            const prevWeekRef = new Date(today);
+            prevWeekRef.setDate(prevWeekRef.getDate() - 7);
+            const prevWeek = getCalendarWeekDates(prevWeekRef);
 
-                    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-                    const dayName = dayNames[dayOfWeek];
+            [prevWeek, currentWeek].forEach(weekDates => {
+                const weekStart = weekDates[0];
+                const weekEnd = weekDates[6];
 
-                    const appliesToDay = task.days.some(d => {
-                        if (d === dayName) return true;
-                        if (d === 'weekday' && dayOfWeek >= 1 && dayOfWeek <= 5) return true;
-                        return false;
+                // Don't award if already awarded for this week
+                if (state.weeklyStreakAwarded[childKey][weekStart]) return;
+
+                // Only evaluate complete weeks (Saturday must be today or in the past)
+                if (new Date(weekEnd) > today) return;
+
+                let hasFullWeek = true;
+
+                for (const date of weekDates) {
+                    const completedForDay = date === todayStr
+                        ? state.completedTasks[childKey]
+                        : (state.completionHistory[childKey][date] || []);
+
+                    const skippedForDay = date === todayStr
+                        ? state.skippedTasks[childKey]
+                        : (state.skippedHistory[childKey][date] || []);
+
+                    const dateObj = new Date(date);
+                    const dayOfWeek = dateObj.getDay();
+
+                    const applicableTasks = state.tasks.filter(task => {
+                        if (!task.days) return false;
+                        if (task.days.includes('weekly') || task.days.includes('monthly') || task.days.includes('oneTime')) return false;
+                        if (task.section === 'bonus') return false;
+
+                        const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+                        const dayName = dayNames[dayOfWeek];
+
+                        return task.days.some(d => {
+                            if (d === dayName) return true;
+                            if (d === 'weekday' && dayOfWeek >= 1 && dayOfWeek <= 5) return true;
+                            return false;
+                        });
                     });
 
-                    if (!appliesToDay) return false;
+                    const activeTasks = applicableTasks.filter(t => !skippedForDay.includes(t.id));
+                    if (activeTasks.length === 0) continue;
 
-                    return true;
-                });
-                
-                const activeTasks = applicableTasks.filter(t => !skippedForDay.includes(t.id));
-                
-                if (activeTasks.length === 0) continue; // Skip days with no tasks
-                
-                const allCompleted = activeTasks.every(t => completedForDay.includes(t.id));
-                
-                if (!allCompleted) {
-                    hasFullWeek = false;
-                    break;
+                    if (!activeTasks.every(t => completedForDay.includes(t.id))) {
+                        hasFullWeek = false;
+                        break;
+                    }
                 }
-            }
-            
-            // Award streak bonus if they completed everything all week
-            if (hasFullWeek && state.weeklyStreakBonus > 0) {
-                // Only add to weekTotal, not todayTotal (streak is a week achievement, not daily)
-                addEarnings(childKey, state.weeklyStreakBonus, 0);
-                state.weeklyStreakAwarded[childKey][weekStart] = true;
-                saveState();
-                alert(`🔥 ${state.users[childKey].name} earned a $${state.weeklyStreakBonus.toFixed(2)} WEEKLY STREAK BONUS for completing all tasks every day this week!`);
-            }
+
+                if (hasFullWeek && state.weeklyStreakBonus > 0) {
+                    addEarnings(childKey, state.weeklyStreakBonus, 0);
+                    state.weeklyStreakAwarded[childKey][weekStart] = true;
+                    saveState();
+                    alert(`🔥 ${state.users[childKey].name} earned a $${state.weeklyStreakBonus.toFixed(2)} WEEKLY STREAK BONUS for completing all tasks every day this week!`);
+                }
+            });
         }
 
         function getSectionIcon(section) {
@@ -3091,7 +3256,7 @@
                     
                     <div class="mb-4 space-y-2">
                         <div class="flex justify-between items-center">
-                            <span class="text-sm text-gray-600">Week Total:</span>
+                            <span class="text-sm text-gray-600">Earnings Total:</span>
                             <span class="text-2xl font-bold text-green-600">
                                 $${state.earnings[childKey].weekTotal.toFixed(2)}
                             </span>
@@ -3251,116 +3416,159 @@
         function renderWeeklyHistory() {
             if (!state.showHistory || !state.selectedHistoryChild) return '';
 
-            const weekDates = getWeekDates();
+            const childKey = state.selectedHistoryChild;
+            const allDates = getEarningPeriodDates(childKey);
+            const todayStr = new Date().toDateString();
+
+            // Group dates by calendar week (Sun-Sat)
+            const weekGroups = [];
+            const weekMap = {};
+            for (const date of allDates) {
+                const calWeek = getCalendarWeekDates(new Date(date));
+                const weekStart = calWeek[0];
+                if (!weekMap[weekStart]) {
+                    weekMap[weekStart] = { weekStart, weekDates: calWeek, dates: [] };
+                    weekGroups.push(weekMap[weekStart]);
+                }
+                weekMap[weekStart].dates.push(date);
+            }
+
+            // Reverse so current week is first
+            weekGroups.reverse();
 
             return `
-                <div class="space-y-4">
-                    ${weekDates.map(date => {
-                        const dateObj = new Date(date);
-                        const isToday = date === new Date().toDateString();
-                        const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
-                        const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                        const completedForDay = isToday
-                            ? state.completedTasks[state.selectedHistoryChild]
-                            : (state.completionHistory[state.selectedHistoryChild][date] || []);
-                        const skippedForDay = isToday
-                            ? state.skippedTasks[state.selectedHistoryChild]
-                            : (state.skippedHistory[state.selectedHistoryChild][date] || []);
+                <div class="space-y-6">
+                    ${weekGroups.map((group, groupIdx) => {
+                        const wStart = new Date(group.weekStart);
+                        const wEnd = new Date(group.weekDates[6]);
+                        const weekLabel = wStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' - ' + wEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                        const isCurrentWeek = group.dates.includes(todayStr);
+                        const weekStreakAwarded = state.weeklyStreakAwarded[childKey][group.weekStart];
 
-                        const dayTasks = state.tasks.filter(t => taskAppliesToDate(t, dateObj, state.selectedHistoryChild));
-                        const activeTasks = dayTasks.filter(t => !skippedForDay.includes(t.id));
-                        const completedCount = completedForDay.filter(id => dayTasks.some(t => t.id === id)).length;
-                        const bonusAwarded = state.dailyBonusAwarded[state.selectedHistoryChild] && state.dailyBonusAwarded[state.selectedHistoryChild][date];
+                        // Show all 7 days of the calendar week for context (not just earning period days)
+                        const displayDates = group.weekDates.filter(d => allDates.includes(d));
 
                         return `
-                            <div class="border border-gray-200 rounded-lg p-4">
-                                <div class="flex justify-between items-center mb-3">
-                                    <h4 class="font-semibold text-gray-800">
-                                        ${dayName}, ${dateStr} ${isToday ? '(Today)' : ''}
-                                    </h4>
-                                    <span class="text-sm text-gray-600">
-                                        ${completedCount} / ${activeTasks.length} completed
-                                    </span>
+                            <div class="border-2 ${isCurrentWeek ? 'border-blue-300' : 'border-gray-200'} rounded-xl overflow-hidden">
+                                <div class="px-4 py-2 ${isCurrentWeek ? 'bg-blue-50' : 'bg-gray-50'} flex justify-between items-center">
+                                    <h3 class="font-bold text-sm ${isCurrentWeek ? 'text-blue-700' : 'text-gray-700'}">
+                                        ${isCurrentWeek ? 'This Week' : 'Week of'} ${weekLabel}
+                                    </h3>
+                                    <div class="flex items-center gap-2">
+                                        ${weekStreakAwarded ? '<span class="text-sm font-semibold text-orange-600">🔥 Streak Bonus!</span>' : ''}
+                                    </div>
                                 </div>
-                                <div class="grid grid-cols-1 gap-2">
-                                    ${dayTasks.map(task => {
-                                        const isCompleted = completedForDay.includes(task.id);
-                                        const isSkipped = skippedForDay.includes(task.id);
-                                        
+                                <div class="p-4 space-y-4">
+                                    ${displayDates.map(date => {
+                                        const dateObj = new Date(date);
+                                        const isToday = date === todayStr;
+                                        const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+                                        const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                                        const completedForDay = isToday
+                                            ? state.completedTasks[childKey]
+                                            : (state.completionHistory[childKey][date] || []);
+                                        const skippedForDay = isToday
+                                            ? state.skippedTasks[childKey]
+                                            : (state.skippedHistory[childKey][date] || []);
+
+                                        const dayTasks = state.tasks.filter(t => taskAppliesToDate(t, dateObj, childKey));
+                                        const activeTasks = dayTasks.filter(t => !skippedForDay.includes(t.id));
+                                        const completedCount = completedForDay.filter(id => dayTasks.some(t => t.id === id)).length;
+                                        const bonusAwarded = state.dailyBonusAwarded[childKey] && state.dailyBonusAwarded[childKey][date];
+
                                         return `
-                                            <div class="flex gap-2">
-                                                <button
-                                                    onclick="${isToday 
-                                                        ? `toggleTaskSkipped('${state.selectedHistoryChild}', ${task.id})` 
-                                                        : `toggleHistorySkipped('${state.selectedHistoryChild}', '${date}', ${task.id})`}"
-                                                    class="px-2 py-2 rounded border transition ${
-                                                        isSkipped
-                                                            ? 'bg-gray-200 border-gray-400 text-gray-600'
-                                                            : 'bg-white border-gray-300 text-gray-400 hover:border-gray-400'
-                                                    }"
-                                                    title="${isSkipped ? 'Unskip' : 'Skip (N/A)'}"
-                                                >
-                                                    ${isSkipped ? '↺' : '—'}
-                                                </button>
-                                                <button
-                                                    onclick="${isSkipped ? '' : isToday
-                                                        ? `toggleTaskComplete('${state.selectedHistoryChild}', ${task.id}, ${task.payout}, event)`
-                                                        : `toggleHistoryTask('${state.selectedHistoryChild}', '${date}', ${task.id})`}"
-                                                    ${isSkipped ? 'disabled' : ''}
-                                                    class="flex-1 text-left p-2 rounded border transition ${
-                                                        isSkipped
-                                                            ? 'bg-gray-100 border-gray-300 opacity-50 cursor-not-allowed'
-                                                            : isCompleted
-                                                            ? 'bg-green-50 border-green-300'
-                                                            : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
-                                                    }"
-                                                >
-                                                    <div class="flex items-center gap-2">
-                                                        <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                                                            isSkipped
-                                                                ? 'bg-gray-300 border-gray-400'
-                                                                : isCompleted 
-                                                                ? 'bg-green-500 border-green-500' 
-                                                                : 'border-gray-300'
-                                                        }">
-                                                            ${isSkipped ? `
-                                                                <span class="text-white text-xs">—</span>
-                                                            ` : isCompleted ? `
-                                                                <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                                                                </svg>
-                                                            ` : ''}
-                                                        </div>
-                                                        <span class="text-xs ${
-                                                            isSkipped 
-                                                                ? 'text-gray-400 line-through'
-                                                                : isCompleted 
-                                                                ? 'text-gray-600' 
-                                                                : 'text-gray-700'
-                                                        }">
-                                                            ${escapeHtml(task.name)}
-                                                        </span>
-                                                    </div>
-                                                </button>
+                                            <div class="border border-gray-200 rounded-lg p-4">
+                                                <div class="flex justify-between items-center mb-3">
+                                                    <h4 class="font-semibold text-gray-800">
+                                                        ${dayName}, ${dateStr} ${isToday ? '(Today)' : ''}
+                                                    </h4>
+                                                    <span class="text-sm text-gray-600">
+                                                        ${completedCount} / ${activeTasks.length} completed
+                                                    </span>
+                                                </div>
+                                                <div class="grid grid-cols-1 gap-2">
+                                                    ${dayTasks.map(task => {
+                                                        const isCompleted = completedForDay.includes(task.id);
+                                                        const isSkipped = skippedForDay.includes(task.id);
+
+                                                        return `
+                                                            <div class="flex gap-2">
+                                                                <button
+                                                                    onclick="${isToday
+                                                                        ? `toggleTaskSkipped('${childKey}', ${task.id})`
+                                                                        : `toggleHistorySkipped('${childKey}', '${date}', ${task.id})`}"
+                                                                    class="px-2 py-2 rounded border transition ${
+                                                                        isSkipped
+                                                                            ? 'bg-gray-200 border-gray-400 text-gray-600'
+                                                                            : 'bg-white border-gray-300 text-gray-400 hover:border-gray-400'
+                                                                    }"
+                                                                    title="${isSkipped ? 'Unskip' : 'Skip (N/A)'}"
+                                                                >
+                                                                    ${isSkipped ? '↺' : '—'}
+                                                                </button>
+                                                                <button
+                                                                    onclick="${isSkipped ? '' : isToday
+                                                                        ? `toggleTaskComplete('${childKey}', ${task.id}, ${task.payout}, event)`
+                                                                        : `toggleHistoryTask('${childKey}', '${date}', ${task.id})`}"
+                                                                    ${isSkipped ? 'disabled' : ''}
+                                                                    class="flex-1 text-left p-2 rounded border transition ${
+                                                                        isSkipped
+                                                                            ? 'bg-gray-100 border-gray-300 opacity-50 cursor-not-allowed'
+                                                                            : isCompleted
+                                                                            ? 'bg-green-50 border-green-300'
+                                                                            : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                                                                    }"
+                                                                >
+                                                                    <div class="flex items-center gap-2">
+                                                                        <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                                                                            isSkipped
+                                                                                ? 'bg-gray-300 border-gray-400'
+                                                                                : isCompleted
+                                                                                ? 'bg-green-500 border-green-500'
+                                                                                : 'border-gray-300'
+                                                                        }">
+                                                                            ${isSkipped ? `
+                                                                                <span class="text-white text-xs">—</span>
+                                                                            ` : isCompleted ? `
+                                                                                <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                                                                </svg>
+                                                                            ` : ''}
+                                                                        </div>
+                                                                        <span class="text-xs ${
+                                                                            isSkipped
+                                                                                ? 'text-gray-400 line-through'
+                                                                                : isCompleted
+                                                                                ? 'text-gray-600'
+                                                                                : 'text-gray-700'
+                                                                        }">
+                                                                            ${escapeHtml(task.name)}
+                                                                        </span>
+                                                                    </div>
+                                                                </button>
+                                                            </div>
+                                                        `;
+                                                    }).join('')}
+                                                </div>
+                                                <div class="mt-3 pt-3 border-t border-gray-200">
+                                                    <button
+                                                        onclick="${isToday ? '' : `toggleHistoryBonus('${childKey}', '${date}')`}"
+                                                        class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                                                            bonusAwarded
+                                                                ? 'bg-yellow-100 border border-yellow-400 text-yellow-800'
+                                                                : 'bg-gray-50 border border-gray-300 text-gray-500 hover:bg-gray-100'
+                                                        } ${isToday ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}"
+                                                        ${isToday ? 'disabled' : ''}
+                                                        title="${isToday ? 'Bonus is managed automatically today' : (bonusAwarded ? 'Remove daily bonus' : 'Award daily bonus')}"
+                                                    >
+                                                        <span>${bonusAwarded ? '🏆' : '○'}</span>
+                                                        <span>Daily Bonus (+$1.00)</span>
+                                                        <span>${bonusAwarded ? '✓' : ''}</span>
+                                                    </button>
+                                                </div>
                                             </div>
                                         `;
                                     }).join('')}
-                                </div>
-                                <div class="mt-3 pt-3 border-t border-gray-200">
-                                    <button
-                                        onclick="${isToday ? '' : `toggleHistoryBonus('${state.selectedHistoryChild}', '${date}')`}"
-                                        class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition ${
-                                            bonusAwarded
-                                                ? 'bg-yellow-100 border border-yellow-400 text-yellow-800'
-                                                : 'bg-gray-50 border border-gray-300 text-gray-500 hover:bg-gray-100'
-                                        } ${isToday ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}"
-                                        ${isToday ? 'disabled' : ''}
-                                        title="${isToday ? 'Bonus is managed automatically today' : (bonusAwarded ? 'Remove daily bonus' : 'Award daily bonus')}"
-                                    >
-                                        <span>${bonusAwarded ? '🏆' : '○'}</span>
-                                        <span>Daily Bonus (+$1.00)</span>
-                                        <span>${bonusAwarded ? '✓' : ''}</span>
-                                    </button>
                                 </div>
                             </div>
                         `;
@@ -4099,7 +4307,7 @@
                                             <div class="mb-2 p-3 bg-white rounded-lg border border-gray-200 flex items-center justify-between">
                                                 <div>
                                                     <div class="font-medium text-gray-800">${escapeHtml(state.users[childKey].name)}</div>
-                                                    <div class="text-sm text-gray-600">Week Total: $${state.earnings[childKey].weekTotal.toFixed(2)}</div>
+                                                    <div class="text-sm text-gray-600">Earnings Total: $${state.earnings[childKey].weekTotal.toFixed(2)}</div>
                                                     <div class="text-xs text-blue-600">${new Date().getFullYear()} Total: $${getYearlyEarnings(childKey).toFixed(2)}</div>
                                                 </div>
                                                 <button
