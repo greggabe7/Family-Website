@@ -359,6 +359,7 @@
         let syncStatus = 'connecting'; // 'connected', 'syncing', 'offline', 'connecting'
         let lastSyncTime = null;
         let firebaseLoaded = false; // Prevents checkDailyReset from running on stale localStorage before Firebase loads
+        let pendingLocalSave = false; // Tracks if saveState() was called before Firebase loaded
 
         // Sound effects — real audio files
         const chaChingSound = new Audio('sounds/cha-ching.mp3');
@@ -953,6 +954,13 @@
                 console.log('Could not save state to localStorage');
             }
 
+            // Only push to Firebase if initial load is complete
+            if (!firebaseLoaded) {
+                pendingLocalSave = true;
+                console.warn('saveState(): Firebase not yet loaded — skipping Firebase write to prevent stale data overwrite');
+                return;
+            }
+
             // Save to Firebase
             syncStatus = 'syncing';
             render();
@@ -1021,11 +1029,18 @@
                         render();
                     }
                     firebaseLoaded = true;
+                    // Discard any pending save — state was just replaced with fresh Firebase data,
+                    // so any pre-load local changes were based on stale data
+                    if (pendingLocalSave) {
+                        console.warn('setupRealtimeSync(): Discarding pending save — Firebase data takes precedence over stale local state');
+                        pendingLocalSave = false;
+                    }
                 } else {
                     // No data in Firebase yet, migrate local data
                     migrateToFirebase();
                     checkDailyReset();
                     firebaseLoaded = true;
+                    pendingLocalSave = false;
                     syncStatus = 'connected';
                     render();
                 }
