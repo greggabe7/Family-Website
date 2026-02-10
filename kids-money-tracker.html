@@ -735,6 +735,7 @@
             editingJoint: null,
             showHistory: false,
             selectedHistoryChild: null,
+            historyWeekOffset: 0,
             editingGoal: null,
             tempGoalName: '',
             tempGoalAmount: 0,
@@ -917,6 +918,7 @@
             delete copy.showAddTask;
             delete copy.showHistory;
             delete copy.selectedHistoryChild;
+            delete copy.historyWeekOffset;
             delete copy.editingName;
             delete copy.tempName;
             delete copy.editingPayout;
@@ -987,8 +989,11 @@
                     const localTimestamp = state.lastModified || 0;
                     const firebaseTimestamp = firebaseData.lastModified || 0;
 
-                    // If local data is newer, push it to Firebase instead of accepting stale data
-                    if (localTimestamp > firebaseTimestamp && firebaseTimestamp > 0) {
+                    // Only allow local data to override Firebase during reconnection
+                    // (firebaseLoaded === true), never on initial page load.
+                    // On first load, Firebase is always the source of truth — stale
+                    // localStorage or default state must never overwrite it.
+                    if (firebaseLoaded && localTimestamp > firebaseTimestamp && firebaseTimestamp > 0) {
                         console.log(`Local data is newer (${new Date(localTimestamp).toISOString()} vs ${new Date(firebaseTimestamp).toISOString()}), pushing to Firebase`);
                         // Push local data to Firebase (will trigger another sync event)
                         database.ref('allowanceData').set(stripTransientFields(state));
@@ -2417,7 +2422,8 @@
             return dates;
         }
 
-        // Returns all dates from (last payout + 1 day) through today for earnings calculation
+        // Returns all dates from last payout date (inclusive) through today for earnings calculation
+        // Payout day is inclusive because payouts happen before tasks are entered that day
         function getEarningPeriodDates(childKey) {
             const today = new Date();
             const todayStr = today.toDateString();
@@ -2428,7 +2434,6 @@
             if (payouts.length > 0) {
                 const lastPayout = new Date(payouts[0].date);
                 startDate = new Date(lastPayout);
-                startDate.setDate(startDate.getDate() + 1);
                 startDate.setHours(0, 0, 0, 0);
             }
 
@@ -3271,7 +3276,7 @@
                     
                     <div class="mb-4 space-y-2">
                         <div class="flex justify-between items-center">
-                            <span class="text-sm text-gray-600">Earnings Total:</span>
+                            <span class="text-sm text-gray-600">Weekly Earnings Total:</span>
                             <span class="text-2xl font-bold text-green-600">
                                 $${state.earnings[childKey].weekTotal.toFixed(2)}
                             </span>
@@ -3432,162 +3437,189 @@
             if (!state.showHistory || !state.selectedHistoryChild) return '';
 
             const childKey = state.selectedHistoryChild;
-            const allDates = getEarningPeriodDates(childKey);
             const todayStr = new Date().toDateString();
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
 
-            // Group dates by calendar week (Sun-Sat)
-            const weekGroups = [];
-            const weekMap = {};
-            for (const date of allDates) {
-                const calWeek = getCalendarWeekDates(new Date(date));
-                const weekStart = calWeek[0];
-                if (!weekMap[weekStart]) {
-                    weekMap[weekStart] = { weekStart, weekDates: calWeek, dates: [] };
-                    weekGroups.push(weekMap[weekStart]);
-                }
-                weekMap[weekStart].dates.push(date);
+            // Calculate the target week based on historyWeekOffset (0 = this week, -1 = last week, etc.)
+            const offsetDate = new Date(today);
+            offsetDate.setDate(offsetDate.getDate() + (state.historyWeekOffset * 7));
+            const weekDates = getCalendarWeekDates(offsetDate);
+            const isCurrentWeek = state.historyWeekOffset === 0;
+
+            // For current week, only show days up to today
+            const displayDates = isCurrentWeek
+                ? weekDates.filter(d => new Date(d) <= today)
+                : weekDates;
+
+            const wStart = new Date(weekDates[0]);
+            const wEnd = new Date(weekDates[6]);
+            const weekLabel = wStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' - ' + wEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            const weekStreakAwarded = state.weeklyStreakAwarded[childKey] && state.weeklyStreakAwarded[childKey][weekDates[0]];
+
+            // Build week options for dropdown (current week + 8 prior weeks)
+            const weekOptions = [];
+            for (let i = 0; i >= -8; i--) {
+                const optDate = new Date(today);
+                optDate.setDate(optDate.getDate() + (i * 7));
+                const optWeek = getCalendarWeekDates(optDate);
+                const optStart = new Date(optWeek[0]);
+                const optEnd = new Date(optWeek[6]);
+                const optLabel = (i === 0 ? 'This Week: ' : '') +
+                    optStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' - ' +
+                    optEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                weekOptions.push({ value: i, label: optLabel });
             }
-
-            // Reverse so current week is first
-            weekGroups.reverse();
 
             return `
                 <div class="space-y-6">
-                    ${weekGroups.map((group, groupIdx) => {
-                        const wStart = new Date(group.weekStart);
-                        const wEnd = new Date(group.weekDates[6]);
-                        const weekLabel = wStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' - ' + wEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                        const isCurrentWeek = group.dates.includes(todayStr);
-                        const weekStreakAwarded = state.weeklyStreakAwarded[childKey][group.weekStart];
+                    <!-- Week Navigation -->
+                    <div class="flex items-center gap-2">
+                        <button
+                            onclick="state.historyWeekOffset--; render();"
+                            class="px-3 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition text-gray-700 font-bold"
+                            title="Previous week"
+                        >&larr;</button>
+                        <select
+                            onchange="state.historyWeekOffset = parseInt(this.value); render();"
+                            class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        >
+                            ${weekOptions.map(opt => `
+                                <option value="${opt.value}" ${opt.value === state.historyWeekOffset ? 'selected' : ''}>
+                                    ${opt.label}
+                                </option>
+                            `).join('')}
+                        </select>
+                        <button
+                            onclick="state.historyWeekOffset++; render();"
+                            class="px-3 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition text-gray-700 font-bold ${isCurrentWeek ? 'opacity-50 cursor-not-allowed' : ''}"
+                            ${isCurrentWeek ? 'disabled' : ''}
+                            title="Next week"
+                        >&rarr;</button>
+                    </div>
 
-                        // Show all 7 days of the calendar week for context (not just earning period days)
-                        const displayDates = group.weekDates.filter(d => allDates.includes(d));
-
-                        return `
-                            <div class="border-2 ${isCurrentWeek ? 'border-blue-300' : 'border-gray-200'} rounded-xl overflow-hidden">
-                                <div class="px-4 py-2 ${isCurrentWeek ? 'bg-blue-50' : 'bg-gray-50'} flex justify-between items-center">
-                                    <h3 class="font-bold text-sm ${isCurrentWeek ? 'text-blue-700' : 'text-gray-700'}">
-                                        ${isCurrentWeek ? 'This Week' : 'Week of'} ${weekLabel}
-                                    </h3>
-                                    <div class="flex items-center gap-2">
-                                        ${weekStreakAwarded ? '<span class="text-sm font-semibold text-orange-600">🔥 Streak Bonus!</span>' : ''}
-                                    </div>
-                                </div>
-                                <div class="p-4 space-y-4">
-                                    ${displayDates.map(date => {
-                                        const dateObj = new Date(date);
-                                        const isToday = date === todayStr;
-                                        const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
-                                        const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                                        const completedForDay = isToday
-                                            ? state.completedTasks[childKey]
-                                            : (state.completionHistory[childKey][date] || []);
-                                        const skippedForDay = isToday
-                                            ? state.skippedTasks[childKey]
-                                            : (state.skippedHistory[childKey][date] || []);
-
-                                        const dayTasks = state.tasks.filter(t => taskAppliesToDate(t, dateObj, childKey));
-                                        const activeTasks = dayTasks.filter(t => !skippedForDay.includes(t.id));
-                                        const completedCount = completedForDay.filter(id => dayTasks.some(t => t.id === id)).length;
-                                        const bonusAwarded = state.dailyBonusAwarded[childKey] && state.dailyBonusAwarded[childKey][date];
-
-                                        return `
-                                            <div class="border border-gray-200 rounded-lg p-4">
-                                                <div class="flex justify-between items-center mb-3">
-                                                    <h4 class="font-semibold text-gray-800">
-                                                        ${dayName}, ${dateStr} ${isToday ? '(Today)' : ''}
-                                                    </h4>
-                                                    <span class="text-sm text-gray-600">
-                                                        ${completedCount} / ${activeTasks.length} completed
-                                                    </span>
-                                                </div>
-                                                <div class="grid grid-cols-1 gap-2">
-                                                    ${dayTasks.map(task => {
-                                                        const isCompleted = completedForDay.includes(task.id);
-                                                        const isSkipped = skippedForDay.includes(task.id);
-
-                                                        return `
-                                                            <div class="flex gap-2">
-                                                                <button
-                                                                    onclick="${isToday
-                                                                        ? `toggleTaskSkipped('${childKey}', ${task.id})`
-                                                                        : `toggleHistorySkipped('${childKey}', '${date}', ${task.id})`}"
-                                                                    class="px-2 py-2 rounded border transition ${
-                                                                        isSkipped
-                                                                            ? 'bg-gray-200 border-gray-400 text-gray-600'
-                                                                            : 'bg-white border-gray-300 text-gray-400 hover:border-gray-400'
-                                                                    }"
-                                                                    title="${isSkipped ? 'Unskip' : 'Skip (N/A)'}"
-                                                                >
-                                                                    ${isSkipped ? '↺' : '—'}
-                                                                </button>
-                                                                <button
-                                                                    onclick="${isSkipped ? '' : isToday
-                                                                        ? `toggleTaskComplete('${childKey}', ${task.id}, ${task.payout}, event)`
-                                                                        : `toggleHistoryTask('${childKey}', '${date}', ${task.id})`}"
-                                                                    ${isSkipped ? 'disabled' : ''}
-                                                                    class="flex-1 text-left p-2 rounded border transition ${
-                                                                        isSkipped
-                                                                            ? 'bg-gray-100 border-gray-300 opacity-50 cursor-not-allowed'
-                                                                            : isCompleted
-                                                                            ? 'bg-green-50 border-green-300'
-                                                                            : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
-                                                                    }"
-                                                                >
-                                                                    <div class="flex items-center gap-2">
-                                                                        <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                                                                            isSkipped
-                                                                                ? 'bg-gray-300 border-gray-400'
-                                                                                : isCompleted
-                                                                                ? 'bg-green-500 border-green-500'
-                                                                                : 'border-gray-300'
-                                                                        }">
-                                                                            ${isSkipped ? `
-                                                                                <span class="text-white text-xs">—</span>
-                                                                            ` : isCompleted ? `
-                                                                                <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                                                                                </svg>
-                                                                            ` : ''}
-                                                                        </div>
-                                                                        <span class="text-xs ${
-                                                                            isSkipped
-                                                                                ? 'text-gray-400 line-through'
-                                                                                : isCompleted
-                                                                                ? 'text-gray-600'
-                                                                                : 'text-gray-700'
-                                                                        }">
-                                                                            ${escapeHtml(task.name)}
-                                                                        </span>
-                                                                    </div>
-                                                                </button>
-                                                            </div>
-                                                        `;
-                                                    }).join('')}
-                                                </div>
-                                                <div class="mt-3 pt-3 border-t border-gray-200">
-                                                    <button
-                                                        onclick="${isToday ? '' : `toggleHistoryBonus('${childKey}', '${date}')`}"
-                                                        class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition ${
-                                                            bonusAwarded
-                                                                ? 'bg-yellow-100 border border-yellow-400 text-yellow-800'
-                                                                : 'bg-gray-50 border border-gray-300 text-gray-500 hover:bg-gray-100'
-                                                        } ${isToday ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}"
-                                                        ${isToday ? 'disabled' : ''}
-                                                        title="${isToday ? 'Bonus is managed automatically today' : (bonusAwarded ? 'Remove daily bonus' : 'Award daily bonus')}"
-                                                    >
-                                                        <span>${bonusAwarded ? '🏆' : '○'}</span>
-                                                        <span>Daily Bonus (+$1.00)</span>
-                                                        <span>${bonusAwarded ? '✓' : ''}</span>
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        `;
-                                    }).join('')}
-                                </div>
+                    <div class="border-2 ${isCurrentWeek ? 'border-blue-300' : 'border-gray-200'} rounded-xl overflow-hidden">
+                        <div class="px-4 py-2 ${isCurrentWeek ? 'bg-blue-50' : 'bg-gray-50'} flex justify-between items-center">
+                            <h3 class="font-bold text-sm ${isCurrentWeek ? 'text-blue-700' : 'text-gray-700'}">
+                                ${isCurrentWeek ? 'This Week' : 'Week of'} ${weekLabel}
+                            </h3>
+                            <div class="flex items-center gap-2">
+                                ${weekStreakAwarded ? '<span class="text-sm font-semibold text-orange-600">🔥 Streak Bonus!</span>' : ''}
                             </div>
-                        `;
-                    }).join('')}
+                        </div>
+                        <div class="p-4 space-y-4">
+                            ${displayDates.map(date => {
+                                const dateObj = new Date(date);
+                                const isToday = date === todayStr;
+                                const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+                                const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                                const completedForDay = isToday
+                                    ? (state.completedTasks[childKey] || [])
+                                    : (state.completionHistory[childKey] && state.completionHistory[childKey][date] || []);
+                                const skippedForDay = isToday
+                                    ? (state.skippedTasks[childKey] || [])
+                                    : (state.skippedHistory[childKey] && state.skippedHistory[childKey][date] || []);
+
+                                const dayTasks = state.tasks.filter(t => taskAppliesToDate(t, dateObj, childKey));
+                                const activeTasks = dayTasks.filter(t => !skippedForDay.includes(t.id));
+                                const completedCount = completedForDay.filter(id => dayTasks.some(t => t.id === id)).length;
+                                const bonusAwarded = state.dailyBonusAwarded[childKey] && state.dailyBonusAwarded[childKey][date];
+
+                                return `
+                                    <div class="border border-gray-200 rounded-lg p-4">
+                                        <div class="flex justify-between items-center mb-3">
+                                            <h4 class="font-semibold text-gray-800">
+                                                ${dayName}, ${dateStr} ${isToday ? '(Today)' : ''}
+                                            </h4>
+                                            <span class="text-sm text-gray-600">
+                                                ${completedCount} / ${activeTasks.length} completed
+                                            </span>
+                                        </div>
+                                        <div class="grid grid-cols-1 gap-2">
+                                            ${dayTasks.map(task => {
+                                                const isCompleted = completedForDay.includes(task.id);
+                                                const isSkipped = skippedForDay.includes(task.id);
+
+                                                return `
+                                                    <div class="flex gap-2">
+                                                        <button
+                                                            onclick="${isToday
+                                                                ? `toggleTaskSkipped('${childKey}', ${task.id})`
+                                                                : `toggleHistorySkipped('${childKey}', '${date}', ${task.id})`}"
+                                                            class="px-2 py-2 rounded border transition ${
+                                                                isSkipped
+                                                                    ? 'bg-gray-200 border-gray-400 text-gray-600'
+                                                                    : 'bg-white border-gray-300 text-gray-400 hover:border-gray-400'
+                                                            }"
+                                                            title="${isSkipped ? 'Unskip' : 'Skip (N/A)'}"
+                                                        >
+                                                            ${isSkipped ? '↺' : '—'}
+                                                        </button>
+                                                        <button
+                                                            onclick="${isSkipped ? '' : isToday
+                                                                ? `toggleTaskComplete('${childKey}', ${task.id}, ${task.payout}, event)`
+                                                                : `toggleHistoryTask('${childKey}', '${date}', ${task.id})`}"
+                                                            ${isSkipped ? 'disabled' : ''}
+                                                            class="flex-1 text-left p-2 rounded border transition ${
+                                                                isSkipped
+                                                                    ? 'bg-gray-100 border-gray-300 opacity-50 cursor-not-allowed'
+                                                                    : isCompleted
+                                                                    ? 'bg-green-50 border-green-300'
+                                                                    : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                                                            }"
+                                                        >
+                                                            <div class="flex items-center gap-2">
+                                                                <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                                                                    isSkipped
+                                                                        ? 'bg-gray-300 border-gray-400'
+                                                                        : isCompleted
+                                                                        ? 'bg-green-500 border-green-500'
+                                                                        : 'border-gray-300'
+                                                                }">
+                                                                    ${isSkipped ? `
+                                                                        <span class="text-white text-xs">—</span>
+                                                                    ` : isCompleted ? `
+                                                                        <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                                                        </svg>
+                                                                    ` : ''}
+                                                                </div>
+                                                                <span class="text-xs ${
+                                                                    isSkipped
+                                                                        ? 'text-gray-400 line-through'
+                                                                        : isCompleted
+                                                                        ? 'text-gray-600'
+                                                                        : 'text-gray-700'
+                                                                }">
+                                                                    ${escapeHtml(task.name)}
+                                                                </span>
+                                                            </div>
+                                                        </button>
+                                                    </div>
+                                                `;
+                                            }).join('')}
+                                        </div>
+                                        <div class="mt-3 pt-3 border-t border-gray-200">
+                                            <button
+                                                onclick="${isToday ? '' : `toggleHistoryBonus('${childKey}', '${date}')`}"
+                                                class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                                                    bonusAwarded
+                                                        ? 'bg-yellow-100 border border-yellow-400 text-yellow-800'
+                                                        : 'bg-gray-50 border border-gray-300 text-gray-500 hover:bg-gray-100'
+                                                } ${isToday ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}"
+                                                ${isToday ? 'disabled' : ''}
+                                                title="${isToday ? 'Bonus is managed automatically today' : (bonusAwarded ? 'Remove daily bonus' : 'Award daily bonus')}"
+                                            >
+                                                <span>${bonusAwarded ? '🏆' : '○'}</span>
+                                                <span>Daily Bonus (+$1.00)</span>
+                                                <span>${bonusAwarded ? '✓' : ''}</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
                 </div>
             `;
         }
@@ -4322,7 +4354,7 @@
                                             <div class="mb-2 p-3 bg-white rounded-lg border border-gray-200 flex items-center justify-between">
                                                 <div>
                                                     <div class="font-medium text-gray-800">${escapeHtml(state.users[childKey].name)}</div>
-                                                    <div class="text-sm text-gray-600">Earnings Total: $${state.earnings[childKey].weekTotal.toFixed(2)}</div>
+                                                    <div class="text-sm text-gray-600">Weekly Earnings Total: $${state.earnings[childKey].weekTotal.toFixed(2)}</div>
                                                     <div class="text-xs text-blue-600">${new Date().getFullYear()} Total: $${getYearlyEarnings(childKey).toFixed(2)}</div>
                                                 </div>
                                                 <button
@@ -4363,7 +4395,7 @@
                                         <!-- Child Selector -->
                                         <div class="flex gap-4">
                                             <button
-                                                onclick="state.selectedHistoryChild = 'maria'; render();"
+                                                onclick="state.selectedHistoryChild = 'maria'; state.historyWeekOffset = 0; render();"
                                                 class="flex-1 py-2 px-4 rounded-lg font-semibold transition ${
                                                     state.selectedHistoryChild === 'maria'
                                                         ? 'bg-green-500 text-white'
@@ -4373,7 +4405,7 @@
                                                 Maria
                                             </button>
                                             <button
-                                                onclick="state.selectedHistoryChild = 'helena'; render();"
+                                                onclick="state.selectedHistoryChild = 'helena'; state.historyWeekOffset = 0; render();"
                                                 class="flex-1 py-2 px-4 rounded-lg font-semibold transition ${
                                                     state.selectedHistoryChild === 'helena'
                                                         ? 'bg-green-500 text-white'
