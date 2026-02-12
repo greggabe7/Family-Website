@@ -114,13 +114,70 @@
 
 ---
 
+## Feb 10, 2026 - Firebase Sync Race (Round 2), Payout Boundary, History Week View
+
+**Problem:** Three issues:
+1. Opening the app on a new origin (e.g., localhost:8081) with no localStorage caused fresh default state to overwrite Firebase production data — passwords reverted, yesterday's data lost
+2. History view only showed days within the earning period, hiding days at the start of the calendar week
+3. No way to navigate to prior weeks in history
+4. Payout boundary excluded the payout day from the next earning period
+
+**Root Cause (sync race):** The Feb 8 fix (`pendingLocalSave` + `firebaseLoaded` gate on `saveState`) prevented pre-load saves from reaching Firebase. But the `onValue` callback's timestamp comparison (line 993) still allowed a fresh instance to win: on a new origin, there's no localStorage, so default state loads. When Firebase data arrives, `localTimestamp > firebaseTimestamp` could be true if anything called `saveState()` before the callback (setting `state.lastModified = Date.now()`), causing the empty state to push over real data.
+
+**Fix (sync race):** Added `firebaseLoaded` guard to the timestamp comparison. On initial load (`firebaseLoaded === false`), Firebase ALWAYS wins. The "local wins" path only activates during reconnection when `firebaseLoaded` is already true.
+
+**Fix (payout boundary):** Removed `+1 day` offset in `getEarningPeriodDates()`. Earning period now starts on the payout date itself (inclusive). Payouts happen Sunday morning before tasks are entered, so the payout day's tasks should count toward the next period.
+
+**Fix (history view):** Rewrote `renderWeeklyHistory()` to show a single full calendar week (Sun-Sat) based on `state.historyWeekOffset`. Added dropdown + arrow navigation for current week + 8 prior weeks. For current week, only shows days up to today.
+
+**Critical lesson: NEVER open the app on a new origin/port while connected to the shared Firebase.** A fresh instance with no localStorage can overwrite production data. The sync fix mitigates this, but the pattern is dangerous. Always test with Firebase offline (`database.goOffline()`) or use a separate Firebase project for testing.
+
+**Pattern to follow:** On initial page load, the remote database is ALWAYS the source of truth. Timestamp-based conflict resolution should only apply to reconnection scenarios where the user was actively making changes offline.
+
+---
+
+## Feb 11, 2026 - Task Completions Lost on Day Boundary + Stale Bonus
+
+**Problem:** Maria's task completions from the previous day were appearing unchecked in history the next morning. The daily bonus still showed as earned despite the missing completion.
+
+**Root Cause (task loss):** In `setupRealtimeSync()`, `cleanupInvalidCompletions()` ran BEFORE `checkDailyReset()`. When Firebase data arrived the next morning with yesterday's `completedTasks` still un-archived (daily reset hadn't fired yet on the saving device):
+1. `cleanupInvalidCompletions()` filtered `completedTasks` using `isTaskApplicableToday()` — removing tasks not scheduled for TODAY
+2. `checkDailyReset()` then archived the already-filtered (incomplete) set to `completionHistory` for yesterday
+3. Day-specific task completions were permanently lost from history
+
+**Root Cause (stale bonus):** `silentRecalculateEarnings()` blindly trusted the stored `dailyBonusAwarded` flag without re-validating whether all tasks were actually complete. Once set, the bonus persisted even if task data changed. Additionally, `checkHistoryDailyBonus()` only checks tasks with a record for that day — since the lost task had NO record at all (removed before archival), it was invisible to the bonus check.
+
+**Fix:**
+1. Swapped execution order: `checkDailyReset()` now runs BEFORE `cleanupInvalidCompletions()` in the sync callback. Yesterday's completions are archived to history before any day-applicability filtering can remove them.
+2. `silentRecalculateEarnings()` now re-validates all `dailyBonusAwarded` flags from actual completion data instead of trusting stored values. Uses the same "known tasks only" approach as `checkHistoryDailyBonus()` for past dates, and `isTaskApplicableToday()` for today.
+
+**Pattern to follow:** When multiple cleanup/transition functions run in sequence, order matters. Archival (moving data to its permanent location) must happen BEFORE cleanup (filtering data based on current-day rules). Derived flags (like bonus awarded) should be re-validated whenever the source data they depend on could have changed.
+
+---
+
+## Feb 11, 2026 - Joint Task Earnings Not Handled in Recalculation/Editing
+
+**Problem:** `silentRecalculateEarnings()`, `recalculateEarningsFromHistory()`, `toggleTaskSkipped()`, `deleteTask()`, `toggleHistoryTask()`, and `toggleHistorySkipped()` all summed/adjusted task payouts without checking `task.isJoint`. For joint tasks, the payout should only count when BOTH children completed the task — but these functions awarded it to anyone with the task in their completions.
+
+**Fix:**
+1. Both recalculation functions now check `task.isJoint` and verify the other child also completed the task before counting the payout. Uses `completedTasks` for today, `completionHistory` for past dates.
+2. `toggleTaskSkipped()` now checks joint status: if both children had a joint task completed and one is unskipping+removing completion, both children's earnings are deducted.
+3. `deleteTask()` simplified: instead of manual per-child deductions (which couldn't handle joint logic), it now removes completion records, removes the task, then calls `silentRecalculateEarnings()` to re-derive correct totals.
+4. `toggleHistoryTask()` and `toggleHistorySkipped()` now check joint status and adjust both children's earnings when the joint condition is met/broken.
+5. Added null safety to `checkHistoryDailyBonus()` and `toggleHistoryBonus()` for `state.dailyBonusAwarded[childKey]` access.
+
+**Pattern to follow:** Any function that adjusts earnings for a specific task must check `task.isJoint`. For joint tasks, the payout is only earned when BOTH children complete it — so adding/removing must account for the other child's state. When manual deduction logic gets complex, prefer calling `silentRecalculateEarnings()` to re-derive totals from scratch.
+
+---
+
 ## Current Status
 
-### How the app works now (post Feb 8 fixes):
+### How the app works now (post Feb 10 fixes):
 
-- **Earning period**: Starts the day after the last payout (or earliest history entry if no payouts). All task earnings, daily bonuses, and streak bonuses within this period are summed.
+- **Earning period**: Starts on the last payout date (inclusive) through today. All task earnings, daily bonuses, and streak bonuses within this period are summed.
 - **Weekly streak**: Evaluated on fixed Sun-Sat calendar weeks. Checked on every daily bonus check, at week boundaries (Sunday), and during recalculation.
-- **History view**: Shows all days in the earning period, grouped by calendar week with headers ("Week of Feb 1 - Feb 7") and streak indicators.
+- **History view**: Shows a single full calendar week (Sun-Sat) with dropdown + arrow navigation. Current week shows days up to today. Supports current week + 8 prior weeks.
 - **Yearly total**: Includes both paid-out amounts and current unpaid earnings.
 - **Savings goals**: Accumulate from payouts only (not unpaid earnings). Start at $0 when goal is set, add each future payout amount.
 - **Payout**: Resets `weekTotal` to $0, adds amount to `yearlyEarnings` and `goals.saved`.
+- **Firebase sync**: On initial load, Firebase always wins. On reconnection, newer timestamp wins. `saveState()` won't push to Firebase until initial load completes.
