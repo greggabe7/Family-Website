@@ -4512,6 +4512,7 @@
 
         // Initialize
         loadState();
+        checkDailyReset(); // Clear stale completions from localStorage before any render
         setupRealtimeSync();
         syncFromReward();
         render();

@@ -170,9 +170,25 @@
 
 ---
 
+## Feb 12, 2026 - Stale Completions Shown Before Firebase Loads
+
+**Problem:** A child logs in and sees tasks already checked as completed even though they hadn't completed them that day.
+
+**Root Cause:** `loadState()` restores `completedTasks` from localStorage (which may contain yesterday's or a previous session's data). `checkDailyReset()` — the only function that clears stale completions — was only called inside the Firebase sync callback (async) and a 60-second interval. If the child logged in before Firebase responded, `render()` displayed stale `completedTasks` from localStorage.
+
+**Fix:** Added `checkDailyReset()` call immediately after `loadState()` in the initialization sequence, before `setupRealtimeSync()` and `render()`. This clears stale completions synchronously before any UI is shown. Safe because:
+- `saveState()` is gated on `firebaseLoaded` — won't push stale data to Firebase
+- When Firebase arrives, `Object.assign(state, firebaseData)` replaces everything
+- `pendingLocalSave` from the early reset is discarded by the sync handler
+- `checkDailyReset()` runs again with correct Firebase data in the sync callback
+
+**Pattern to follow:** Any function that transitions state based on date/time should run synchronously during initialization, not only in async callbacks. The user should never see stale state from a previous day, even briefly.
+
+---
+
 ## Current Status
 
-### How the app works now (post Feb 10 fixes):
+### How the app works now (post Feb 11 fixes):
 
 - **Earning period**: Starts on the last payout date (inclusive) through today. All task earnings, daily bonuses, and streak bonuses within this period are summed.
 - **Weekly streak**: Evaluated on fixed Sun-Sat calendar weeks. Checked on every daily bonus check, at week boundaries (Sunday), and during recalculation.
@@ -180,4 +196,6 @@
 - **Yearly total**: Includes both paid-out amounts and current unpaid earnings.
 - **Savings goals**: Accumulate from payouts only (not unpaid earnings). Start at $0 when goal is set, add each future payout amount.
 - **Payout**: Resets `weekTotal` to $0, adds amount to `yearlyEarnings` and `goals.saved`.
-- **Firebase sync**: On initial load, Firebase always wins. On reconnection, newer timestamp wins. `saveState()` won't push to Firebase until initial load completes.
+- **Firebase sync**: On initial load, Firebase always wins. On reconnection, newer timestamp wins. `saveState()` won't push to Firebase until initial load completes. Sync order: `sanitizeState()` → `checkDailyReset()` → `cleanupInvalidCompletions()` → `silentRecalculateEarnings()`.
+- **Daily bonuses**: Re-validated on every recalculation from actual completion data. Never blindly trusted from stored flags.
+- **Joint tasks**: Payout only awarded when both children complete the task. All recalculation functions, `deleteTask()`, and history editing functions check `task.isJoint` and adjust both children's earnings accordingly.

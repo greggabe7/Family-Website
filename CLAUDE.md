@@ -7,7 +7,7 @@ Family website hosted on Netlify (gabrielfamilywebsite.netlify.app) with a kids'
 ## Architecture
 
 - **Static site** — Single HTML files, no build system, no framework
-- **kids-money-tracker.html** — Main app. Vanilla JS with Tailwind CSS (CDN). All logic in one file (~4800 lines)
+- **kids-money-tracker.html** — Main app. Vanilla JS with Tailwind CSS (CDN). All logic in one file (~4900 lines)
 - **Firebase Realtime Database** — Shared state backend. All devices sync through Firebase
 - **localStorage** — Local cache/backup of state. Firebase is the source of truth
 
@@ -24,13 +24,16 @@ Family website hosted on Netlify (gabrielfamilywebsite.netlify.app) with a kids'
 - On initial load: Firebase ALWAYS wins over local state (never trust localStorage timestamps on first load)
 - On reconnection (`firebaseLoaded === true`): newer timestamp wins
 - `saveState()` is gated on `firebaseLoaded` — won't push to Firebase until initial load completes
-- After sync, always call `silentRecalculateEarnings()` since earnings are derived data
+- After sync, execution order matters: `sanitizeState()` → `checkDailyReset()` → `cleanupInvalidCompletions()` → `silentRecalculateEarnings()`
+- **Daily reset must run BEFORE cleanup** — cleanup filters by today's applicability, which would remove yesterday's day-specific completions before they can be archived
 
 ### Earnings System
 - **Earning period**: From last payout date (inclusive) through today
 - **Payout boundary**: Payout day is inclusive in next period (payouts happen Sunday AM before tasks)
 - **Weekly streak**: Fixed Sun-Sat calendar weeks via `getCalendarWeekDates()`
 - **Earnings are derived**: Always recomputed from completionHistory + dailyBonusAwarded + weeklyStreakAwarded
+- **Daily bonuses are re-validated**: `silentRecalculateEarnings()` re-derives `dailyBonusAwarded` from actual completion data on every recalc — never trusts stored flags blindly
+- **Joint tasks**: Payout only counted when BOTH children completed the task. All recalculation and editing functions check `task.isJoint`
 - **Yearly total**: Paid-out amounts (`yearlyEarnings`) + current unpaid `weekTotal`
 
 ### History View
@@ -45,6 +48,7 @@ Family website hosted on Netlify (gabrielfamilywebsite.netlify.app) with a kids'
 3. **Override `confirm()`/`alert()` before calling functions that use them** in browser automation — dialogs block the extension
 4. **Export backup before any risky changes** — Use the built-in Export All Data button in parent settings
 5. **Earnings are derived, not stored** — If earnings look wrong, the fix is in recalculation logic, not in patching stored values
+6. **Bonus flags are re-validated, not trusted** — `silentRecalculateEarnings()` re-derives all bonus flags from completion data. Don't add code that trusts stored `dailyBonusAwarded` without re-checking
 
 ## Users
 
