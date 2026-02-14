@@ -5,23 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>The Gabriel Family</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
     <style>
         .hero-background {
             position: relative;
-            background: linear-gradient(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.3));
+            background: #000;
             overflow: hidden;
         }
 
         .photo-grid {
             display: grid;
             grid-template-columns: repeat(5, 1fr);
-            grid-template-rows: repeat(2, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 0;
+        }
+
+        @media (max-width: 767px) {
+            .photo-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        @media (min-width: 768px) and (max-width: 1023px) {
+            .photo-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
         }
 
         .photo-grid img {
             width: 100%;
             height: 100%;
             object-fit: cover;
+            object-position: center center;
+            transform: scale(1.2);
         }
 
         .card-hover {
@@ -42,6 +60,193 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
+        /* Photo edit mode */
+        .photo-grid-item {
+            position: relative;
+            overflow: hidden;
+            cursor: default;
+        }
+
+        .photo-grid-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: filter 0.2s ease;
+        }
+
+        .photo-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .photo-overlay:hover {
+            background: rgba(0, 0, 0, 0.65);
+        }
+
+        .photo-overlay .overlay-buttons {
+            display: flex;
+            gap: 16px;
+        }
+
+        .photo-overlay .overlay-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            padding: 8px 12px;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+
+        .photo-overlay .overlay-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .photo-overlay svg {
+            width: 28px;
+            height: 28px;
+            margin-bottom: 4px;
+        }
+
+        .photo-overlay span {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        @media (max-width: 767px) {
+            .photo-overlay .overlay-buttons {
+                gap: 8px;
+            }
+            .photo-overlay .overlay-btn {
+                padding: 6px 8px;
+            }
+            .photo-overlay svg {
+                width: 22px;
+                height: 22px;
+            }
+            .photo-overlay span {
+                font-size: 9px;
+            }
+        }
+
+        .edit-mode .photo-overlay {
+            display: flex;
+        }
+
+        .edit-mode ~ .text-center.fade-in {
+            display: none;
+        }
+
+        .edit-mode .photo-grid-item {
+            cursor: pointer;
+        }
+
+        .photo-grid-item.uploading img {
+            filter: brightness(0.4);
+        }
+
+        .photo-grid-item .upload-progress {
+            position: absolute;
+            inset: 0;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 14px;
+            font-weight: 700;
+            z-index: 2;
+        }
+
+        .photo-grid-item.uploading .upload-progress {
+            display: flex;
+        }
+
+        .photo-grid-item.uploading .photo-overlay {
+            display: none !important;
+        }
+
+        .photo-grid-item.repositioning {
+            cursor: grab;
+            touch-action: none;
+            user-select: none;
+        }
+
+        .photo-grid-item.repositioning:active {
+            cursor: grabbing;
+        }
+
+        .photo-grid-item.repositioning img {
+            pointer-events: none;
+        }
+
+        .photo-grid-item.repositioning .photo-overlay {
+            display: none !important;
+        }
+
+        .photo-grid-item .reposition-hint {
+            position: absolute;
+            bottom: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            display: none;
+            z-index: 3;
+            white-space: nowrap;
+            pointer-events: none;
+        }
+
+        .photo-grid-item.repositioning .reposition-hint {
+            display: block;
+        }
+
+        .edit-toggle-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            border: none;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            transition: background 0.2s ease;
+        }
+
+        .edit-toggle-btn:hover {
+            background: rgba(0, 0, 0, 0.9);
+        }
+
+        .edit-toggle-btn.active {
+            background: #2563eb;
+        }
+
+        .edit-toggle-btn svg {
+            width: 22px;
+            height: 22px;
+        }
+
     </style>
 </head>
 <body class="bg-gray-50">
@@ -52,9 +257,11 @@
                 <div class="flex items-center">
                     <h1 class="text-2xl font-bold text-white drop-shadow-lg">The Gabriel Family</h1>
                 </div>
-                <div class="flex space-x-4 md:space-x-8 text-sm md:text-base">
+                <div class="flex space-x-3 md:space-x-6 text-xs md:text-base">
                     <a href="#home" class="text-white hover:text-yellow-300 transition font-medium drop-shadow-lg">Home</a>
                     <a href="kids-money-tracker.html" class="text-white hover:text-yellow-300 transition font-medium drop-shadow-lg">Weekly Allowance</a>
+                    <a href="https://gabriel-trip-planner.netlify.app/" class="text-white hover:text-yellow-300 transition font-medium drop-shadow-lg">Trip Planner</a>
+                    <a href="https://el-project-de-stuffies.netlify.app/" class="text-white hover:text-yellow-300 transition font-medium drop-shadow-lg">Stuffies</a>
                 </div>
             </div>
         </div>
@@ -62,7 +269,7 @@
 
     <!-- Hero Section -->
     <section id="home" class="hero-background min-h-screen flex items-center justify-center pt-16 relative overflow-hidden">
-        <div class="absolute inset-0 photo-grid">
+        <div id="photoGrid" class="absolute inset-0 photo-grid">
             <img src="https://i.imgur.com/hs554rR.jpeg" alt="" />
             <img src="https://i.imgur.com/UxW60hx.jpeg" alt="" />
             <img src="https://i.imgur.com/bVp8I7u.jpeg" alt="" />
@@ -73,6 +280,11 @@
             <img src="https://i.imgur.com/K3nSDpT.jpeg" alt="" />
             <img src="https://i.imgur.com/9d0xZsc.jpeg" alt="" />
             <img src="https://i.imgur.com/GFf8aZe.jpeg" alt="" />
+            <img src="https://i.imgur.com/hs554rR.jpeg" alt="" />
+            <img src="https://i.imgur.com/UxW60hx.jpeg" alt="" />
+            <img src="https://i.imgur.com/bVp8I7u.jpeg" alt="" />
+            <img src="https://i.imgur.com/3QiGgLa.jpeg" alt="" />
+            <img src="https://i.imgur.com/uPMRhnF.jpeg" alt="" />
         </div>
         <div class="text-center fade-in px-4" style="position: relative; z-index: 1;">
             <h1 class="text-6xl md:text-8xl font-bold text-white mb-6 drop-shadow-lg">
@@ -85,19 +297,19 @@
     </section>
 
     <!-- Apps Section -->
-    <section id="apps" class="py-20 bg-gradient-to-br from-purple-50 to-blue-50">
+    <section id="apps" class="py-12 bg-gradient-to-br from-purple-50 to-blue-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h2 class="text-4xl md:text-5xl font-bold text-center text-gray-800 mb-4">
+            <h2 class="text-3xl md:text-4xl font-bold text-center text-gray-800 mb-4">
                 Family Apps
             </h2>
 
-            <div class="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="max-w-5xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-6">
                 <!-- Money Tracker Card -->
-                <a href="kids-money-tracker.html" class="bg-white rounded-2xl shadow-xl overflow-hidden card-hover block">
-                    <div class="bg-gradient-to-r from-green-500 to-emerald-500 p-8 text-white">
-                        <div class="flex items-center justify-center gap-4 mb-4">
+                <a href="kids-money-tracker.html" class="rounded-2xl shadow-xl card-hover block bg-gradient-to-r from-green-500 to-emerald-500 text-white">
+                    <div class="p-6">
+                        <div class="flex items-center justify-center gap-3 mb-3">
                             <!-- Capybara SVG - More realistic style -->
-                            <svg width="56" height="56" viewBox="0 0 64 64" class="drop-shadow-lg">
+                            <svg width="40" height="40" viewBox="0 0 64 64" class="drop-shadow-lg">
                                 <ellipse cx="32" cy="44" rx="24" ry="16" fill="#8B6914"/>
                                 <ellipse cx="28" cy="36" rx="18" ry="12" fill="#9A7B2C"/>
                                 <rect x="12" y="16" rx="8" ry="8" width="40" height="28" fill="#A68B5B"/>
@@ -118,7 +330,7 @@
                                 <ellipse cx="46" cy="30" rx="3" ry="2" fill="#FFB6C1" opacity="0.4"/>
                             </svg>
                             <!-- Money Sack SVG -->
-                            <svg width="56" height="56" viewBox="0 0 64 64" class="drop-shadow-lg">
+                            <svg width="40" height="40" viewBox="0 0 64 64" class="drop-shadow-lg">
                                 <ellipse cx="32" cy="42" rx="24" ry="18" fill="#C9A227"/>
                                 <ellipse cx="32" cy="42" rx="20" ry="14" fill="#E6BE44"/>
                                 <ellipse cx="32" cy="22" rx="12" ry="8" fill="#C9A227"/>
@@ -132,7 +344,7 @@
                                 <ellipse cx="22" cy="36" rx="4" ry="6" fill="white" opacity="0.3"/>
                             </svg>
                             <!-- Squishmallow SVG - Grey with white belly, lop ears from top -->
-                            <svg width="56" height="56" viewBox="0 0 64 64" class="drop-shadow-lg">
+                            <svg width="40" height="40" viewBox="0 0 64 64" class="drop-shadow-lg">
                                 <path d="M 18 14 C 16 6, 10 4, 6 8 C 0 14, -2 28, 0 42 C 1 48, 4 52, 6 52 C 10 52, 12 46, 12 38 C 12 28, 14 18, 18 14" fill="#9CA3AF"/>
                                 <path d="M 46 14 C 48 6, 54 4, 58 8 C 64 14, 66 28, 64 42 C 63 48, 60 52, 58 52 C 54 52, 52 46, 52 38 C 52 28, 50 18, 46 14" fill="#9CA3AF"/>
                                 <ellipse cx="32" cy="34" rx="26" ry="24" fill="#9CA3AF"/>
@@ -147,79 +359,30 @@
                                 <ellipse cx="24" cy="24" rx="5" ry="3" fill="white" opacity="0.4"/>
                             </svg>
                         </div>
-                        <h3 class="text-3xl font-bold text-center">Gabriel Weekly Allowance Challenge</h3>
-                        <p class="text-green-100 text-lg text-center mt-2">
-                            Earn money for completing chores each week!
-                        </p>
-                    </div>
-                    <div class="p-8">
-                        <ul class="space-y-3 text-gray-700">
-                            <li class="flex items-center">
-                                <svg class="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-                                </svg>
-                                Individual earning tracker
-                            </li>
-                            <li class="flex items-center">
-                                <svg class="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-                                </svg>
-                                Daily and weekly totals
-                            </li>
-                            <li class="flex items-center">
-                                <svg class="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-                                </svg>
-                                Customizable payouts
-                            </li>
-                        </ul>
-                        <div class="mt-6">
-                            <span class="inline-block bg-green-100 text-green-800 px-4 py-2 rounded-full text-sm font-semibold">
-                                Click to open
-                            </span>
-                        </div>
+                        <h3 class="text-xl font-bold text-center">Gabriel Weekly Allowance Challenge</h3>
                     </div>
                 </a>
 
                 <!-- Trip Planner Card -->
-                <a href="https://gabriel-trip-planner.netlify.app/" class="bg-white rounded-2xl shadow-xl overflow-hidden card-hover block">
-                    <div class="bg-gradient-to-r from-blue-600 to-cyan-500 p-8 text-white">
-                        <div class="flex items-center justify-center gap-4 mb-4">
-                            <span class="text-5xl drop-shadow-lg">🧳</span>
-                            <span class="text-5xl drop-shadow-lg">🏔️</span>
-                            <span class="text-5xl drop-shadow-lg">✈️</span>
+                <a href="https://gabriel-trip-planner.netlify.app/" class="rounded-2xl shadow-xl card-hover block bg-gradient-to-r from-blue-600 to-cyan-500 text-white">
+                    <div class="p-6">
+                        <div class="flex items-center justify-center gap-3 mb-3">
+                            <span class="text-4xl drop-shadow-lg">🧳</span>
+                            <span class="text-4xl drop-shadow-lg">🏔️</span>
+                            <span class="text-4xl drop-shadow-lg">✈️</span>
                         </div>
-                        <h3 class="text-3xl font-bold text-center">Gabriel Family Trip Planner</h3>
-                        <p class="text-blue-100 text-lg text-center mt-2">
-                            Pack smart and plan trips together!
-                        </p>
+                        <h3 class="text-xl font-bold text-center">Gabriel Family Trip Planner</h3>
                     </div>
-                    <div class="p-8">
-                        <ul class="space-y-3 text-gray-700">
-                            <li class="flex items-center">
-                                <svg class="w-5 h-5 text-blue-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-                                </svg>
-                                Packing and shopping lists
-                            </li>
-                            <li class="flex items-center">
-                                <svg class="w-5 h-5 text-blue-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-                                </svg>
-                                Assign items to family members
-                            </li>
-                            <li class="flex items-center">
-                                <svg class="w-5 h-5 text-blue-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-                                </svg>
-                                Smart categories and syncing
-                            </li>
-                        </ul>
-                        <div class="mt-6">
-                            <span class="inline-block bg-blue-100 text-blue-800 px-4 py-2 rounded-full text-sm font-semibold">
-                                Click to open
-                            </span>
+                </a>
+                <!-- Stuffies Card -->
+                <a href="https://el-project-de-stuffies.netlify.app/" class="rounded-2xl shadow-xl card-hover block bg-gradient-to-r from-pink-400 to-yellow-400 text-white">
+                    <div class="p-6">
+                        <div class="flex items-center justify-center gap-3 mb-3">
+                            <span class="text-4xl drop-shadow-lg">🧸</span>
+                            <span class="text-4xl drop-shadow-lg">🐰</span>
+                            <span class="text-4xl drop-shadow-lg">🦊</span>
                         </div>
+                        <h3 class="text-xl font-bold text-center">El Project De Stuffies!!</h3>
                     </div>
                 </a>
             </div>
@@ -233,6 +396,16 @@
         </div>
     </footer>
 
+    <!-- Edit toggle button (hidden until Firebase loads) -->
+    <button id="editToggleBtn" class="edit-toggle-btn" title="Edit photos">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+        </svg>
+    </button>
+
+    <!-- Hidden file input for uploads -->
+    <input type="file" id="photoFileInput" accept="image/*" style="display:none" />
+
     <script>
         // Smooth scrolling
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
@@ -244,6 +417,377 @@
                 }
             });
         });
+
+        // --- Firebase Image Upload for Landing Page ---
+
+        const DEFAULT_IMAGES = [
+            'https://i.imgur.com/hs554rR.jpeg',
+            'https://i.imgur.com/UxW60hx.jpeg',
+            'https://i.imgur.com/bVp8I7u.jpeg',
+            'https://i.imgur.com/3QiGgLa.jpeg',
+            'https://i.imgur.com/uPMRhnF.jpeg',
+            'https://i.imgur.com/1Nb2UMs.jpeg',
+            'https://i.imgur.com/p9E9lai.jpeg',
+            'https://i.imgur.com/K3nSDpT.jpeg',
+            'https://i.imgur.com/9d0xZsc.jpeg',
+            'https://i.imgur.com/GFf8aZe.jpeg',
+            'https://i.imgur.com/hs554rR.jpeg',
+            'https://i.imgur.com/UxW60hx.jpeg',
+            'https://i.imgur.com/bVp8I7u.jpeg',
+            'https://i.imgur.com/3QiGgLa.jpeg',
+            'https://i.imgur.com/uPMRhnF.jpeg'
+        ];
+
+        // Firebase init
+        const firebaseConfig = {
+            apiKey: "AIzaSyARiateAk1EJggk09iMDdCvNZDPDNcu7EU",
+            authDomain: "gabriel-family-allowance.firebaseapp.com",
+            databaseURL: "https://gabriel-family-allowance-default-rtdb.firebaseio.com",
+            projectId: "gabriel-family-allowance",
+            storageBucket: "gabriel-family-allowance.firebasestorage.app",
+            messagingSenderId: "351490113717",
+            appId: "1:351490113717:web:6e5a3e96b8e36e84e49486"
+        };
+
+        const app = firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const storage = firebase.storage();
+
+        let editMode = false;
+        let activeSlot = null;
+
+        const photoGrid = document.getElementById('photoGrid');
+        const editToggleBtn = document.getElementById('editToggleBtn');
+        const photoFileInput = document.getElementById('photoFileInput');
+
+        // Wrap each img in the grid with a photo-grid-item container
+        function enhancePhotoGrid() {
+            const imgs = photoGrid.querySelectorAll(':scope > img');
+            imgs.forEach((img, i) => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'photo-grid-item';
+                wrapper.dataset.slot = i;
+
+                // Overlay for edit mode
+                const overlay = document.createElement('div');
+                overlay.className = 'photo-overlay';
+                overlay.innerHTML = `
+                    <div class="overlay-buttons">
+                        <div class="overlay-btn" data-action="replace">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                            <span>Replace</span>
+                        </div>
+                        <div class="overlay-btn" data-action="move">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/>
+                            </svg>
+                            <span>Move</span>
+                        </div>
+                        <div class="overlay-btn" data-action="restore">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                            </svg>
+                            <span>Restore</span>
+                        </div>
+                    </div>
+                `;
+
+                // Upload progress indicator
+                const progress = document.createElement('div');
+                progress.className = 'upload-progress';
+                progress.textContent = '0%';
+
+                // Reposition hint
+                const hint = document.createElement('div');
+                hint.className = 'reposition-hint';
+                hint.textContent = 'Drag to reposition \u2022 Click anywhere to save';
+
+                img.parentNode.insertBefore(wrapper, img);
+                wrapper.appendChild(img);
+                wrapper.appendChild(overlay);
+                wrapper.appendChild(progress);
+                wrapper.appendChild(hint);
+
+                // Error fallback for images
+                img.onerror = function() {
+                    this.src = DEFAULT_IMAGES[i];
+                };
+
+                // Click handlers for replace/move/restore
+                overlay.addEventListener('click', (e) => {
+                    if (!editMode || wrapper.classList.contains('uploading')) return;
+                    const btn = e.target.closest('[data-action]');
+                    if (!btn) return;
+                    if (btn.dataset.action === 'replace') {
+                        handleSlotClick(i);
+                    } else if (btn.dataset.action === 'move') {
+                        startReposition(i);
+                    } else if (btn.dataset.action === 'restore') {
+                        restoreDefault(i);
+                    }
+                });
+            });
+        }
+
+        // Load image URLs from Firebase, fall back to defaults
+        function loadImageUrls() {
+            const imgsRef = database.ref('landingPage/images');
+            imgsRef.on('value', (snapshot) => {
+                const data = snapshot.val() || {};
+                const items = photoGrid.querySelectorAll('.photo-grid-item');
+                items.forEach((item, i) => {
+                    const img = item.querySelector('img');
+                    const key = 'slot_' + i;
+                    if (data[key]) {
+                        img.src = data[key];
+                    }
+                });
+                // Show edit button once Firebase has loaded
+                editToggleBtn.style.display = 'flex';
+            });
+        }
+
+        // Edit mode toggle
+        editToggleBtn.addEventListener('click', () => {
+            if (editMode) {
+                exitEditMode();
+            } else {
+                enterEditMode();
+            }
+        });
+
+        function enterEditMode() {
+            editMode = true;
+            photoGrid.classList.add('edit-mode');
+            editToggleBtn.classList.add('active');
+        }
+
+        function exitEditMode() {
+            editMode = false;
+            photoGrid.classList.remove('edit-mode');
+            editToggleBtn.classList.remove('active');
+        }
+
+        // Restore a slot to its default imgur image
+        async function restoreDefault(slotIndex) {
+            const wrapper = photoGrid.querySelectorAll('.photo-grid-item')[slotIndex];
+            const imgEl = wrapper.querySelector('img');
+            await database.ref('landingPage/images/slot_' + slotIndex).remove();
+            await database.ref('landingPage/positions/slot_' + slotIndex).remove();
+            imgEl.src = DEFAULT_IMAGES[slotIndex];
+            applyPosition(imgEl, null);
+        }
+
+        // File selection
+        function handleSlotClick(slotIndex) {
+            activeSlot = slotIndex;
+            photoFileInput.value = '';
+            photoFileInput.click();
+        }
+
+        photoFileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file || activeSlot === null) return;
+            resizeAndUpload(file, activeSlot);
+        });
+
+        // Resize image client-side before upload
+        function resizeImage(file, maxDim, quality) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                const url = URL.createObjectURL(file);
+                img.onload = () => {
+                    URL.revokeObjectURL(url);
+                    let w = img.width;
+                    let h = img.height;
+                    if (w > maxDim || h > maxDim) {
+                        if (w > h) {
+                            h = Math.round(h * maxDim / w);
+                            w = maxDim;
+                        } else {
+                            w = Math.round(w * maxDim / h);
+                            h = maxDim;
+                        }
+                    }
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w;
+                    canvas.height = h;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, w, h);
+                    canvas.toBlob((blob) => resolve(blob), 'image/jpeg', quality);
+                };
+                img.src = url;
+            });
+        }
+
+        async function resizeAndUpload(file, slotIndex) {
+            const wrapper = photoGrid.querySelectorAll('.photo-grid-item')[slotIndex];
+            const imgEl = wrapper.querySelector('img');
+            const progressEl = wrapper.querySelector('.upload-progress');
+
+            wrapper.classList.add('uploading');
+            progressEl.textContent = 'Resizing...';
+
+            try {
+                const blob = await resizeImage(file, 1200, 0.8);
+                const storageRef = storage.ref('landingPage/slot_' + slotIndex + '.jpg');
+                const uploadTask = storageRef.put(blob, { contentType: 'image/jpeg' });
+
+                uploadTask.on('state_changed',
+                    (snapshot) => {
+                        const pct = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+                        progressEl.textContent = pct + '%';
+                    },
+                    (error) => {
+                        console.error('Upload error:', error);
+                        progressEl.textContent = 'Error!';
+                        setTimeout(() => wrapper.classList.remove('uploading'), 2000);
+                    },
+                    async () => {
+                        const downloadUrl = await uploadTask.snapshot.ref.getDownloadURL();
+                        // Save URL to Realtime Database
+                        await database.ref('landingPage/images/slot_' + slotIndex).set(downloadUrl);
+                        // Update image immediately
+                        imgEl.src = downloadUrl;
+                        wrapper.classList.remove('uploading');
+                    }
+                );
+            } catch (err) {
+                console.error('Resize/upload error:', err);
+                progressEl.textContent = 'Error!';
+                setTimeout(() => wrapper.classList.remove('uploading'), 2000);
+            }
+        }
+
+        // --- Drag to Reposition ---
+        // Uses transform: scale() + translate() so images can move in BOTH directions.
+        // scale(1.4) makes the cover-fitted image 40% larger, creating panning room on all sides.
+
+        const REPOSITION_SCALE = 1.2;
+        let repositionSlot = null;
+        let dragState = null;
+
+        function applyPosition(img, pos) {
+            if (pos && pos.s) {
+                img.style.transform = 'scale(' + pos.s + ') translate(' + pos.x + '%, ' + pos.y + '%)';
+            } else {
+                // Reset to CSS default
+                img.style.transform = '';
+            }
+        }
+
+        function getCurrentPos(img) {
+            const t = img.style.transform || '';
+            const match = t.match(/scale\(([\d.]+)\)\s*translate\(([-\d.]+)%,\s*([-\d.]+)%\)/);
+            if (match) {
+                return { s: parseFloat(match[1]), x: parseFloat(match[2]), y: parseFloat(match[3]) };
+            }
+            return { s: REPOSITION_SCALE, x: 0, y: 0 };
+        }
+
+        function startReposition(slotIndex) {
+            if (repositionSlot !== null) finishReposition(repositionSlot);
+            repositionSlot = slotIndex;
+            const wrapper = photoGrid.querySelectorAll('.photo-grid-item')[slotIndex];
+            const img = wrapper.querySelector('img');
+            img.draggable = false;
+            wrapper.classList.add('repositioning');
+
+            // If image doesn't already have a transform, initialize with scale
+            const pos = getCurrentPos(img);
+            applyPosition(img, pos);
+
+            wrapper._onPointerDown = (e) => {
+                const cur = getCurrentPos(img);
+                dragState = {
+                    startX: e.clientX,
+                    startY: e.clientY,
+                    startTx: cur.x,
+                    startTy: cur.y,
+                    scale: cur.s,
+                    img: img,
+                    wrapper: wrapper,
+                    pointerId: e.pointerId
+                };
+                e.preventDefault();
+                e.stopPropagation();
+                wrapper.setPointerCapture(e.pointerId);
+            };
+
+            wrapper._onPointerMove = (e) => {
+                if (!dragState) return;
+                e.preventDefault();
+                const rect = wrapper.getBoundingClientRect();
+                // Convert pixel drag to percentage of the image (accounting for scale)
+                const dx = e.clientX - dragState.startX;
+                const dy = e.clientY - dragState.startY;
+                const maxShift = (dragState.scale - 1) / dragState.scale * 50;
+                let tx = dragState.startTx + (dx / rect.width) * 100 / dragState.scale;
+                let ty = dragState.startTy + (dy / rect.height) * 100 / dragState.scale;
+                tx = Math.max(-maxShift, Math.min(maxShift, tx));
+                ty = Math.max(-maxShift, Math.min(maxShift, ty));
+                applyPosition(img, { s: dragState.scale, x: tx, y: ty });
+            };
+
+            wrapper._onPointerUp = (e) => {
+                if (!dragState) return;
+                wrapper.releasePointerCapture(dragState.pointerId);
+                dragState = null;
+            };
+
+            wrapper.addEventListener('pointerdown', wrapper._onPointerDown);
+            wrapper.addEventListener('pointermove', wrapper._onPointerMove);
+            wrapper.addEventListener('pointerup', wrapper._onPointerUp);
+        }
+
+        function finishReposition(slotIndex) {
+            const wrapper = photoGrid.querySelectorAll('.photo-grid-item')[slotIndex];
+            const img = wrapper.querySelector('img');
+            wrapper.classList.remove('repositioning');
+            if (wrapper._onPointerDown) {
+                wrapper.removeEventListener('pointerdown', wrapper._onPointerDown);
+                wrapper.removeEventListener('pointermove', wrapper._onPointerMove);
+                wrapper.removeEventListener('pointerup', wrapper._onPointerUp);
+                delete wrapper._onPointerDown;
+                delete wrapper._onPointerMove;
+                delete wrapper._onPointerUp;
+            }
+            repositionSlot = null;
+            dragState = null;
+            const pos = getCurrentPos(img);
+            database.ref('landingPage/positions/slot_' + slotIndex).set(pos);
+        }
+
+        // Click outside to finish repositioning
+        document.addEventListener('click', (e) => {
+            if (repositionSlot === null) return;
+            const wrapper = photoGrid.querySelectorAll('.photo-grid-item')[repositionSlot];
+            if (!wrapper.contains(e.target)) {
+                finishReposition(repositionSlot);
+            }
+        });
+
+        // Load saved positions from Firebase
+        function loadPositions() {
+            database.ref('landingPage/positions').on('value', (snapshot) => {
+                const data = snapshot.val() || {};
+                const items = photoGrid.querySelectorAll('.photo-grid-item');
+                items.forEach((item, i) => {
+                    const img = item.querySelector('img');
+                    const key = 'slot_' + i;
+                    if (data[key] && typeof data[key] === 'object') {
+                        applyPosition(img, data[key]);
+                    }
+                });
+            });
+        }
+
+        // Initialize
+        enhancePhotoGrid();
+        loadImageUrls();
+        loadPositions();
     </script>
 </body>
 </html>
