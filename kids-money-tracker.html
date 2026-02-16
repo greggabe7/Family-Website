@@ -487,9 +487,7 @@
                     // Re-validate daily bonus from actual completion data
                     const completedForDay = state.completionHistory[childKey][date] || [];
                     const skippedForDay = (state.skippedHistory[childKey] && state.skippedHistory[childKey][date]) || [];
-                    const knownTaskIds = new Set([...completedForDay, ...skippedForDay]);
                     const dailyTasksForDay = state.tasks.filter(t => {
-                        if (!knownTaskIds.has(t.id)) return false; // Only check tasks with a record for this day
                         if (skippedForDay.includes(t.id)) return false;
                         if (t.days && (t.days.includes('weekly') || t.days.includes('monthly') || t.days.includes('oneTime'))) return false;
                         if (t.section === 'bonus') return false;
@@ -2359,12 +2357,8 @@
             const completedForDay = state.completionHistory[childKey][date] || [];
             const skippedForDay = state.skippedHistory[childKey][date] || [];
 
-            // Only evaluate tasks that have a record for this day (completed or skipped)
-            // This prevents newly added tasks from retroactively affecting past bonuses
-            const knownTaskIds = new Set([...completedForDay, ...skippedForDay]);
-
+            // Evaluate ALL applicable tasks for the day, not just ones with records
             const dailyTasks = state.tasks.filter(t => {
-                if (!knownTaskIds.has(t.id)) return false; // Task had no record for this day
                 if (skippedForDay.includes(t.id)) return false;
                 if (t.days && (t.days.includes('weekly') || t.days.includes('monthly') || t.days.includes('oneTime'))) return false;
                 if (t.section === 'bonus') return false;

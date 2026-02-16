@@ -186,6 +186,20 @@
 
 ---
 
+## Feb 15, 2026 - History Task Toggle Incorrectly Awards Daily Bonus
+
+**Problem:** Checking any single task in the history view would immediately award the daily bonus, even if the child hadn't completed all their tasks for that day.
+
+**Root Cause:** Both `checkHistoryDailyBonus()` and `silentRecalculateEarnings()` used a `knownTaskIds` filter that only considered tasks with a completion or skip record for that day. If a child had 5 daily tasks but only 1 was toggled in history, the system counted "1/1 tasks complete = all done!" and awarded the bonus. Tasks with no record were invisible to the check.
+
+**Fix:** Removed the `knownTaskIds` filter from both functions. Now they evaluate ALL daily-applicable tasks for the date (matching what `renderWeeklyHistory()` already does at line 3595), then check if all non-skipped tasks are completed. This means a task must actually be completed to count, not just have a record.
+
+**Note:** The original `knownTaskIds` approach was added to "prevent newly added tasks from retroactively affecting past bonuses." This was over-protective — the correct behavior is that the daily bonus requires ALL applicable tasks to be complete. If a new task is added, it correctly won't appear in past days' history (since `taskAppliesToDate` checks task creation date/applicability), so the concern was unfounded.
+
+**Pattern to follow:** When checking "are all X done?", always start from the full universe of applicable items, not just the ones that have been touched. Filtering to only known/recorded items creates a selection bias where any single completion looks like 100%.
+
+---
+
 ## Current Status
 
 ### How the app works now (post Feb 11 fixes):
