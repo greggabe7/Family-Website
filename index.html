@@ -39,7 +39,6 @@
             height: 100%;
             object-fit: cover;
             object-position: center center;
-            transform: scale(1.2);
         }
 
         .card-hover {
@@ -514,7 +513,7 @@
                 // Reposition hint
                 const hint = document.createElement('div');
                 hint.className = 'reposition-hint';
-                hint.textContent = 'Drag to reposition \u2022 Click anywhere to save';
+                hint.textContent = 'Drag to move \u2022 Pinch or scroll to resize \u2022 Click outside to save';
 
                 img.parentNode.insertBefore(wrapper, img);
                 wrapper.appendChild(img);
@@ -675,9 +674,9 @@
 
         // --- Drag to Reposition ---
         // Uses transform: scale() + translate() so images can move in BOTH directions.
-        // scale(1.4) makes the cover-fitted image 40% larger, creating panning room on all sides.
+        // scale(1.1) makes the cover-fitted image 10% larger, creating panning room on all sides.
 
-        const REPOSITION_SCALE = 1.2;
+        const REPOSITION_SCALE = 1.1;
         let repositionSlot = null;
         let dragState = null;
 
@@ -749,9 +748,60 @@
                 dragState = null;
             };
 
+            // Scroll wheel to zoom
+            wrapper._onWheel = (e) => {
+                e.preventDefault();
+                const cur = getCurrentPos(img);
+                const delta = e.deltaY > 0 ? -0.05 : 0.05;
+                const newScale = Math.max(1.0, Math.min(2.0, cur.s + delta));
+                // Clamp position to new scale bounds
+                const maxShift = (newScale - 1) / newScale * 50;
+                const tx = Math.max(-maxShift, Math.min(maxShift, cur.x));
+                const ty = Math.max(-maxShift, Math.min(maxShift, cur.y));
+                applyPosition(img, { s: newScale, x: tx, y: ty });
+            };
+
+            // Pinch to zoom (touch)
+            wrapper._onTouchStart = (e) => {
+                if (e.touches.length === 2) {
+                    e.preventDefault();
+                    const dx = e.touches[0].clientX - e.touches[1].clientX;
+                    const dy = e.touches[0].clientY - e.touches[1].clientY;
+                    wrapper._pinchStartDist = Math.hypot(dx, dy);
+                    wrapper._pinchStartScale = getCurrentPos(img).s;
+                }
+            };
+
+            wrapper._onTouchMove = (e) => {
+                if (e.touches.length === 2 && wrapper._pinchStartDist) {
+                    e.preventDefault();
+                    const dx = e.touches[0].clientX - e.touches[1].clientX;
+                    const dy = e.touches[0].clientY - e.touches[1].clientY;
+                    const dist = Math.hypot(dx, dy);
+                    const ratio = dist / wrapper._pinchStartDist;
+                    const newScale = Math.max(1.0, Math.min(2.0, wrapper._pinchStartScale * ratio));
+                    const cur = getCurrentPos(img);
+                    const maxShift = (newScale - 1) / newScale * 50;
+                    const tx = Math.max(-maxShift, Math.min(maxShift, cur.x));
+                    const ty = Math.max(-maxShift, Math.min(maxShift, cur.y));
+                    applyPosition(img, { s: newScale, x: tx, y: ty });
+                }
+            };
+
+            wrapper._onTouchEnd = (e) => {
+                if (e.touches.length < 2) {
+                    wrapper._pinchStartDist = null;
+                    wrapper._pinchStartScale = null;
+                }
+            };
+
             wrapper.addEventListener('pointerdown', wrapper._onPointerDown);
             wrapper.addEventListener('pointermove', wrapper._onPointerMove);
             wrapper.addEventListener('pointerup', wrapper._onPointerUp);
+            wrapper.addEventListener('wheel', wrapper._onWheel, { passive: false });
+            wrapper.addEventListener('touchstart', wrapper._onTouchStart, { passive: false });
+            wrapper.addEventListener('touchmove', wrapper._onTouchMove, { passive: false });
+            wrapper.addEventListener('touchend', wrapper._onTouchEnd);
         }
 
         function finishReposition(slotIndex) {
@@ -762,9 +812,17 @@
                 wrapper.removeEventListener('pointerdown', wrapper._onPointerDown);
                 wrapper.removeEventListener('pointermove', wrapper._onPointerMove);
                 wrapper.removeEventListener('pointerup', wrapper._onPointerUp);
+                wrapper.removeEventListener('wheel', wrapper._onWheel);
+                wrapper.removeEventListener('touchstart', wrapper._onTouchStart);
+                wrapper.removeEventListener('touchmove', wrapper._onTouchMove);
+                wrapper.removeEventListener('touchend', wrapper._onTouchEnd);
                 delete wrapper._onPointerDown;
                 delete wrapper._onPointerMove;
                 delete wrapper._onPointerUp;
+                delete wrapper._onWheel;
+                delete wrapper._onTouchStart;
+                delete wrapper._onTouchMove;
+                delete wrapper._onTouchEnd;
             }
             repositionSlot = null;
             dragState = null;
