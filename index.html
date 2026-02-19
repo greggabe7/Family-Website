@@ -673,29 +673,39 @@
         }
 
         // --- Drag to Reposition ---
-        // Uses transform: scale() + translate() so images can move in BOTH directions.
-        // scale(1.1) makes the cover-fitted image 10% larger, creating panning room on all sides.
+        // Uses object-position for panning (works at any scale, no forced zoom).
+        // Optional transform: scale() for zooming in further.
 
-        const REPOSITION_SCALE = 1.1;
         let repositionSlot = null;
         let dragState = null;
 
         function applyPosition(img, pos) {
-            if (pos && pos.s) {
-                img.style.transform = 'scale(' + pos.s + ') translate(' + pos.x + '%, ' + pos.y + '%)';
+            if (pos) {
+                const ox = pos.ox !== undefined ? pos.ox : 50;
+                const oy = pos.oy !== undefined ? pos.oy : 50;
+                img.style.objectPosition = ox + '% ' + oy + '%';
+                if (pos.s && pos.s > 1) {
+                    img.style.transform = 'scale(' + pos.s + ')';
+                } else {
+                    img.style.transform = '';
+                }
             } else {
-                // Reset to CSS default
+                img.style.objectPosition = '';
                 img.style.transform = '';
             }
         }
 
         function getCurrentPos(img) {
+            // Read object-position
+            const op = img.style.objectPosition || '';
+            const opMatch = op.match(/([\d.]+)%\s+([\d.]+)%/);
+            const ox = opMatch ? parseFloat(opMatch[1]) : 50;
+            const oy = opMatch ? parseFloat(opMatch[2]) : 50;
+            // Read scale
             const t = img.style.transform || '';
-            const match = t.match(/scale\(([\d.]+)\)\s*translate\(([-\d.]+)%,\s*([-\d.]+)%\)/);
-            if (match) {
-                return { s: parseFloat(match[1]), x: parseFloat(match[2]), y: parseFloat(match[3]) };
-            }
-            return { s: REPOSITION_SCALE, x: 0, y: 0 };
+            const scaleMatch = t.match(/scale\(([\d.]+)\)/);
+            const s = scaleMatch ? parseFloat(scaleMatch[1]) : 1.0;
+            return { s, ox, oy };
         }
 
         function startReposition(slotIndex) {
@@ -706,7 +716,6 @@
             img.draggable = false;
             wrapper.classList.add('repositioning');
 
-            // If image doesn't already have a transform, initialize with scale
             const pos = getCurrentPos(img);
             applyPosition(img, pos);
 
@@ -715,9 +724,8 @@
                 dragState = {
                     startX: e.clientX,
                     startY: e.clientY,
-                    startTx: cur.x,
-                    startTy: cur.y,
-                    scale: cur.s,
+                    startOx: cur.ox,
+                    startOy: cur.oy,
                     img: img,
                     wrapper: wrapper,
                     pointerId: e.pointerId
@@ -731,15 +739,15 @@
                 if (!dragState) return;
                 e.preventDefault();
                 const rect = wrapper.getBoundingClientRect();
-                // Convert pixel drag to percentage of the image (accounting for scale)
                 const dx = e.clientX - dragState.startX;
                 const dy = e.clientY - dragState.startY;
-                const maxShift = (dragState.scale - 1) / dragState.scale * 50;
-                let tx = dragState.startTx + (dx / rect.width) * 100 / dragState.scale;
-                let ty = dragState.startTy + (dy / rect.height) * 100 / dragState.scale;
-                tx = Math.max(-maxShift, Math.min(maxShift, tx));
-                ty = Math.max(-maxShift, Math.min(maxShift, ty));
-                applyPosition(img, { s: dragState.scale, x: tx, y: ty });
+                // Moving mouse right → show more of the left side → decrease ox
+                let ox = dragState.startOx - (dx / rect.width) * 100;
+                let oy = dragState.startOy - (dy / rect.height) * 100;
+                ox = Math.max(0, Math.min(100, ox));
+                oy = Math.max(0, Math.min(100, oy));
+                const cur = getCurrentPos(img);
+                applyPosition(img, { s: cur.s, ox, oy });
             };
 
             wrapper._onPointerUp = (e) => {
@@ -754,11 +762,7 @@
                 const cur = getCurrentPos(img);
                 const delta = e.deltaY > 0 ? -0.05 : 0.05;
                 const newScale = Math.max(1.0, Math.min(2.0, cur.s + delta));
-                // Clamp position to new scale bounds
-                const maxShift = (newScale - 1) / newScale * 50;
-                const tx = Math.max(-maxShift, Math.min(maxShift, cur.x));
-                const ty = Math.max(-maxShift, Math.min(maxShift, cur.y));
-                applyPosition(img, { s: newScale, x: tx, y: ty });
+                applyPosition(img, { s: newScale, ox: cur.ox, oy: cur.oy });
             };
 
             // Pinch to zoom (touch)
@@ -781,10 +785,7 @@
                     const ratio = dist / wrapper._pinchStartDist;
                     const newScale = Math.max(1.0, Math.min(2.0, wrapper._pinchStartScale * ratio));
                     const cur = getCurrentPos(img);
-                    const maxShift = (newScale - 1) / newScale * 50;
-                    const tx = Math.max(-maxShift, Math.min(maxShift, cur.x));
-                    const ty = Math.max(-maxShift, Math.min(maxShift, cur.y));
-                    applyPosition(img, { s: newScale, x: tx, y: ty });
+                    applyPosition(img, { s: newScale, ox: cur.ox, oy: cur.oy });
                 }
             };
 
@@ -848,7 +849,12 @@
                     const img = item.querySelector('img');
                     const key = 'slot_' + i;
                     if (data[key] && typeof data[key] === 'object') {
-                        applyPosition(img, data[key]);
+                        const pos = data[key];
+                        // Old {s, x, y} translate format — ignore it, reset to default
+                        if (pos.x !== undefined && pos.ox === undefined) {
+                            return;
+                        }
+                        applyPosition(img, pos);
                     }
                 });
             });
