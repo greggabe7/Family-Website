@@ -1045,6 +1045,22 @@
 
                         checkDailyReset(); // Archive yesterday's completions BEFORE cleanup (saves if needed)
 
+                        // One-time fix: the payout bug (pre-Feb 23 2026 fix) left stale
+                        // completedTasks that got archived to completionHistory on the payout
+                        // date, causing earnings to reappear after payout. Remove them.
+                        if (!state.cleanedPayoutDateHistory) {
+                            ['maria', 'helena'].forEach(child => {
+                                const payouts = state.payoutHistory[child] || [];
+                                if (payouts.length > 0) {
+                                    const payoutDateStr = new Date(payouts[0].date).toDateString();
+                                    if (state.completionHistory[child] && state.completionHistory[child][payoutDateStr]) {
+                                        delete state.completionHistory[child][payoutDateStr];
+                                    }
+                                }
+                            });
+                            state.cleanedPayoutDateHistory = true;
+                        }
+
                         // Clean up any invalid completions that may have been synced
                         // (e.g., from stale data on another device)
                         // Must run AFTER daily reset so day-specific tasks aren't removed
