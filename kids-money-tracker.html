@@ -2880,20 +2880,25 @@
             const weeklyTasks = applicableTasks.filter(t => t.days && t.days.includes('weekly'));
             const monthlyTasks = applicableTasks.filter(t => t.days && t.days.includes('monthly'));
 
-            // One-time tasks: filter based on completion status
-            // - Parents see completed one-time tasks so they can undo
-            // - Kids don't see their completed one-time tasks
-            // - Skipped tasks are hidden for everyone
+            // One-time tasks: hide once completed (today or any past day)
             let oneTimeTasks = applicableTasks.filter(t => t.days && t.days.includes('oneTime'));
             if (childKey) {
                 const isParent = state.currentUser?.isParent;
                 oneTimeTasks = oneTimeTasks.filter(t => {
                     const isCompleted = state.completedTasks[childKey].includes(t.id);
                     const isSkipped = state.skippedTasks[childKey].includes(t.id);
-                    // Always hide skipped tasks
-                    if (isSkipped) return false;
-                    // Parents can see completed tasks (to undo), kids cannot
-                    if (isCompleted && !isParent) return false;
+                    // Check if completed on any past day
+                    const wasCompletedBefore = Object.values(state.completionHistory[childKey] || {})
+                        .some(dayTasks => dayTasks.includes(t.id));
+                    const wasSkippedBefore = Object.values(state.skippedHistory[childKey] || {})
+                        .some(dayTasks => dayTasks.includes(t.id));
+                    // Hide if completed or skipped (today or any past day)
+                    if (isSkipped || wasSkippedBefore) return false;
+                    if (isCompleted || wasCompletedBefore) {
+                        // Parents can see today's completed tasks (to undo), but not past ones
+                        if (isCompleted && isParent) return true;
+                        return false;
+                    }
                     return true;
                 });
             }
