@@ -212,16 +212,53 @@
 
 ---
 
+## Feb 23, 2026 - One-Time Cleanup Race Condition with Firebase
+
+**Problem:** The one-time data cleanup (to remove stale completionHistory entries from the payout bug) ran AFTER `checkDailyReset()` in the Firebase sync callback. But `checkDailyReset()` calls `saveState()`, which pushed stale data to Firebase before the cleanup could remove it. The Firebase echo then overwrote the cleanup with stale data.
+
+**Root Cause:** Execution order in the sync callback: `checkDailyReset()` (saves stale data to Firebase) → cleanup (fixes in-memory state) → Firebase echo (overwrites fix with stale data).
+
+**Fix:** Moved the one-time cleanup to run BEFORE `checkDailyReset()`. Now `checkDailyReset()`'s `saveState()` includes the cleaned data and the migration flag, so the Firebase echo has clean data.
+
+**Pattern to follow:** Any one-time data migration in the Firebase sync callback must run BEFORE any function that calls `saveState()`. Otherwise the save pushes pre-migration data to Firebase, and the echo overwrites the migration.
+
+---
+
+## Feb 23, 2026 - One-Time Tasks Reappearing After Completion
+
+**Problem:** One-time tasks that were completed on a previous day would reappear in the child's task list the next day.
+
+**Root Cause:** `groupTasks()` filtered one-time tasks by checking `state.completedTasks[childKey]` (today's completions only). After `checkDailyReset()` archived completions to `completionHistory` and cleared `completedTasks`, the one-time task was no longer marked as completed for today, so it showed up again. `isTaskApplicableToday()` always returns `true` for one-time tasks without checking completion status.
+
+**Fix:** In `groupTasks()`, the one-time task filter now also checks `completionHistory` and `skippedHistory` for past completions/skips. If a one-time task was completed or skipped on any past day, it's hidden. Parents can still see today's completed one-time tasks (to allow undo), but not past ones.
+
+**Pattern to follow:** One-time tasks have lifecycle semantics (done once, gone forever). Any filter that decides whether to show them must check ALL completion sources (today's `completedTasks` AND historical `completionHistory`), not just today's state.
+
+---
+
+## Feb 23, 2026 - Late Payout Excludes New Week's Tasks
+
+**Problem:** Paying out on Monday (Feb 23) for the previous weeks' work set the earning period start to Feb 23. Tasks entered for Sunday (Feb 22, the start of the new week) were excluded from the weekly total because Feb 22 < Feb 23.
+
+**Root Cause:** `getEarningPeriodDates()` uses the payout date (inclusive) as the earning period start. When payout happens after the new week has started, the new week's early days fall before the earning period.
+
+**Workaround (data fix):** Adjusted the payout record dates to Feb 21 so the earning period includes Feb 22+. No code fix yet — the earning period is fundamentally tied to the payout date.
+
+**Known limitation:** Paying out "late" (after the new week has started) excludes the new week's early days from the earning period. Workaround: pay out before or on the first day of the new week. A future fix could anchor the earning period to calendar week boundaries instead of the payout date.
+
+---
+
 ## Current Status
 
-### How the app works now (post Feb 11 fixes):
+### How the app works now (post Feb 23 fixes):
 
-- **Earning period**: Starts on the last payout date (inclusive) through today. All task earnings, daily bonuses, and streak bonuses within this period are summed.
+- **Earning period**: Starts on the last payout date (inclusive) through today. All task earnings, daily bonuses, and streak bonuses within this period are summed. Known limitation: paying out "late" excludes new-week days before the payout date.
 - **Weekly streak**: Evaluated on fixed Sun-Sat calendar weeks. Checked on every daily bonus check, at week boundaries (Sunday), and during recalculation.
 - **History view**: Shows a single full calendar week (Sun-Sat) with dropdown + arrow navigation. Current week shows days up to today. Supports current week + 8 prior weeks.
 - **Yearly total**: Includes both paid-out amounts and current unpaid earnings.
 - **Savings goals**: Accumulate from payouts only (not unpaid earnings). Start at $0 when goal is set, add each future payout amount.
-- **Payout**: Resets `weekTotal` to $0, clears `completedTasks`/`skippedTasks` for the child, adds amount to `yearlyEarnings` and `goals.saved`.
-- **Firebase sync**: On initial load, Firebase always wins. On reconnection, newer timestamp wins. `saveState()` won't push to Firebase until initial load completes. Sync order: `sanitizeState()` → `checkDailyReset()` → `cleanupInvalidCompletions()` → `silentRecalculateEarnings()`.
+- **Payout**: Resets `weekTotal` to $0, clears `completedTasks`/`skippedTasks` for the child (prevents recounting by `silentRecalculateEarnings`), adds amount to `yearlyEarnings` and `goals.saved`.
+- **Firebase sync**: On initial load, Firebase always wins. On reconnection, newer timestamp wins. `saveState()` won't push to Firebase until initial load completes. Sync order: `sanitizeState()` → one-time migrations → `checkDailyReset()` → `cleanupInvalidCompletions()` → `silentRecalculateEarnings()`.
 - **Daily bonuses**: Re-validated on every recalculation from actual completion data. Never blindly trusted from stored flags.
 - **Joint tasks**: Payout only awarded when both children complete the task. All recalculation functions, `deleteTask()`, and history editing functions check `task.isJoint` and adjust both children's earnings accordingly.
+- **One-time tasks**: Hidden from child views once completed or skipped (checked against both `completedTasks` and `completionHistory`). Parents can see today's completed one-time tasks to allow undo.
