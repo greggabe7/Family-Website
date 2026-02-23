@@ -200,6 +200,18 @@
 
 ---
 
+## Feb 23, 2026 - Payout Doesn't Clear Weekly Earnings
+
+**Problem:** After hitting payout, the weekly earnings total showed the old (pre-payout) amount. Yearly total was correct because `processWeeklyPayout` adds to `yearlyEarnings` before the recalculation overwrites `weekTotal`.
+
+**Root Cause:** `processWeeklyPayout` set `weekTotal = 0` and called `saveState()`, but did NOT clear `completedTasks[childKey]`. The `saveState()` triggered Firebase sync, which called `silentRecalculateEarnings()`, which recounted `completedTasks` (still full from today's tasks) back into `weekTotal` — immediately undoing the reset.
+
+**Fix:** Added `state.completedTasks[childKey] = []` and `state.skippedTasks[childKey] = []` in `processWeeklyPayout` after resetting the totals. This gives `silentRecalculateEarnings()` a clean slate so it calculates `weekTotal = 0` for the new earning period.
+
+**Pattern to follow:** Since earnings are derived data (recalculated from completionHistory + completedTasks), resetting `weekTotal` directly is insufficient — the recalculation will overwrite it. You must also clear the source data that feeds the recalculation, or the reset is a no-op.
+
+---
+
 ## Current Status
 
 ### How the app works now (post Feb 11 fixes):
@@ -209,7 +221,7 @@
 - **History view**: Shows a single full calendar week (Sun-Sat) with dropdown + arrow navigation. Current week shows days up to today. Supports current week + 8 prior weeks.
 - **Yearly total**: Includes both paid-out amounts and current unpaid earnings.
 - **Savings goals**: Accumulate from payouts only (not unpaid earnings). Start at $0 when goal is set, add each future payout amount.
-- **Payout**: Resets `weekTotal` to $0, adds amount to `yearlyEarnings` and `goals.saved`.
+- **Payout**: Resets `weekTotal` to $0, clears `completedTasks`/`skippedTasks` for the child, adds amount to `yearlyEarnings` and `goals.saved`.
 - **Firebase sync**: On initial load, Firebase always wins. On reconnection, newer timestamp wins. `saveState()` won't push to Firebase until initial load completes. Sync order: `sanitizeState()` → `checkDailyReset()` → `cleanupInvalidCompletions()` → `silentRecalculateEarnings()`.
 - **Daily bonuses**: Re-validated on every recalculation from actual completion data. Never blindly trusted from stored flags.
 - **Joint tasks**: Payout only awarded when both children complete the task. All recalculation functions, `deleteTask()`, and history editing functions check `task.isJoint` and adjust both children's earnings accordingly.

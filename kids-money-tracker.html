@@ -2110,6 +2110,11 @@
                 state.earnings[childKey].weekTotal = 0;
                 state.earnings[childKey].todayTotal = 0;
 
+                // Clear today's completed/skipped tasks so silentRecalculateEarnings
+                // doesn't immediately recount them back into weekTotal
+                state.completedTasks[childKey] = [];
+                state.skippedTasks[childKey] = [];
+
                 // Keep only last 52 weeks of history
                 if (state.payoutHistory[childKey].length > 52) {
                     state.payoutHistory[childKey] = state.payoutHistory[childKey].slice(0, 52);
