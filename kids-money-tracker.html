@@ -1043,16 +1043,23 @@
                         state.loginForm = { username: '', password: '' };
                         sanitizeState();
 
-                        checkDailyReset(); // Archive yesterday's completions BEFORE cleanup (saves if needed)
-
                         // One-time fix: the payout bug (pre-Feb 23 2026 fix) left stale
-                        // completedTasks that got archived to completionHistory on the payout
-                        // date, causing earnings to reappear after payout. Remove them.
+                        // completedTasks that weren't cleared on payout. They may still be
+                        // in completedTasks (if daily reset hasn't run since payout) or
+                        // already archived to completionHistory on the payout date.
+                        // Must run BEFORE checkDailyReset so its saveState() persists
+                        // the cleaned data to Firebase (avoiding echo race condition).
                         if (!state.cleanedPayoutDateHistory) {
                             ['maria', 'helena'].forEach(child => {
                                 const payouts = state.payoutHistory[child] || [];
                                 if (payouts.length > 0) {
                                     const payoutDateStr = new Date(payouts[0].date).toDateString();
+                                    // Clear stale completedTasks if daily reset hasn't run since payout
+                                    if (state.lastResetDate && new Date(state.lastResetDate) <= new Date(payoutDateStr)) {
+                                        state.completedTasks[child] = [];
+                                        state.skippedTasks[child] = [];
+                                    }
+                                    // Clear stale completionHistory on payout date (already archived by a prior daily reset)
                                     if (state.completionHistory[child] && state.completionHistory[child][payoutDateStr]) {
                                         delete state.completionHistory[child][payoutDateStr];
                                     }
@@ -1060,6 +1067,8 @@
                             });
                             state.cleanedPayoutDateHistory = true;
                         }
+
+                        checkDailyReset(); // Archive yesterday's completions BEFORE cleanup (saves if needed)
 
                         // Clean up any invalid completions that may have been synced
                         // (e.g., from stale data on another device)
