@@ -98,7 +98,17 @@
                     <span class="widget-action">View →</span>
                 </div>
                 <div class="widget-body">
-                    <div class="widget-placeholder">Shopping widget loading...</div>
+                    <div class="shop-tabs">
+                        <button class="shop-tab active" data-store="traderjoes">Trader Joe's</button>
+                        <button class="shop-tab" data-store="wholefoods">Whole Foods</button>
+                        <button class="shop-tab" data-store="stater">Stater</button>
+                    </div>
+                    <div class="shop-add-row">
+                        <input type="text" id="shop-input" class="shop-input" placeholder="Add item...">
+                        <button id="shop-add-btn" class="shop-add-btn">Add</button>
+                    </div>
+                    <div class="shop-list" id="shop-list"></div>
+                    <div class="shop-footer" id="shop-footer"></div>
                 </div>
             </div>
 

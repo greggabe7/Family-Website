@@ -147,6 +147,122 @@ function calNav(dir) {
     renderMiniCal();
 }
 
+// --- Shopping Lists Widget ---
+let currentStore = 'traderjoes';
+let shopListeners = {};
+
+function initShopping() {
+    const tabs = document.querySelectorAll('.shop-tab');
+    const input = document.getElementById('shop-input');
+    const addBtn = document.getElementById('shop-add-btn');
+
+    // Tab switching
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            currentStore = tab.dataset.store;
+            listenToStore(currentStore);
+        });
+    });
+
+    // Add item
+    function addItem() {
+        const text = input.value.trim();
+        if (!text) return;
+        db.ref(`hub/shopping/${currentStore}`).push({
+            item: text,
+            checked: false,
+            timestamp: Date.now()
+        });
+        input.value = '';
+    }
+
+    addBtn.addEventListener('click', addItem);
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') addItem();
+    });
+
+    // Start listening to first store
+    listenToStore(currentStore);
+}
+
+function listenToStore(store) {
+    // Detach previous listeners for other stores to avoid stacking
+    Object.keys(shopListeners).forEach(s => {
+        if (s !== store && shopListeners[s]) {
+            db.ref(`hub/shopping/${s}`).off('value', shopListeners[s]);
+            delete shopListeners[s];
+        }
+    });
+
+    if (shopListeners[store]) return; // already listening
+
+    const ref = db.ref(`hub/shopping/${store}`);
+    const callback = (snapshot) => {
+        if (store !== currentStore) return;
+        const data = snapshot.val();
+        renderShopList(data);
+    };
+    ref.on('value', callback);
+    shopListeners[store] = callback;
+}
+
+function renderShopList(data) {
+    const listEl = document.getElementById('shop-list');
+    const footerEl = document.getElementById('shop-footer');
+
+    if (!data) {
+        listEl.innerHTML = '<div class="shop-empty">All done!</div>';
+        footerEl.innerHTML = '';
+        return;
+    }
+
+    const items = Object.entries(data)
+        .map(([id, item]) => ({ id, ...item }))
+        .sort((a, b) => {
+            if (a.checked !== b.checked) return a.checked ? 1 : -1;
+            return a.timestamp - b.timestamp;
+        });
+
+    const remaining = items.filter(i => !i.checked).length;
+    const checked = items.filter(i => i.checked).length;
+
+    listEl.innerHTML = items.map(item => `
+        <div class="shop-item ${item.checked ? 'checked' : ''}">
+            <input type="checkbox" ${item.checked ? 'checked' : ''} data-id="${item.id}" data-store="${currentStore}">
+            <span class="shop-item-name">${escapeHtml(item.item)}</span>
+        </div>
+    `).join('');
+
+    let footerHtml = `<span>${remaining} item${remaining !== 1 ? 's' : ''} remaining`;
+    if (checked > 0) footerHtml += ` &middot; ${checked} checked off`;
+    footerHtml += '</span>';
+    if (checked > 0) {
+        footerHtml += `<button class="shop-clear-btn" id="shop-clear-checked">Clear checked</button>`;
+    }
+    footerEl.innerHTML = footerHtml;
+
+    // Clear checked handler
+    const clearBtn = document.getElementById('shop-clear-checked');
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            items.filter(i => i.checked).forEach(i => {
+                db.ref(`hub/shopping/${currentStore}/${i.id}`).remove();
+            });
+        });
+    }
+}
+
+// Event delegation for checkbox toggles
+document.addEventListener('change', (e) => {
+    if (e.target.matches('.shop-item input[type="checkbox"]')) {
+        const id = e.target.dataset.id;
+        const store = e.target.dataset.store;
+        db.ref(`hub/shopping/${store}/${id}/checked`).set(e.target.checked);
+    }
+});
+
 // --- Notes Widget ---
 const notesRef = db.ref('hub/notes');
 
@@ -331,6 +447,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Firebase widgets
     initNotes();
+    initShopping();
 
     // Static widgets
     renderCountdown(SAMPLE_TRIPS);
