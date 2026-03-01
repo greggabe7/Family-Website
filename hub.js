@@ -574,14 +574,113 @@ function renderCountdown(trips) {
 }
 
 // --- Quick Reference Widget ---
-function renderQuickRef(items) {
+const quickrefRef = db.ref('hub/quickref');
+let quickrefItems = [];
+let quickrefEditMode = false;
+
+function initQuickRef() {
+    const titleEl = document.querySelector('#widget-quickref .widget-title');
+
+    // Double-click title to enter edit mode
+    titleEl.addEventListener('dblclick', () => {
+        if (!quickrefEditMode) enterQuickRefEdit();
+    });
+
+    // Seed default data if Firebase is empty
+    quickrefRef.once('value', (snapshot) => {
+        if (!snapshot.val()) {
+            quickrefRef.set({ items: SAMPLE_QUICKREF });
+        }
+    });
+
+    // Listen for real-time updates
+    quickrefRef.on('value', (snapshot) => {
+        const data = snapshot.val();
+        quickrefItems = (data && data.items) ? data.items : [];
+        if (!quickrefEditMode) renderQuickRef();
+    });
+}
+
+function renderQuickRef() {
     const listEl = document.getElementById('quickref-list');
-    listEl.innerHTML = items.map(item => `
+    if (quickrefItems.length === 0) {
+        listEl.innerHTML = '<div class="widget-placeholder" style="height:40px;">No info yet — double-click title to edit</div>';
+        return;
+    }
+    listEl.innerHTML = quickrefItems.map(item => `
         <div class="quickref-row">
-            <span class="quickref-label">${item.label}</span>
-            <span class="quickref-value">${item.value}</span>
+            <span class="quickref-label">${escapeHtml(item.label)}</span>
+            <span class="quickref-value">${escapeHtml(item.value)}</span>
         </div>
     `).join('');
+}
+
+function enterQuickRefEdit() {
+    quickrefEditMode = true;
+    const listEl = document.getElementById('quickref-list');
+    const items = quickrefItems.length > 0 ? quickrefItems : [{ label: '', value: '' }];
+
+    let html = '<div class="quickref-edit">';
+    items.forEach((item, i) => {
+        html += `
+            <div class="quickref-edit-row" data-index="${i}">
+                <input type="text" class="quickref-edit-label" value="${escapeHtml(item.label)}" placeholder="Label">
+                <input type="text" class="quickref-edit-value" value="${escapeHtml(item.value)}" placeholder="Value">
+                <button class="quickref-remove-btn" data-index="${i}">&times;</button>
+            </div>
+        `;
+    });
+    html += `
+        <div class="quickref-edit-actions">
+            <button class="quickref-add-row-btn" id="quickref-add-row">+ Add row</button>
+            <div class="quickref-edit-btns">
+                <button class="quickref-cancel-btn" id="quickref-cancel">Cancel</button>
+                <button class="quickref-save-btn" id="quickref-save">Save</button>
+            </div>
+        </div>
+    </div>`;
+    listEl.innerHTML = html;
+
+    // Add row
+    document.getElementById('quickref-add-row').addEventListener('click', () => {
+        const editEl = listEl.querySelector('.quickref-edit');
+        const actionsEl = editEl.querySelector('.quickref-edit-actions');
+        const idx = editEl.querySelectorAll('.quickref-edit-row').length;
+        const row = document.createElement('div');
+        row.className = 'quickref-edit-row';
+        row.dataset.index = idx;
+        row.innerHTML = `
+            <input type="text" class="quickref-edit-label" value="" placeholder="Label">
+            <input type="text" class="quickref-edit-value" value="" placeholder="Value">
+            <button class="quickref-remove-btn" data-index="${idx}">&times;</button>
+        `;
+        editEl.insertBefore(row, actionsEl);
+    });
+
+    // Remove row (delegation)
+    listEl.addEventListener('click', (e) => {
+        const rmBtn = e.target.closest('.quickref-remove-btn');
+        if (rmBtn) rmBtn.closest('.quickref-edit-row').remove();
+    });
+
+    // Cancel
+    document.getElementById('quickref-cancel').addEventListener('click', () => {
+        quickrefEditMode = false;
+        renderQuickRef();
+    });
+
+    // Save
+    document.getElementById('quickref-save').addEventListener('click', () => {
+        const rows = listEl.querySelectorAll('.quickref-edit-row');
+        const newItems = [];
+        rows.forEach(row => {
+            const label = row.querySelector('.quickref-edit-label').value.trim();
+            const value = row.querySelector('.quickref-edit-value').value.trim();
+            if (label || value) newItems.push({ label, value });
+        });
+        quickrefRef.set({ items: newItems });
+        quickrefEditMode = false;
+    });
 }
 
 // --- Hub initialization ---
@@ -596,7 +695,9 @@ document.addEventListener('DOMContentLoaded', () => {
     initMeals();
     initWins();
 
-    // Static widgets
+    // Firebase-backed widgets (formerly static)
+    initQuickRef();
+
+    // Static widgets (will be Firebase-backed later)
     renderCountdown(SAMPLE_TRIPS);
-    renderQuickRef(SAMPLE_QUICKREF);
 });
