@@ -351,6 +351,138 @@ body {
     opacity: 0.6;
 }
 
+/* --- Family Wins Widget --- */
+.wins-form {
+    margin-bottom: 14px;
+}
+
+.wins-form-top {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.wins-select {
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--cream);
+    color: var(--slate);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.wins-select:focus {
+    outline: none;
+    border-color: var(--gold);
+}
+
+.wins-emoji-picker {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    flex: 1;
+}
+
+.wins-emoji-btn {
+    width: 28px;
+    height: 28px;
+    border: 2px solid transparent;
+    border-radius: 6px;
+    background: none;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.wins-emoji-btn:hover {
+    background: var(--cream);
+}
+
+.wins-emoji-btn.selected {
+    border-color: var(--gold);
+    background: var(--gold-light);
+}
+
+.wins-input-row {
+    display: flex;
+    gap: 8px;
+}
+
+.wins-input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--cream);
+    color: var(--slate);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+}
+
+.wins-input:focus {
+    outline: none;
+    border-color: var(--gold);
+}
+
+.wins-post-btn {
+    padding: 8px 14px;
+    background: var(--gold);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.wins-post-btn:hover {
+    background: var(--terracotta);
+}
+
+.wins-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.win-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px;
+    background: var(--cream);
+    border-radius: 8px;
+}
+
+.win-emoji {
+    font-size: 1.2rem;
+    flex-shrink: 0;
+}
+
+.win-content {
+    flex: 1;
+}
+
+.win-text {
+    font-size: 0.85rem;
+    color: var(--slate);
+}
+
+.win-meta {
+    font-size: 0.7rem;
+    color: var(--slate-light);
+    opacity: 0.6;
+    margin-top: 2px;
+}
+
 /* --- Meal Planner Widget --- */
 .meals-grid {
     display: grid;

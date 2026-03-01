@@ -147,6 +147,79 @@ function calNav(dir) {
     renderMiniCal();
 }
 
+// --- Family Wins Widget ---
+const WIN_EMOJIS = ['⭐','🎉','🏆','🎸','🏃','📚','🎨','🍕','💪','🎻','🌟','🔥'];
+const winsRef = db.ref('hub/wins');
+let selectedWinEmoji = '⭐';
+
+function initWins() {
+    const pickerEl = document.getElementById('wins-emoji-picker');
+    const textInput = document.getElementById('wins-text');
+    const authorSelect = document.getElementById('wins-author');
+    const postBtn = document.getElementById('wins-post-btn');
+
+    // Render emoji picker
+    pickerEl.innerHTML = WIN_EMOJIS.map(e =>
+        `<button class="wins-emoji-btn ${e === selectedWinEmoji ? 'selected' : ''}" data-emoji="${e}">${e}</button>`
+    ).join('');
+
+    pickerEl.addEventListener('click', (e) => {
+        const btn = e.target.closest('.wins-emoji-btn');
+        if (!btn) return;
+        selectedWinEmoji = btn.dataset.emoji;
+        pickerEl.querySelectorAll('.wins-emoji-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+    });
+
+    // Post win
+    function postWin() {
+        const text = textInput.value.trim();
+        if (!text) return;
+        winsRef.push({
+            author: authorSelect.value,
+            emoji: selectedWinEmoji,
+            text: text,
+            timestamp: Date.now()
+        });
+        textInput.value = '';
+    }
+
+    postBtn.addEventListener('click', postWin);
+    textInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') postWin();
+    });
+
+    // Listen for real-time updates
+    winsRef.orderByChild('timestamp').on('value', (snapshot) => {
+        const listEl = document.getElementById('wins-list');
+        const data = snapshot.val();
+        if (!data) {
+            listEl.innerHTML = '<div class="widget-placeholder" style="height:40px;">No wins yet — celebrate something!</div>';
+            return;
+        }
+
+        const wins = Object.entries(data)
+            .map(([id, win]) => ({ id, ...win }))
+            .sort((a, b) => b.timestamp - a.timestamp);
+
+        // Auto-trim: if > 30 wins, remove oldest
+        if (wins.length > 30) {
+            wins.slice(30).forEach(w => winsRef.child(w.id).remove());
+        }
+
+        const display = wins.slice(0, 6);
+        listEl.innerHTML = display.map(win => `
+            <div class="win-item">
+                <span class="win-emoji">${win.emoji}</span>
+                <div class="win-content">
+                    <div class="win-text">${escapeHtml(win.text)}</div>
+                    <div class="win-meta">${escapeHtml(win.author)} &middot; ${formatRelativeTime(win.timestamp)}</div>
+                </div>
+            </div>
+        `).join('');
+    });
+}
+
 // --- Meal Planner Widget ---
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const DAY_LABELS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
@@ -521,6 +594,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initNotes();
     initShopping();
     initMeals();
+    initWins();
 
     // Static widgets
     renderCountdown(SAMPLE_TRIPS);

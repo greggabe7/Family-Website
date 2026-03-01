@@ -180,7 +180,22 @@
                     <span class="widget-action">Celebrate →</span>
                 </div>
                 <div class="widget-body">
-                    <div class="widget-placeholder">Wins widget loading...</div>
+                    <div class="wins-form">
+                        <div class="wins-form-top">
+                            <select id="wins-author" class="wins-select">
+                                <option value="Dad">Dad</option>
+                                <option value="Mom">Mom</option>
+                                <option value="Helena">Helena</option>
+                                <option value="Maria">Maria</option>
+                            </select>
+                            <div class="wins-emoji-picker" id="wins-emoji-picker"></div>
+                        </div>
+                        <div class="wins-input-row">
+                            <input type="text" id="wins-text" class="wins-input" placeholder="Share a win..." maxlength="150">
+                            <button id="wins-post-btn" class="wins-post-btn">Post</button>
+                        </div>
+                    </div>
+                    <div class="wins-list" id="wins-list"></div>
                 </div>
             </div>
 
