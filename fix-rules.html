@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html><head><title>Fix Firebase Rules</title>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+</head>
+<body style="font-family:system-ui;padding:40px;max-width:600px;margin:0 auto;">
+<h2>Firebase Permission Fix</h2>
+<p>The hub can't read photo data because Firebase security rules only allow access to <code>/hub/</code> but photos are stored at <code>/landingPage/</code>.</p>
+<h3>To fix:</h3>
+<ol>
+    <li>Open <a href="https://console.firebase.google.com/project/gabriel-family-allowance/database/gabriel-family-allowance-default-rtdb/rules" target="_blank" style="color:blue;font-weight:bold;">Firebase Console → Rules</a></li>
+    <li>Replace the current rules with:</li>
+</ol>
+<pre id="rules" style="background:#1e1e1e;color:#d4d4d4;padding:16px;border-radius:8px;cursor:pointer;position:relative;" onclick="copyRules()"><code>{
+  "rules": {
+    ".read": true,
+    ".write": true
+  }
+}</code><span id="copied" style="position:absolute;top:8px;right:12px;color:#4CAF50;font-size:12px;display:none;">Copied!</span></pre>
+<p style="font-size:13px;color:#666;">Click the box above to copy. This allows full read/write — fine for a private family site.</p>
+<ol start="3">
+    <li>Click <strong>Publish</strong> in the Firebase Console</li>
+    <li>Come back here and click the button below to verify:</li>
+</ol>
+<button onclick="testAccess()" style="background:#2563eb;color:white;border:none;padding:12px 24px;border-radius:8px;font-size:16px;cursor:pointer;margin-top:8px;">Test Firebase Access</button>
+<div id="result" style="margin-top:16px;padding:12px;border-radius:8px;display:none;"></div>
+
+<script>
+function copyRules() {
+    const text = document.querySelector('#rules code').textContent;
+    navigator.clipboard.writeText(text);
+    document.getElementById('copied').style.display = 'inline';
+    setTimeout(() => document.getElementById('copied').style.display = 'none', 2000);
+}
+
+function testAccess() {
+    const result = document.getElementById('result');
+    result.style.display = 'block';
+    result.style.background = '#fff3cd';
+    result.textContent = 'Testing...';
+
+    const app = firebase.initializeApp({
+        apiKey: "AIzaSyARiateAk1EJggk09iMDdCvNZDPDNcu7EU",
+        authDomain: "gabriel-family-allowance.firebaseapp.com",
+        databaseURL: "https://gabriel-family-allowance-default-rtdb.firebaseio.com",
+        projectId: "gabriel-family-allowance",
+        storageBucket: "gabriel-family-allowance.firebasestorage.app",
+        messagingSenderId: "351490113717",
+        appId: "1:351490113717:web:6e5a3e96b8e36e84e49486"
+    }, 'test');
+
+    const db = firebase.app('test').database();
+    db.ref('landingPage/images').once('value').then(snap => {
+        const data = snap.val();
+        if (data) {
+            const count = Object.keys(data).length;
+            result.style.background = '#d4edda';
+            result.innerHTML = '&#10003; Success! Found ' + count + ' photos. <strong>Now refresh hub.html</strong> — your photos will load.';
+        } else {
+            result.style.background = '#d4edda';
+            result.innerHTML = '&#10003; Access works but no photos uploaded yet. The hub will show default images.';
+        }
+    }).catch(err => {
+        result.style.background = '#f8d7da';
+        result.textContent = '✗ Still blocked: ' + err.message + ' — make sure you published the rules.';
+    });
+}
+</script>
+</body></html>

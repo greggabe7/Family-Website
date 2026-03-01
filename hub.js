@@ -1,5 +1,5 @@
 /* ============================================
-   Pizzo Family Hub — JavaScript
+   Gabriel Family Hub — JavaScript
    ============================================ */
 
 // --- Configuration ---
@@ -13,12 +13,433 @@ const firebaseConfig = {
     projectId: "gabriel-family-allowance",
     storageBucket: "gabriel-family-allowance.firebasestorage.app",
     messagingSenderId: "351490113717",
-    appId: "1:351490113717:web:01af4592fa8f08039dfefc"
+    appId: "1:351490113717:web:6e5a3e96b8e36e84e49486"
 };
 
 // --- Firebase Init ---
-const app = firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+let app, db, storage;
+try {
+    app = firebase.initializeApp(firebaseConfig);
+    db = firebase.database();
+    storage = firebase.storage();
+    console.log('[Hub] Firebase initialized OK');
+} catch (err) {
+    console.error('[Hub] Firebase init failed:', err);
+}
+
+// --- Default photo URLs ---
+const DEFAULT_IMAGES = [
+    'https://i.imgur.com/hs554rR.jpeg',
+    'https://i.imgur.com/UxW60hx.jpeg',
+    'https://i.imgur.com/bVp8I7u.jpeg',
+    'https://i.imgur.com/3QiGgLa.jpeg',
+    'https://i.imgur.com/uPMRhnF.jpeg',
+    'https://i.imgur.com/1Nb2UMs.jpeg',
+    'https://i.imgur.com/p9E9lai.jpeg',
+    'https://i.imgur.com/K3nSDpT.jpeg',
+    'https://i.imgur.com/9d0xZsc.jpeg',
+    'https://i.imgur.com/GFf8aZe.jpeg',
+    'https://i.imgur.com/hs554rR.jpeg',
+    'https://i.imgur.com/UxW60hx.jpeg',
+    'https://i.imgur.com/bVp8I7u.jpeg',
+    'https://i.imgur.com/3QiGgLa.jpeg',
+    'https://i.imgur.com/uPMRhnF.jpeg',
+    'https://i.imgur.com/1Nb2UMs.jpeg',
+    'https://i.imgur.com/p9E9lai.jpeg',
+    'https://i.imgur.com/K3nSDpT.jpeg'
+];
+
+// --- Photo Management System ---
+let editMode = false;
+let activeSlot = null;
+
+const photoGrid = document.getElementById('photoGrid');
+const editToggleBtn = document.getElementById('editToggleBtn');
+const photoFileInput = document.getElementById('photoFileInput');
+
+function enhancePhotoGrid() {
+    const items = photoGrid.querySelectorAll('.photo-grid-item');
+    items.forEach((wrapper, i) => {
+        const img = wrapper.querySelector('img');
+        wrapper.dataset.slot = i;
+
+        // Overlay for edit mode
+        const overlay = document.createElement('div');
+        overlay.className = 'photo-overlay';
+        overlay.innerHTML = `
+            <div class="overlay-buttons">
+                <div class="overlay-btn" data-action="replace">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                    <span>Replace</span>
+                </div>
+                <div class="overlay-btn" data-action="move">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/>
+                    </svg>
+                    <span>Move</span>
+                </div>
+                <div class="overlay-btn" data-action="restore">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                    <span>Restore</span>
+                </div>
+            </div>
+        `;
+
+        // Upload progress indicator
+        const progress = document.createElement('div');
+        progress.className = 'upload-progress';
+        progress.textContent = '0%';
+
+        // Reposition hint
+        const hint = document.createElement('div');
+        hint.className = 'reposition-hint';
+        hint.textContent = 'Drag to move \u2022 Pinch or scroll to resize \u2022 Click outside to save';
+
+        wrapper.appendChild(overlay);
+        wrapper.appendChild(progress);
+        wrapper.appendChild(hint);
+
+        // Error fallback for images
+        img.onerror = function () {
+            this.src = DEFAULT_IMAGES[i];
+        };
+
+        // Click handlers for replace/move/restore
+        overlay.addEventListener('click', (e) => {
+            if (!editMode || wrapper.classList.contains('uploading')) return;
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+            if (btn.dataset.action === 'replace') {
+                handleSlotClick(i);
+            } else if (btn.dataset.action === 'move') {
+                startReposition(i);
+            } else if (btn.dataset.action === 'restore') {
+                restoreDefault(i);
+            }
+        });
+    });
+}
+
+// Load image URLs from Firebase, fall back to defaults
+function loadImageUrls() {
+    console.log('[Hub] loadImageUrls called, reading landingPage/images');
+    const imgsRef = db.ref('landingPage/images');
+    imgsRef.on('value', (snapshot) => {
+        const data = snapshot.val() || {};
+        console.log('[Hub] Firebase images data:', JSON.stringify(data).substring(0, 200));
+        console.log('[Hub] Keys found:', Object.keys(data));
+        const items = photoGrid.querySelectorAll('.photo-grid-item');
+        items.forEach((item, i) => {
+            const img = item.querySelector('img');
+            const key = 'slot_' + i;
+            if (data[key]) {
+                img.src = data[key];
+            }
+        });
+        // Show edit button once Firebase has loaded
+        editToggleBtn.style.display = 'flex';
+    });
+}
+
+// Edit mode toggle
+editToggleBtn.addEventListener('click', () => {
+    if (editMode) {
+        exitEditMode();
+    } else {
+        enterEditMode();
+    }
+});
+
+function enterEditMode() {
+    editMode = true;
+    photoGrid.classList.add('edit-mode');
+    editToggleBtn.classList.add('active');
+    const heroText = document.querySelector('.photo-hero-text');
+    if (heroText) heroText.style.display = 'none';
+}
+
+function exitEditMode() {
+    editMode = false;
+    photoGrid.classList.remove('edit-mode');
+    editToggleBtn.classList.remove('active');
+    const heroText = document.querySelector('.photo-hero-text');
+    if (heroText) heroText.style.display = '';
+}
+
+// Restore a slot to its default imgur image
+async function restoreDefault(slotIndex) {
+    const wrapper = photoGrid.querySelectorAll('.photo-grid-item')[slotIndex];
+    const imgEl = wrapper.querySelector('img');
+    await db.ref('landingPage/images/slot_' + slotIndex).remove();
+    await db.ref('landingPage/positions/slot_' + slotIndex).remove();
+    imgEl.src = DEFAULT_IMAGES[slotIndex];
+    applyPosition(imgEl, null);
+}
+
+// File selection
+function handleSlotClick(slotIndex) {
+    activeSlot = slotIndex;
+    photoFileInput.value = '';
+    photoFileInput.click();
+}
+
+photoFileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file || activeSlot === null) return;
+    resizeAndUpload(file, activeSlot);
+});
+
+// Resize image client-side before upload
+function resizeImage(file, maxDim, quality) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+            URL.revokeObjectURL(url);
+            let w = img.width;
+            let h = img.height;
+            if (w > maxDim || h > maxDim) {
+                if (w > h) {
+                    h = Math.round(h * maxDim / w);
+                    w = maxDim;
+                } else {
+                    w = Math.round(w * maxDim / h);
+                    h = maxDim;
+                }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            canvas.toBlob((blob) => resolve(blob), 'image/jpeg', quality);
+        };
+        img.src = url;
+    });
+}
+
+async function resizeAndUpload(file, slotIndex) {
+    const wrapper = photoGrid.querySelectorAll('.photo-grid-item')[slotIndex];
+    const imgEl = wrapper.querySelector('img');
+    const progressEl = wrapper.querySelector('.upload-progress');
+
+    wrapper.classList.add('uploading');
+    progressEl.textContent = 'Resizing...';
+
+    try {
+        const blob = await resizeImage(file, 1200, 0.8);
+        const storageRef = storage.ref('landingPage/slot_' + slotIndex + '.jpg');
+        const uploadTask = storageRef.put(blob, { contentType: 'image/jpeg' });
+
+        uploadTask.on('state_changed',
+            (snapshot) => {
+                const pct = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+                progressEl.textContent = pct + '%';
+            },
+            (error) => {
+                console.error('Upload error:', error);
+                progressEl.textContent = 'Error!';
+                setTimeout(() => wrapper.classList.remove('uploading'), 2000);
+            },
+            async () => {
+                const downloadUrl = await uploadTask.snapshot.ref.getDownloadURL();
+                await db.ref('landingPage/images/slot_' + slotIndex).set(downloadUrl);
+                imgEl.src = downloadUrl;
+                wrapper.classList.remove('uploading');
+            }
+        );
+    } catch (err) {
+        console.error('Resize/upload error:', err);
+        progressEl.textContent = 'Error!';
+        setTimeout(() => wrapper.classList.remove('uploading'), 2000);
+    }
+}
+
+// --- Drag to Reposition ---
+let repositionSlot = null;
+let dragState = null;
+
+function applyPosition(img, pos) {
+    if (pos) {
+        const ox = pos.ox !== undefined ? pos.ox : 50;
+        const oy = pos.oy !== undefined ? pos.oy : 50;
+        img.style.objectPosition = ox + '% ' + oy + '%';
+        if (pos.s && pos.s > 1) {
+            img.style.transform = 'scale(' + pos.s + ')';
+        } else {
+            img.style.transform = '';
+        }
+    } else {
+        img.style.objectPosition = '';
+        img.style.transform = '';
+    }
+}
+
+function getCurrentPos(img) {
+    const op = img.style.objectPosition || '';
+    const opMatch = op.match(/([\d.]+)%\s+([\d.]+)%/);
+    const ox = opMatch ? parseFloat(opMatch[1]) : 50;
+    const oy = opMatch ? parseFloat(opMatch[2]) : 50;
+    const t = img.style.transform || '';
+    const scaleMatch = t.match(/scale\(([\d.]+)\)/);
+    const s = scaleMatch ? parseFloat(scaleMatch[1]) : 1.0;
+    return { s, ox, oy };
+}
+
+function startReposition(slotIndex) {
+    if (repositionSlot !== null) finishReposition(repositionSlot);
+    repositionSlot = slotIndex;
+    const wrapper = photoGrid.querySelectorAll('.photo-grid-item')[slotIndex];
+    const img = wrapper.querySelector('img');
+    img.draggable = false;
+    wrapper.classList.add('repositioning');
+
+    const pos = getCurrentPos(img);
+    applyPosition(img, pos);
+
+    wrapper._onPointerDown = (e) => {
+        const cur = getCurrentPos(img);
+        dragState = {
+            startX: e.clientX,
+            startY: e.clientY,
+            startOx: cur.ox,
+            startOy: cur.oy,
+            img: img,
+            wrapper: wrapper,
+            pointerId: e.pointerId
+        };
+        e.preventDefault();
+        e.stopPropagation();
+        wrapper.setPointerCapture(e.pointerId);
+    };
+
+    wrapper._onPointerMove = (e) => {
+        if (!dragState) return;
+        e.preventDefault();
+        const rect = wrapper.getBoundingClientRect();
+        const dx = e.clientX - dragState.startX;
+        const dy = e.clientY - dragState.startY;
+        let ox = dragState.startOx - (dx / rect.width) * 100;
+        let oy = dragState.startOy - (dy / rect.height) * 100;
+        ox = Math.max(0, Math.min(100, ox));
+        oy = Math.max(0, Math.min(100, oy));
+        const cur = getCurrentPos(img);
+        applyPosition(img, { s: cur.s, ox, oy });
+    };
+
+    wrapper._onPointerUp = (e) => {
+        if (!dragState) return;
+        wrapper.releasePointerCapture(dragState.pointerId);
+        dragState = null;
+    };
+
+    // Scroll wheel to zoom
+    wrapper._onWheel = (e) => {
+        e.preventDefault();
+        const cur = getCurrentPos(img);
+        const delta = e.deltaY > 0 ? -0.05 : 0.05;
+        const newScale = Math.max(1.0, Math.min(2.0, cur.s + delta));
+        applyPosition(img, { s: newScale, ox: cur.ox, oy: cur.oy });
+    };
+
+    // Pinch to zoom (touch)
+    wrapper._onTouchStart = (e) => {
+        if (e.touches.length === 2) {
+            e.preventDefault();
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            wrapper._pinchStartDist = Math.hypot(dx, dy);
+            wrapper._pinchStartScale = getCurrentPos(img).s;
+        }
+    };
+
+    wrapper._onTouchMove = (e) => {
+        if (e.touches.length === 2 && wrapper._pinchStartDist) {
+            e.preventDefault();
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            const dist = Math.hypot(dx, dy);
+            const ratio = dist / wrapper._pinchStartDist;
+            const newScale = Math.max(1.0, Math.min(2.0, wrapper._pinchStartScale * ratio));
+            const cur = getCurrentPos(img);
+            applyPosition(img, { s: newScale, ox: cur.ox, oy: cur.oy });
+        }
+    };
+
+    wrapper._onTouchEnd = (e) => {
+        if (e.touches.length < 2) {
+            wrapper._pinchStartDist = null;
+            wrapper._pinchStartScale = null;
+        }
+    };
+
+    wrapper.addEventListener('pointerdown', wrapper._onPointerDown);
+    wrapper.addEventListener('pointermove', wrapper._onPointerMove);
+    wrapper.addEventListener('pointerup', wrapper._onPointerUp);
+    wrapper.addEventListener('wheel', wrapper._onWheel, { passive: false });
+    wrapper.addEventListener('touchstart', wrapper._onTouchStart, { passive: false });
+    wrapper.addEventListener('touchmove', wrapper._onTouchMove, { passive: false });
+    wrapper.addEventListener('touchend', wrapper._onTouchEnd);
+}
+
+function finishReposition(slotIndex) {
+    const wrapper = photoGrid.querySelectorAll('.photo-grid-item')[slotIndex];
+    const img = wrapper.querySelector('img');
+    wrapper.classList.remove('repositioning');
+    if (wrapper._onPointerDown) {
+        wrapper.removeEventListener('pointerdown', wrapper._onPointerDown);
+        wrapper.removeEventListener('pointermove', wrapper._onPointerMove);
+        wrapper.removeEventListener('pointerup', wrapper._onPointerUp);
+        wrapper.removeEventListener('wheel', wrapper._onWheel);
+        wrapper.removeEventListener('touchstart', wrapper._onTouchStart);
+        wrapper.removeEventListener('touchmove', wrapper._onTouchMove);
+        wrapper.removeEventListener('touchend', wrapper._onTouchEnd);
+        delete wrapper._onPointerDown;
+        delete wrapper._onPointerMove;
+        delete wrapper._onPointerUp;
+        delete wrapper._onWheel;
+        delete wrapper._onTouchStart;
+        delete wrapper._onTouchMove;
+        delete wrapper._onTouchEnd;
+    }
+    repositionSlot = null;
+    dragState = null;
+    const pos = getCurrentPos(img);
+    db.ref('landingPage/positions/slot_' + slotIndex).set(pos);
+}
+
+// Click outside to finish repositioning
+document.addEventListener('click', (e) => {
+    if (repositionSlot === null) return;
+    const wrapper = photoGrid.querySelectorAll('.photo-grid-item')[repositionSlot];
+    if (!wrapper.contains(e.target)) {
+        finishReposition(repositionSlot);
+    }
+});
+
+// Load saved positions from Firebase
+function loadPositions() {
+    db.ref('landingPage/positions').on('value', (snapshot) => {
+        const data = snapshot.val() || {};
+        const items = photoGrid.querySelectorAll('.photo-grid-item');
+        items.forEach((item, i) => {
+            const img = item.querySelector('img');
+            const key = 'slot_' + i;
+            if (data[key] && typeof data[key] === 'object') {
+                const pos = data[key];
+                // Old {s, x, y} translate format — ignore it, reset to default
+                if (pos.x !== undefined && pos.ox === undefined) {
+                    return;
+                }
+                applyPosition(img, pos);
+            }
+        });
+    });
+}
 
 // --- Google Calendar Widget ---
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -64,10 +485,8 @@ function renderMiniCal() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Event dates for dot indicators
     const eventDates = new Set(calendarEvents.map(e => e.date));
 
-    // First day of month and total days
     const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const daysInPrevMonth = new Date(year, month, 0).getDate();
@@ -81,16 +500,13 @@ function renderMiniCal() {
         <div class="cal-mini-grid">
     `;
 
-    // Day-of-week headers
     DOW_SHORT.forEach(d => { html += `<span class="cal-mini-dow">${d}</span>`; });
 
-    // Leading days from previous month
     for (let i = firstDay - 1; i >= 0; i--) {
         const day = daysInPrevMonth - i;
         html += `<span class="cal-mini-day other-month">${day}</span>`;
     }
 
-    // Current month days
     for (let d = 1; d <= daysInMonth; d++) {
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
         const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === d;
@@ -101,7 +517,6 @@ function renderMiniCal() {
         html += `<span class="${classes.join(' ')}">${d}</span>`;
     }
 
-    // Trailing days to fill last row
     const totalCells = firstDay + daysInMonth;
     const remaining = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
     for (let d = 1; d <= remaining; d++) {
@@ -147,148 +562,96 @@ function calNav(dir) {
     renderMiniCal();
 }
 
-// --- Family Wins Widget ---
-const WIN_EMOJIS = ['⭐','🎉','🏆','🎸','🏃','📚','🎨','🍕','💪','🎻','🌟','🔥'];
-const winsRef = db.ref('hub/wins');
-let selectedWinEmoji = '⭐';
+// --- Utility Functions ---
+function formatRelativeTime(timestamp) {
+    const now = Date.now();
+    const diff = now - timestamp;
+    const mins = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
 
-function initWins() {
-    const pickerEl = document.getElementById('wins-emoji-picker');
-    const textInput = document.getElementById('wins-text');
-    const authorSelect = document.getElementById('wins-author');
-    const postBtn = document.getElementById('wins-post-btn');
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+    if (hours < 24) {
+        const d = new Date(timestamp);
+        return `Today ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+    }
+    if (days === 1) return 'Yesterday';
+    const d = new Date(timestamp);
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
 
-    // Render emoji picker
-    pickerEl.innerHTML = WIN_EMOJIS.map(e =>
-        `<button class="wins-emoji-btn ${e === selectedWinEmoji ? 'selected' : ''}" data-emoji="${e}">${e}</button>`
-    ).join('');
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
 
-    pickerEl.addEventListener('click', (e) => {
-        const btn = e.target.closest('.wins-emoji-btn');
-        if (!btn) return;
-        selectedWinEmoji = btn.dataset.emoji;
-        pickerEl.querySelectorAll('.wins-emoji-btn').forEach(b => b.classList.remove('selected'));
-        btn.classList.add('selected');
-    });
+// --- Notes Widget ---
+const notesRef = db.ref('hub/notes');
 
-    // Post win
-    function postWin() {
+function initNotes() {
+    const textInput = document.getElementById('notes-text');
+    const authorSelect = document.getElementById('notes-author');
+    const postBtn = document.getElementById('notes-post-btn');
+
+    function postNote() {
         const text = textInput.value.trim();
         if (!text) return;
-        winsRef.push({
+        notesRef.push({
             author: authorSelect.value,
-            emoji: selectedWinEmoji,
             text: text,
             timestamp: Date.now()
         });
         textInput.value = '';
     }
 
-    postBtn.addEventListener('click', postWin);
+    postBtn.addEventListener('click', postNote);
     textInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') postWin();
+        if (e.key === 'Enter') postNote();
     });
 
-    // Listen for real-time updates
-    winsRef.orderByChild('timestamp').on('value', (snapshot) => {
-        const listEl = document.getElementById('wins-list');
+    notesRef.orderByChild('timestamp').on('value', (snapshot) => {
+        const listEl = document.getElementById('notes-list');
         const data = snapshot.val();
         if (!data) {
-            listEl.innerHTML = '<div class="widget-placeholder" style="height:40px;">No wins yet — celebrate something!</div>';
+            listEl.innerHTML = '<div class="widget-placeholder" style="height:40px;">No notes yet</div>';
             return;
         }
 
-        const wins = Object.entries(data)
-            .map(([id, win]) => ({ id, ...win }))
+        const notes = Object.entries(data)
+            .map(([id, note]) => ({ id, ...note }))
             .sort((a, b) => b.timestamp - a.timestamp);
 
-        // Auto-trim: if > 30 wins, remove oldest
-        if (wins.length > 30) {
-            wins.slice(30).forEach(w => winsRef.child(w.id).remove());
+        // Auto-delete notes older than 14 days
+        const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
+        notes.forEach(note => {
+            if (note.timestamp < cutoff) {
+                notesRef.child(note.id).remove();
+            }
+        });
+
+        const current = notes.filter(n => n.timestamp >= cutoff);
+        if (current.length === 0) {
+            listEl.innerHTML = '<div class="widget-placeholder" style="height:40px;">No notes yet</div>';
+            return;
         }
 
-        const display = wins.slice(0, 6);
-        listEl.innerHTML = display.map(win => `
-            <div class="win-item">
-                <span class="win-emoji">${win.emoji}</span>
-                <div class="win-content">
-                    <div class="win-text">${escapeHtml(win.text)}</div>
-                    <div class="win-meta">${escapeHtml(win.author)} &middot; ${formatRelativeTime(win.timestamp)}</div>
+        listEl.innerHTML = current.map(note => `
+            <div class="note-item">
+                <span class="note-author" data-author="${escapeHtml(note.author)}">${escapeHtml(note.author)}</span>
+                <div class="note-content">
+                    <div class="note-text">${escapeHtml(note.text)}</div>
+                    <div class="note-time">${formatRelativeTime(note.timestamp)}</div>
                 </div>
+                <button class="note-delete" data-id="${note.id}" title="Delete">&times;</button>
             </div>
         `).join('');
     });
-}
 
-// --- Meal Planner Widget ---
-const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-const DAY_LABELS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-const mealsRef = db.ref('hub/meals');
-let currentMeals = {};
-
-function initMeals() {
-    const gridEl = document.getElementById('meals-grid');
-    const clearBtn = document.getElementById('meals-clear-btn');
-
-    mealsRef.on('value', (snapshot) => {
-        currentMeals = snapshot.val() || {};
-        renderMeals();
-    });
-
-    clearBtn.addEventListener('click', () => {
-        const empty = {};
-        DAYS.forEach(d => { empty[d] = ''; });
-        mealsRef.set(empty);
-    });
-
-    // Event delegation for click-to-edit
-    gridEl.addEventListener('click', (e) => {
-        const tile = e.target.closest('.meal-tile');
-        if (!tile || tile.querySelector('.meal-tile-input')) return;
-        const day = tile.dataset.day;
-        startMealEdit(tile, day);
-    });
-}
-
-function renderMeals() {
-    const gridEl = document.getElementById('meals-grid');
-    gridEl.innerHTML = DAYS.map((day, i) => {
-        const meal = currentMeals[day] || '';
-        return `
-            <div class="meal-tile" data-day="${day}">
-                <div class="meal-tile-day">${DAY_LABELS[i]}</div>
-                ${meal
-                    ? `<div class="meal-tile-meal">${escapeHtml(meal)}</div>`
-                    : `<div class="meal-tile-empty">— tap to add —</div>`
-                }
-            </div>
-        `;
-    }).join('');
-}
-
-function startMealEdit(tile, day) {
-    const current = currentMeals[day] || '';
-    const dayLabel = tile.querySelector('.meal-tile-day').outerHTML;
-    tile.innerHTML = `
-        ${dayLabel}
-        <input type="text" class="meal-tile-input" value="${escapeHtml(current)}" data-day="${day}">
-    `;
-    const input = tile.querySelector('.meal-tile-input');
-    input.focus();
-    input.select();
-
-    function save() {
-        const val = input.value.trim();
-        mealsRef.child(day).set(val);
-    }
-
-    input.addEventListener('blur', save);
-    input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') input.blur();
-        if (e.key === 'Escape') {
-            input.removeEventListener('blur', save);
-            renderMeals();
-        }
+    document.getElementById('notes-list').addEventListener('click', (e) => {
+        const btn = e.target.closest('.note-delete');
+        if (btn) notesRef.child(btn.dataset.id).remove();
     });
 }
 
@@ -301,7 +664,6 @@ function initShopping() {
     const input = document.getElementById('shop-input');
     const addBtn = document.getElementById('shop-add-btn');
 
-    // Tab switching
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
             tabs.forEach(t => t.classList.remove('active'));
@@ -311,7 +673,6 @@ function initShopping() {
         });
     });
 
-    // Add item
     function addItem() {
         const text = input.value.trim();
         if (!text) return;
@@ -328,12 +689,10 @@ function initShopping() {
         if (e.key === 'Enter') addItem();
     });
 
-    // Start listening to first store
     listenToStore(currentStore);
 }
 
 function listenToStore(store) {
-    // Detach previous listeners for other stores to avoid stacking
     Object.keys(shopListeners).forEach(s => {
         if (s !== store && shopListeners[s]) {
             db.ref(`hub/shopping/${s}`).off('value', shopListeners[s]);
@@ -341,7 +700,7 @@ function listenToStore(store) {
         }
     });
 
-    if (shopListeners[store]) return; // already listening
+    if (shopListeners[store]) return;
 
     const ref = db.ref(`hub/shopping/${store}`);
     const callback = (snapshot) => {
@@ -388,7 +747,6 @@ function renderShopList(data) {
     }
     footerEl.innerHTML = footerHtml;
 
-    // Clear checked handler
     const clearBtn = document.getElementById('shop-clear-checked');
     if (clearBtn) {
         clearBtn.addEventListener('click', () => {
@@ -407,137 +765,6 @@ document.addEventListener('change', (e) => {
         db.ref(`hub/shopping/${store}/${id}/checked`).set(e.target.checked);
     }
 });
-
-// --- Notes Widget ---
-const notesRef = db.ref('hub/notes');
-
-function formatRelativeTime(timestamp) {
-    const now = Date.now();
-    const diff = now - timestamp;
-    const mins = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
-
-    if (mins < 1) return 'Just now';
-    if (mins < 60) return `${mins}m ago`;
-    if (hours < 24) {
-        const d = new Date(timestamp);
-        return `Today ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
-    }
-    if (days === 1) return 'Yesterday';
-    const d = new Date(timestamp);
-    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
-}
-
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-function initNotes() {
-    const textInput = document.getElementById('notes-text');
-    const authorSelect = document.getElementById('notes-author');
-    const postBtn = document.getElementById('notes-post-btn');
-
-    // Post note
-    function postNote() {
-        const text = textInput.value.trim();
-        if (!text) return;
-        notesRef.push({
-            author: authorSelect.value,
-            text: text,
-            timestamp: Date.now()
-        });
-        textInput.value = '';
-    }
-
-    postBtn.addEventListener('click', postNote);
-    textInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') postNote();
-    });
-
-    // Listen for real-time updates
-    notesRef.orderByChild('timestamp').on('value', (snapshot) => {
-        const listEl = document.getElementById('notes-list');
-        const data = snapshot.val();
-        if (!data) {
-            listEl.innerHTML = '<div class="widget-placeholder" style="height:40px;">No notes yet</div>';
-            return;
-        }
-
-        const notes = Object.entries(data)
-            .map(([id, note]) => ({ id, ...note }))
-            .sort((a, b) => b.timestamp - a.timestamp);
-
-        // Auto-delete notes older than 14 days
-        const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
-        notes.forEach(note => {
-            if (note.timestamp < cutoff) {
-                notesRef.child(note.id).remove();
-            }
-        });
-
-        const current = notes.filter(n => n.timestamp >= cutoff);
-        if (current.length === 0) {
-            listEl.innerHTML = '<div class="widget-placeholder" style="height:40px;">No notes yet</div>';
-            return;
-        }
-
-        listEl.innerHTML = current.map(note => `
-            <div class="note-item">
-                <span class="note-author" data-author="${escapeHtml(note.author)}">${escapeHtml(note.author)}</span>
-                <div class="note-content">
-                    <div class="note-text">${escapeHtml(note.text)}</div>
-                    <div class="note-time">${formatRelativeTime(note.timestamp)}</div>
-                </div>
-                <button class="note-delete" data-id="${note.id}" title="Delete">&times;</button>
-            </div>
-        `).join('');
-    });
-
-    // Delete note via event delegation
-    document.getElementById('notes-list').addEventListener('click', (e) => {
-        const btn = e.target.closest('.note-delete');
-        if (btn) notesRef.child(btn.dataset.id).remove();
-    });
-}
-
-// --- Chores Widget (read-only) ---
-function initChores() {
-    const earningsRef = db.ref('allowanceData/earnings');
-    earningsRef.on('value', (snapshot) => {
-        const el = document.getElementById('chores-summary');
-        const data = snapshot.val();
-        if (!data) {
-            el.innerHTML = '<div class="widget-placeholder" style="height:40px;">No chore data available</div>';
-            return;
-        }
-
-        const kids = [
-            { key: 'helena', name: 'Helena' },
-            { key: 'maria', name: 'Maria' }
-        ];
-
-        el.innerHTML = kids.map(kid => {
-            const earnings = data[kid.key] || {};
-            const weekTotal = earnings.weekTotal || 0;
-            const todayTotal = earnings.todayTotal || 0;
-            return `
-                <div class="chores-kid-row">
-                    <div>
-                        <div class="chores-kid-name">${kid.name}</div>
-                        <div class="chores-kid-label">Today: $${todayTotal.toFixed(2)}</div>
-                    </div>
-                    <div style="text-align:right;">
-                        <div class="chores-kid-earnings">$${weekTotal.toFixed(2)}</div>
-                        <div class="chores-kid-label">this week</div>
-                    </div>
-                </div>
-            `;
-        }).join('');
-    });
-}
 
 // --- Allowance Widget (read-only) ---
 function initAllowance() {
@@ -570,15 +797,9 @@ function initAllowance() {
     });
 }
 
-// --- Sample data for seeding Firebase on first load ---
-const SAMPLE_TRIPS = [
-    { name: 'Palm Springs Spring Break', emoji: '🌴', date: '2026-04-05' },
-    { name: 'Hawaii Summer', emoji: '🌺', date: '2026-06-20' },
-    { name: 'Thanksgiving in Denver', emoji: '🦃', date: '2026-11-26' }
-];
-
+// --- Quick Reference Widget ---
 const SAMPLE_QUICKREF = [
-    { label: 'WiFi', value: 'PizzoHome5G' },
+    { label: 'WiFi', value: 'GabrielHome5G' },
     { label: 'Vet', value: '(949) 555-0182' },
     { label: 'Pediatrician', value: '(949) 555-0234' },
     { label: 'Neighbor (Sue)', value: '(949) 555-0156' },
@@ -586,136 +807,6 @@ const SAMPLE_QUICKREF = [
     { label: 'Trash Day', value: 'Tuesday' }
 ];
 
-// --- Utility: days between today and a date ---
-function daysUntil(dateStr) {
-    const target = new Date(dateStr + 'T00:00:00');
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    return Math.ceil((target - now) / (1000 * 60 * 60 * 24));
-}
-
-// --- Trip Countdown Widget ---
-const tripsRef = db.ref('hub/trips');
-let tripsData = {};
-
-function initTrips() {
-    const manageBtn = document.getElementById('trips-manage-btn');
-    const modal = document.getElementById('trips-modal');
-    const closeBtn = document.getElementById('trips-modal-close');
-    const addBtn = document.getElementById('trips-add-btn');
-
-    // Seed defaults if empty
-    tripsRef.once('value', (snapshot) => {
-        if (!snapshot.val()) {
-            SAMPLE_TRIPS.forEach(t => tripsRef.push(t));
-        }
-    });
-
-    // Real-time listener
-    tripsRef.on('value', (snapshot) => {
-        const data = snapshot.val();
-        tripsData = data || {};
-        renderCountdown();
-    });
-
-    // Modal open/close
-    manageBtn.addEventListener('click', () => {
-        modal.style.display = '';
-        renderTripsModal();
-    });
-    closeBtn.addEventListener('click', () => { modal.style.display = 'none'; });
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) modal.style.display = 'none';
-    });
-
-    // Add trip
-    addBtn.addEventListener('click', () => {
-        tripsRef.push({ name: '', emoji: '✈️', date: '' });
-    });
-}
-
-function renderCountdown() {
-    const heroEl = document.getElementById('countdown-hero');
-    const listEl = document.getElementById('countdown-list');
-    const emptyEl = document.getElementById('countdown-empty');
-
-    const trips = Object.values(tripsData);
-    const upcoming = trips
-        .filter(t => t.date)
-        .map(t => ({ ...t, daysAway: daysUntil(t.date) }))
-        .filter(t => t.daysAway >= 0)
-        .sort((a, b) => a.daysAway - b.daysAway);
-
-    if (upcoming.length === 0) {
-        heroEl.style.display = 'none';
-        listEl.style.display = 'none';
-        emptyEl.style.display = '';
-        return;
-    }
-
-    emptyEl.style.display = 'none';
-
-    const hero = upcoming[0];
-    heroEl.style.display = '';
-    heroEl.innerHTML = `
-        <div class="countdown-hero-emoji">${hero.emoji}</div>
-        <div class="countdown-hero-name">${escapeHtml(hero.name)}</div>
-        <div class="countdown-hero-days">${hero.daysAway}</div>
-        <div class="countdown-hero-label">days to go</div>
-    `;
-
-    const rest = upcoming.slice(1);
-    if (rest.length === 0) {
-        listEl.style.display = 'none';
-    } else {
-        listEl.style.display = '';
-        listEl.innerHTML = rest.map(t => `
-            <div class="countdown-list-item">
-                <span class="countdown-list-item-name">${t.emoji} ${escapeHtml(t.name)}</span>
-                <span class="countdown-list-item-days">${t.daysAway} days</span>
-            </div>
-        `).join('');
-    }
-}
-
-function renderTripsModal() {
-    const bodyEl = document.getElementById('trips-modal-body');
-    const entries = Object.entries(tripsData);
-
-    if (entries.length === 0) {
-        bodyEl.innerHTML = '<p style="text-align:center;color:var(--slate-light);font-size:0.85rem;">No trips yet — add one below.</p>';
-        return;
-    }
-
-    bodyEl.innerHTML = entries.map(([id, trip]) => `
-        <div class="trip-modal-row" data-id="${id}">
-            <input type="text" class="trip-modal-emoji" value="${trip.emoji || ''}" placeholder="🌴" data-field="emoji" data-id="${id}">
-            <input type="text" class="trip-modal-name" value="${escapeHtml(trip.name || '')}" placeholder="Trip name" data-field="name" data-id="${id}">
-            <input type="date" class="trip-modal-date" value="${trip.date || ''}" data-field="date" data-id="${id}">
-            <button class="trip-modal-delete" data-id="${id}">&times;</button>
-        </div>
-    `).join('');
-
-    // Event delegation for edits
-    bodyEl.addEventListener('change', handleTripFieldChange);
-    bodyEl.addEventListener('input', handleTripFieldChange);
-
-    // Delete delegation
-    bodyEl.addEventListener('click', (e) => {
-        const delBtn = e.target.closest('.trip-modal-delete');
-        if (delBtn) tripsRef.child(delBtn.dataset.id).remove();
-    });
-}
-
-function handleTripFieldChange(e) {
-    const input = e.target;
-    if (!input.dataset.field || !input.dataset.id) return;
-    const updates = {};
-    updates[input.dataset.field] = input.value;
-    tripsRef.child(input.dataset.id).update(updates);
-}
-
-// --- Quick Reference Widget ---
 const quickrefRef = db.ref('hub/quickref');
 let quickrefItems = [];
 let quickrefEditMode = false;
@@ -723,19 +814,16 @@ let quickrefEditMode = false;
 function initQuickRef() {
     const titleEl = document.querySelector('#widget-quickref .widget-title');
 
-    // Double-click title to enter edit mode
     titleEl.addEventListener('dblclick', () => {
         if (!quickrefEditMode) enterQuickRefEdit();
     });
 
-    // Seed default data if Firebase is empty
     quickrefRef.once('value', (snapshot) => {
         if (!snapshot.val()) {
             quickrefRef.set({ items: SAMPLE_QUICKREF });
         }
     });
 
-    // Listen for real-time updates
     quickrefRef.on('value', (snapshot) => {
         const data = snapshot.val();
         quickrefItems = (data && data.items) ? data.items : [];
@@ -783,7 +871,6 @@ function enterQuickRefEdit() {
     </div>`;
     listEl.innerHTML = html;
 
-    // Add row
     document.getElementById('quickref-add-row').addEventListener('click', () => {
         const editEl = listEl.querySelector('.quickref-edit');
         const actionsEl = editEl.querySelector('.quickref-edit-actions');
@@ -799,19 +886,16 @@ function enterQuickRefEdit() {
         editEl.insertBefore(row, actionsEl);
     });
 
-    // Remove row (delegation)
     listEl.addEventListener('click', (e) => {
         const rmBtn = e.target.closest('.quickref-remove-btn');
         if (rmBtn) rmBtn.closest('.quickref-edit-row').remove();
     });
 
-    // Cancel
     document.getElementById('quickref-cancel').addEventListener('click', () => {
         quickrefEditMode = false;
         renderQuickRef();
     });
 
-    // Save
     document.getElementById('quickref-save').addEventListener('click', () => {
         const rows = listEl.querySelectorAll('.quickref-edit-row');
         const newItems = [];
@@ -827,19 +911,61 @@ function enterQuickRefEdit() {
 
 // --- Hub initialization ---
 document.addEventListener('DOMContentLoaded', () => {
+    // Debug banner - will remove after troubleshooting
+    const debugEl = document.createElement('div');
+    debugEl.id = 'debug-banner';
+    debugEl.style.cssText = 'position:fixed;bottom:60px;left:10px;right:10px;background:#111;color:#0f0;font-family:monospace;font-size:12px;padding:10px;border-radius:8px;z-index:9999;max-height:200px;overflow-y:auto;';
+    document.body.appendChild(debugEl);
+    function dbg(msg) { debugEl.textContent += msg + '\n'; console.log('[Hub]', msg); }
+
+    dbg('DOMContentLoaded fired');
+    dbg('Firebase obj: ' + (typeof firebase));
+    dbg('db obj: ' + (typeof db));
+
+    try {
+        enhancePhotoGrid();
+        dbg('enhancePhotoGrid OK');
+    } catch (err) {
+        dbg('enhancePhotoGrid ERROR: ' + err.message);
+    }
+
+    try {
+        dbg('Reading landingPage/images...');
+        db.ref('landingPage/images').once('value').then((snapshot) => {
+            const data = snapshot.val();
+            dbg('Firebase returned: ' + (data ? Object.keys(data).join(', ') : 'NULL'));
+            if (data) {
+                const items = photoGrid.querySelectorAll('.photo-grid-item');
+                dbg('Photo slots found: ' + items.length);
+                let loaded = 0;
+                items.forEach((item, i) => {
+                    const img = item.querySelector('img');
+                    const key = 'slot_' + i;
+                    if (data[key]) {
+                        img.src = data[key];
+                        loaded++;
+                    }
+                });
+                dbg('Images loaded from Firebase: ' + loaded);
+            }
+            editToggleBtn.style.display = 'flex';
+        }).catch((err) => {
+            dbg('Firebase READ ERROR: ' + err.message);
+        });
+
+        loadPositions();
+        dbg('loadPositions started');
+    } catch (err) {
+        dbg('Init error: ' + err.message);
+    }
+
     // Calendar
     fetchCalendarEvents();
-    setInterval(fetchCalendarEvents, 30 * 60 * 1000); // refresh every 30 min
+    setInterval(fetchCalendarEvents, 30 * 60 * 1000);
 
     // Firebase widgets
     initNotes();
     initShopping();
-    initMeals();
-    initWins();
-
-    // Firebase-backed widgets
     initQuickRef();
-    initTrips();
-    initChores();
     initAllowance();
 });
