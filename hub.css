@@ -217,6 +217,140 @@ body {
     opacity: 0.5;
 }
 
+/* --- Calendar Widget --- */
+.cal-mini {
+    margin-bottom: 14px;
+}
+
+.cal-mini-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.cal-mini-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--slate);
+}
+
+.cal-mini-nav {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: var(--slate-light);
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: background 0.15s;
+}
+
+.cal-mini-nav:hover {
+    background: var(--cream);
+}
+
+.cal-mini-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+    text-align: center;
+}
+
+.cal-mini-dow {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--slate-light);
+    padding: 4px 0;
+    text-transform: uppercase;
+}
+
+.cal-mini-day {
+    font-size: 0.75rem;
+    padding: 4px 0;
+    border-radius: 6px;
+    position: relative;
+    color: var(--slate-light);
+}
+
+.cal-mini-day.today {
+    background: var(--sky);
+    color: #fff;
+    font-weight: 700;
+}
+
+.cal-mini-day.has-event::after {
+    content: '';
+    position: absolute;
+    bottom: 2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--sky);
+}
+
+.cal-mini-day.today.has-event::after {
+    background: #fff;
+}
+
+.cal-mini-day.other-month {
+    opacity: 0.3;
+}
+
+.cal-events {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.cal-event-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--sky-light);
+    border-radius: 8px;
+    border-left: 3px solid var(--sky);
+}
+
+.cal-event-date {
+    text-align: center;
+    min-width: 36px;
+    flex-shrink: 0;
+}
+
+.cal-event-month {
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--sky);
+    line-height: 1;
+}
+
+.cal-event-day {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--slate);
+    line-height: 1.2;
+}
+
+.cal-event-name {
+    font-size: 0.85rem;
+    color: var(--slate);
+    font-weight: 500;
+}
+
+.cal-error {
+    text-align: center;
+    padding: 20px 0;
+    color: var(--slate-light);
+    font-size: 0.85rem;
+    opacity: 0.6;
+}
+
 /* --- Trip Countdown Widget --- */
 .countdown-hero {
     background: linear-gradient(135deg, var(--plum), #9B59B6);
