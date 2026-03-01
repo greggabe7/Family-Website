@@ -351,6 +351,68 @@ body {
     opacity: 0.6;
 }
 
+/* --- Chores Widget --- */
+.chores-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.chores-kid-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    background: var(--cream);
+    border-radius: 10px;
+}
+
+.chores-kid-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--slate);
+}
+
+.chores-kid-earnings {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--terracotta);
+}
+
+.chores-kid-label {
+    font-size: 0.7rem;
+    color: var(--slate-light);
+    opacity: 0.7;
+}
+
+/* --- Allowance Widget --- */
+.allowance-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.allowance-kid-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    background: var(--cream);
+    border-radius: 10px;
+}
+
+.allowance-kid-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--slate);
+}
+
+.allowance-kid-balance {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--sage);
+}
+
 /* --- Family Wins Widget --- */
 .wins-form {
     margin-bottom: 14px;

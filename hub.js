@@ -503,6 +503,73 @@ function initNotes() {
     });
 }
 
+// --- Chores Widget (read-only) ---
+function initChores() {
+    const earningsRef = db.ref('allowanceData/earnings');
+    earningsRef.on('value', (snapshot) => {
+        const el = document.getElementById('chores-summary');
+        const data = snapshot.val();
+        if (!data) {
+            el.innerHTML = '<div class="widget-placeholder" style="height:40px;">No chore data available</div>';
+            return;
+        }
+
+        const kids = [
+            { key: 'helena', name: 'Helena' },
+            { key: 'maria', name: 'Maria' }
+        ];
+
+        el.innerHTML = kids.map(kid => {
+            const earnings = data[kid.key] || {};
+            const weekTotal = earnings.weekTotal || 0;
+            const todayTotal = earnings.todayTotal || 0;
+            return `
+                <div class="chores-kid-row">
+                    <div>
+                        <div class="chores-kid-name">${kid.name}</div>
+                        <div class="chores-kid-label">Today: $${todayTotal.toFixed(2)}</div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div class="chores-kid-earnings">$${weekTotal.toFixed(2)}</div>
+                        <div class="chores-kid-label">this week</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    });
+}
+
+// --- Allowance Widget (read-only) ---
+function initAllowance() {
+    const historyRef = db.ref('allowanceData/payoutHistory');
+    historyRef.on('value', (snapshot) => {
+        const el = document.getElementById('allowance-summary');
+        const data = snapshot.val();
+        if (!data) {
+            el.innerHTML = '<div class="widget-placeholder" style="height:40px;">No balance data available</div>';
+            return;
+        }
+
+        const kids = [
+            { key: 'helena', name: 'Helena' },
+            { key: 'maria', name: 'Maria' }
+        ];
+
+        el.innerHTML = kids.map(kid => {
+            const payouts = data[kid.key] || [];
+            const balance = Array.isArray(payouts)
+                ? payouts.reduce((sum, p) => sum + (p.amount || 0), 0)
+                : 0;
+            return `
+                <div class="allowance-kid-row">
+                    <div class="allowance-kid-name">${kid.name}</div>
+                    <div class="allowance-kid-balance">$${balance.toFixed(2)}</div>
+                </div>
+            `;
+        }).join('');
+    });
+}
+
 // --- Sample data for seeding Firebase on first load ---
 const SAMPLE_TRIPS = [
     { name: 'Palm Springs Spring Break', emoji: '🌴', date: '2026-04-05' },
@@ -773,4 +840,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Firebase-backed widgets
     initQuickRef();
     initTrips();
+    initChores();
+    initAllowance();
 });
