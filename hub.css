@@ -217,6 +217,106 @@ body {
     opacity: 0.5;
 }
 
+/* --- Trip Countdown Widget --- */
+.countdown-hero {
+    background: linear-gradient(135deg, var(--plum), #9B59B6);
+    border-radius: 12px;
+    padding: 20px;
+    color: #fff;
+    text-align: center;
+    margin-bottom: 12px;
+}
+
+.countdown-hero-emoji {
+    font-size: 2rem;
+    margin-bottom: 4px;
+}
+
+.countdown-hero-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.countdown-hero-days {
+    font-size: 2.5rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.countdown-hero-label {
+    font-size: 0.75rem;
+    opacity: 0.85;
+    margin-top: 2px;
+}
+
+.countdown-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.countdown-list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--cream);
+    border-radius: 8px;
+    font-size: 0.85rem;
+}
+
+.countdown-list-item-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.countdown-list-item-days {
+    font-weight: 600;
+    color: var(--plum);
+    white-space: nowrap;
+}
+
+.countdown-empty {
+    text-align: center;
+    padding: 24px 0;
+    color: var(--slate-light);
+    font-size: 0.85rem;
+    opacity: 0.6;
+}
+
+/* --- Quick Reference Widget --- */
+.quickref-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.quickref-row {
+    display: flex;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.85rem;
+}
+
+.quickref-row:last-child {
+    border-bottom: none;
+}
+
+.quickref-label {
+    font-weight: 600;
+    color: var(--slate);
+    min-width: 80px;
+    flex-shrink: 0;
+}
+
+.quickref-value {
+    color: var(--slate-light);
+}
+
 /* --- App Links Row --- */
 .app-links {
     max-width: 1280px;
