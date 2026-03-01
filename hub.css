@@ -1338,3 +1338,146 @@ body {
 input, select, textarea {
     font-size: 16px;
 }
+
+/* ============================================
+   Polish: Animations & Loading
+   ============================================ */
+
+/* Widget entrance animation */
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.widget {
+    animation: fadeInUp 0.4s ease both;
+}
+
+.widget:nth-child(1) { animation-delay: 0.05s; }
+.widget:nth-child(2) { animation-delay: 0.10s; }
+.widget:nth-child(3) { animation-delay: 0.15s; }
+.widget:nth-child(4) { animation-delay: 0.20s; }
+.widget:nth-child(5) { animation-delay: 0.25s; }
+.widget:nth-child(6) { animation-delay: 0.30s; }
+.widget:nth-child(7) { animation-delay: 0.35s; }
+.widget:nth-child(8) { animation-delay: 0.40s; }
+.widget:nth-child(9) { animation-delay: 0.45s; }
+
+/* Loading skeleton */
+@keyframes shimmer {
+    0% { background-position: -200px 0; }
+    100% { background-position: 200px 0; }
+}
+
+.skeleton {
+    background: linear-gradient(90deg, var(--cream) 25%, #f0ede8 50%, var(--cream) 75%);
+    background-size: 400px 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 6px;
+}
+
+.skeleton-line {
+    height: 14px;
+    margin-bottom: 8px;
+    border-radius: 4px;
+}
+
+.skeleton-line:last-child {
+    width: 60%;
+}
+
+/* Photo grid entrance */
+.photo-grid-item {
+    animation: fadeInUp 0.3s ease both;
+}
+
+.photo-grid-item:nth-child(1) { animation-delay: 0s; }
+.photo-grid-item:nth-child(2) { animation-delay: 0.03s; }
+.photo-grid-item:nth-child(3) { animation-delay: 0.06s; }
+.photo-grid-item:nth-child(4) { animation-delay: 0.09s; }
+.photo-grid-item:nth-child(5) { animation-delay: 0.12s; }
+.photo-grid-item:nth-child(6) { animation-delay: 0.15s; }
+.photo-grid-item:nth-child(7) { animation-delay: 0.18s; }
+.photo-grid-item:nth-child(8) { animation-delay: 0.21s; }
+.photo-grid-item:nth-child(9) { animation-delay: 0.24s; }
+.photo-grid-item:nth-child(10) { animation-delay: 0.27s; }
+.photo-grid-item:nth-child(11) { animation-delay: 0.30s; }
+.photo-grid-item:nth-child(12) { animation-delay: 0.33s; }
+
+/* Smooth transitions for list items */
+.note-item,
+.win-item,
+.shop-item,
+.countdown-list-item,
+.cal-event-card {
+    animation: fadeInUp 0.2s ease both;
+}
+
+/* Button press effect */
+.notes-post-btn:active,
+.wins-post-btn:active,
+.shop-add-btn:active {
+    transform: scale(0.96);
+}
+
+/* App link pills entrance */
+.app-link-pill {
+    animation: fadeInUp 0.3s ease both;
+}
+
+.app-link-pill:nth-child(1) { animation-delay: 0.5s; }
+.app-link-pill:nth-child(2) { animation-delay: 0.55s; }
+.app-link-pill:nth-child(3) { animation-delay: 0.6s; }
+.app-link-pill:nth-child(4) { animation-delay: 0.65s; }
+.app-link-pill:nth-child(5) { animation-delay: 0.7s; }
+
+/* Scrollbar styling */
+.notes-list::-webkit-scrollbar,
+.shop-list::-webkit-scrollbar {
+    width: 4px;
+}
+
+.notes-list::-webkit-scrollbar-thumb,
+.shop-list::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+}
+
+/* Touch-friendly mobile tweaks */
+@media (max-width: 600px) {
+    .shop-tab {
+        min-height: 44px;
+    }
+
+    .notes-post-btn,
+    .wins-post-btn,
+    .shop-add-btn {
+        min-height: 44px;
+    }
+
+    .note-delete {
+        opacity: 0.5;
+        min-width: 44px;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .meal-tile {
+        min-height: 72px;
+    }
+
+    .meals-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+
+    .countdown-hero-days {
+        font-size: 2rem;
+    }
+
+    .modal {
+        max-width: 100%;
+        margin: 0 8px;
+    }
+}
