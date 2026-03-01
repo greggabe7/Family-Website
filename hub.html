@@ -147,7 +147,7 @@
                         <span class="widget-icon">✈️</span>
                         <h2 class="widget-title">Trip Countdowns</h2>
                     </div>
-                    <span class="widget-action">Manage →</span>
+                    <button class="widget-action" id="trips-manage-btn">Manage →</button>
                 </div>
                 <div class="widget-body">
                     <div class="countdown-hero" id="countdown-hero"></div>
@@ -229,6 +229,20 @@
     <footer class="hub-footer">
         <p>the pizzo family &middot; 2026</p>
     </footer>
+
+    <!-- Trip Manage Modal -->
+    <div class="modal-overlay" id="trips-modal" style="display:none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Manage Trips</h3>
+                <button class="modal-close" id="trips-modal-close">&times;</button>
+            </div>
+            <div class="modal-body" id="trips-modal-body"></div>
+            <div class="modal-footer">
+                <button class="modal-add-btn" id="trips-add-btn">+ Add Trip</button>
+            </div>
+        </div>
+    </div>
 
     <script src="hub.js"></script>
 </body>

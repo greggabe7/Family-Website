@@ -503,7 +503,7 @@ function initNotes() {
     });
 }
 
-// --- Hardcoded data (will be replaced by Firebase in later phases) ---
+// --- Sample data for seeding Firebase on first load ---
 const SAMPLE_TRIPS = [
     { name: 'Palm Springs Spring Break', emoji: '🌴', date: '2026-04-05' },
     { name: 'Hawaii Summer', emoji: '🌺', date: '2026-06-20' },
@@ -528,13 +528,53 @@ function daysUntil(dateStr) {
 }
 
 // --- Trip Countdown Widget ---
-function renderCountdown(trips) {
+const tripsRef = db.ref('hub/trips');
+let tripsData = {};
+
+function initTrips() {
+    const manageBtn = document.getElementById('trips-manage-btn');
+    const modal = document.getElementById('trips-modal');
+    const closeBtn = document.getElementById('trips-modal-close');
+    const addBtn = document.getElementById('trips-add-btn');
+
+    // Seed defaults if empty
+    tripsRef.once('value', (snapshot) => {
+        if (!snapshot.val()) {
+            SAMPLE_TRIPS.forEach(t => tripsRef.push(t));
+        }
+    });
+
+    // Real-time listener
+    tripsRef.on('value', (snapshot) => {
+        const data = snapshot.val();
+        tripsData = data || {};
+        renderCountdown();
+    });
+
+    // Modal open/close
+    manageBtn.addEventListener('click', () => {
+        modal.style.display = '';
+        renderTripsModal();
+    });
+    closeBtn.addEventListener('click', () => { modal.style.display = 'none'; });
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.style.display = 'none';
+    });
+
+    // Add trip
+    addBtn.addEventListener('click', () => {
+        tripsRef.push({ name: '', emoji: '✈️', date: '' });
+    });
+}
+
+function renderCountdown() {
     const heroEl = document.getElementById('countdown-hero');
     const listEl = document.getElementById('countdown-list');
     const emptyEl = document.getElementById('countdown-empty');
 
-    // Filter to future trips and sort by date
+    const trips = Object.values(tripsData);
     const upcoming = trips
+        .filter(t => t.date)
         .map(t => ({ ...t, daysAway: daysUntil(t.date) }))
         .filter(t => t.daysAway >= 0)
         .sort((a, b) => a.daysAway - b.daysAway);
@@ -548,17 +588,15 @@ function renderCountdown(trips) {
 
     emptyEl.style.display = 'none';
 
-    // Hero = closest trip
     const hero = upcoming[0];
     heroEl.style.display = '';
     heroEl.innerHTML = `
         <div class="countdown-hero-emoji">${hero.emoji}</div>
-        <div class="countdown-hero-name">${hero.name}</div>
+        <div class="countdown-hero-name">${escapeHtml(hero.name)}</div>
         <div class="countdown-hero-days">${hero.daysAway}</div>
         <div class="countdown-hero-label">days to go</div>
     `;
 
-    // Rest of the trips
     const rest = upcoming.slice(1);
     if (rest.length === 0) {
         listEl.style.display = 'none';
@@ -566,11 +604,48 @@ function renderCountdown(trips) {
         listEl.style.display = '';
         listEl.innerHTML = rest.map(t => `
             <div class="countdown-list-item">
-                <span class="countdown-list-item-name">${t.emoji} ${t.name}</span>
+                <span class="countdown-list-item-name">${t.emoji} ${escapeHtml(t.name)}</span>
                 <span class="countdown-list-item-days">${t.daysAway} days</span>
             </div>
         `).join('');
     }
+}
+
+function renderTripsModal() {
+    const bodyEl = document.getElementById('trips-modal-body');
+    const entries = Object.entries(tripsData);
+
+    if (entries.length === 0) {
+        bodyEl.innerHTML = '<p style="text-align:center;color:var(--slate-light);font-size:0.85rem;">No trips yet — add one below.</p>';
+        return;
+    }
+
+    bodyEl.innerHTML = entries.map(([id, trip]) => `
+        <div class="trip-modal-row" data-id="${id}">
+            <input type="text" class="trip-modal-emoji" value="${trip.emoji || ''}" placeholder="🌴" data-field="emoji" data-id="${id}">
+            <input type="text" class="trip-modal-name" value="${escapeHtml(trip.name || '')}" placeholder="Trip name" data-field="name" data-id="${id}">
+            <input type="date" class="trip-modal-date" value="${trip.date || ''}" data-field="date" data-id="${id}">
+            <button class="trip-modal-delete" data-id="${id}">&times;</button>
+        </div>
+    `).join('');
+
+    // Event delegation for edits
+    bodyEl.addEventListener('change', handleTripFieldChange);
+    bodyEl.addEventListener('input', handleTripFieldChange);
+
+    // Delete delegation
+    bodyEl.addEventListener('click', (e) => {
+        const delBtn = e.target.closest('.trip-modal-delete');
+        if (delBtn) tripsRef.child(delBtn.dataset.id).remove();
+    });
+}
+
+function handleTripFieldChange(e) {
+    const input = e.target;
+    if (!input.dataset.field || !input.dataset.id) return;
+    const updates = {};
+    updates[input.dataset.field] = input.value;
+    tripsRef.child(input.dataset.id).update(updates);
 }
 
 // --- Quick Reference Widget ---
@@ -695,9 +770,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initMeals();
     initWins();
 
-    // Firebase-backed widgets (formerly static)
+    // Firebase-backed widgets
     initQuickRef();
-
-    // Static widgets (will be Firebase-backed later)
-    renderCountdown(SAMPLE_TRIPS);
+    initTrips();
 });
