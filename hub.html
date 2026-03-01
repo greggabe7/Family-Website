@@ -72,7 +72,19 @@
                     <span class="widget-action">Add →</span>
                 </div>
                 <div class="widget-body">
-                    <div class="widget-placeholder">Notes widget loading...</div>
+                    <div class="notes-form">
+                        <select id="notes-author" class="notes-select">
+                            <option value="Dad">Dad</option>
+                            <option value="Mom">Mom</option>
+                            <option value="Helena">Helena</option>
+                            <option value="Maria">Maria</option>
+                        </select>
+                        <div class="notes-input-row">
+                            <input type="text" id="notes-text" class="notes-input" placeholder="Write a note..." maxlength="200">
+                            <button id="notes-post-btn" class="notes-post-btn">Post</button>
+                        </div>
+                    </div>
+                    <div class="notes-list" id="notes-list"></div>
                 </div>
             </div>
 

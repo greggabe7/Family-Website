@@ -147,6 +147,101 @@ function calNav(dir) {
     renderMiniCal();
 }
 
+// --- Notes Widget ---
+const notesRef = db.ref('hub/notes');
+
+function formatRelativeTime(timestamp) {
+    const now = Date.now();
+    const diff = now - timestamp;
+    const mins = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+    if (hours < 24) {
+        const d = new Date(timestamp);
+        return `Today ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+    }
+    if (days === 1) return 'Yesterday';
+    const d = new Date(timestamp);
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function initNotes() {
+    const textInput = document.getElementById('notes-text');
+    const authorSelect = document.getElementById('notes-author');
+    const postBtn = document.getElementById('notes-post-btn');
+
+    // Post note
+    function postNote() {
+        const text = textInput.value.trim();
+        if (!text) return;
+        notesRef.push({
+            author: authorSelect.value,
+            text: text,
+            timestamp: Date.now()
+        });
+        textInput.value = '';
+    }
+
+    postBtn.addEventListener('click', postNote);
+    textInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') postNote();
+    });
+
+    // Listen for real-time updates
+    notesRef.orderByChild('timestamp').on('value', (snapshot) => {
+        const listEl = document.getElementById('notes-list');
+        const data = snapshot.val();
+        if (!data) {
+            listEl.innerHTML = '<div class="widget-placeholder" style="height:40px;">No notes yet</div>';
+            return;
+        }
+
+        const notes = Object.entries(data)
+            .map(([id, note]) => ({ id, ...note }))
+            .sort((a, b) => b.timestamp - a.timestamp);
+
+        // Auto-delete notes older than 14 days
+        const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
+        notes.forEach(note => {
+            if (note.timestamp < cutoff) {
+                notesRef.child(note.id).remove();
+            }
+        });
+
+        const current = notes.filter(n => n.timestamp >= cutoff);
+        if (current.length === 0) {
+            listEl.innerHTML = '<div class="widget-placeholder" style="height:40px;">No notes yet</div>';
+            return;
+        }
+
+        listEl.innerHTML = current.map(note => `
+            <div class="note-item">
+                <span class="note-author" data-author="${escapeHtml(note.author)}">${escapeHtml(note.author)}</span>
+                <div class="note-content">
+                    <div class="note-text">${escapeHtml(note.text)}</div>
+                    <div class="note-time">${formatRelativeTime(note.timestamp)}</div>
+                </div>
+                <button class="note-delete" data-id="${note.id}" title="Delete">&times;</button>
+            </div>
+        `).join('');
+    });
+
+    // Delete note via event delegation
+    document.getElementById('notes-list').addEventListener('click', (e) => {
+        const btn = e.target.closest('.note-delete');
+        if (btn) notesRef.child(btn.dataset.id).remove();
+    });
+}
+
 // --- Hardcoded data (will be replaced by Firebase in later phases) ---
 const SAMPLE_TRIPS = [
     { name: 'Palm Springs Spring Break', emoji: '🌴', date: '2026-04-05' },
@@ -233,6 +328,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Calendar
     fetchCalendarEvents();
     setInterval(fetchCalendarEvents, 30 * 60 * 1000); // refresh every 30 min
+
+    // Firebase widgets
+    initNotes();
 
     // Static widgets
     renderCountdown(SAMPLE_TRIPS);

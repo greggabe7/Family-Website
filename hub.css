@@ -351,6 +351,136 @@ body {
     opacity: 0.6;
 }
 
+/* --- Notes Widget --- */
+.notes-form {
+    margin-bottom: 14px;
+}
+
+.notes-select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--cream);
+    color: var(--slate);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    margin-bottom: 8px;
+    cursor: pointer;
+}
+
+.notes-input-row {
+    display: flex;
+    gap: 8px;
+}
+
+.notes-input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--cream);
+    color: var(--slate);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+}
+
+.notes-input:focus,
+.notes-select:focus {
+    outline: none;
+    border-color: var(--gold);
+}
+
+.notes-post-btn {
+    padding: 8px 16px;
+    background: var(--gold);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+}
+
+.notes-post-btn:hover {
+    background: var(--terracotta);
+}
+
+.notes-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+.note-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--cream);
+    border-radius: 8px;
+    position: relative;
+}
+
+.note-author {
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    color: #fff;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.note-author[data-author="Dad"] { background: var(--sky); }
+.note-author[data-author="Mom"] { background: var(--plum); }
+.note-author[data-author="Helena"] { background: var(--terracotta); }
+.note-author[data-author="Maria"] { background: var(--sage); }
+
+.note-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.note-text {
+    font-size: 0.85rem;
+    color: var(--slate);
+    word-break: break-word;
+}
+
+.note-time {
+    font-size: 0.7rem;
+    color: var(--slate-light);
+    opacity: 0.6;
+    margin-top: 2px;
+}
+
+.note-delete {
+    background: none;
+    border: none;
+    color: var(--slate-light);
+    font-size: 1rem;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s;
+    padding: 0 4px;
+    flex-shrink: 0;
+}
+
+.note-item:hover .note-delete {
+    opacity: 0.5;
+}
+
+.note-delete:hover {
+    opacity: 1 !important;
+    color: var(--terracotta);
+}
+
 /* --- Trip Countdown Widget --- */
 .countdown-hero {
     background: linear-gradient(135deg, var(--plum), #9B59B6);
