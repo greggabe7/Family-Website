@@ -147,6 +147,78 @@ function calNav(dir) {
     renderMiniCal();
 }
 
+// --- Meal Planner Widget ---
+const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+const DAY_LABELS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+const mealsRef = db.ref('hub/meals');
+let currentMeals = {};
+
+function initMeals() {
+    const gridEl = document.getElementById('meals-grid');
+    const clearBtn = document.getElementById('meals-clear-btn');
+
+    mealsRef.on('value', (snapshot) => {
+        currentMeals = snapshot.val() || {};
+        renderMeals();
+    });
+
+    clearBtn.addEventListener('click', () => {
+        const empty = {};
+        DAYS.forEach(d => { empty[d] = ''; });
+        mealsRef.set(empty);
+    });
+
+    // Event delegation for click-to-edit
+    gridEl.addEventListener('click', (e) => {
+        const tile = e.target.closest('.meal-tile');
+        if (!tile || tile.querySelector('.meal-tile-input')) return;
+        const day = tile.dataset.day;
+        startMealEdit(tile, day);
+    });
+}
+
+function renderMeals() {
+    const gridEl = document.getElementById('meals-grid');
+    gridEl.innerHTML = DAYS.map((day, i) => {
+        const meal = currentMeals[day] || '';
+        return `
+            <div class="meal-tile" data-day="${day}">
+                <div class="meal-tile-day">${DAY_LABELS[i]}</div>
+                ${meal
+                    ? `<div class="meal-tile-meal">${escapeHtml(meal)}</div>`
+                    : `<div class="meal-tile-empty">— tap to add —</div>`
+                }
+            </div>
+        `;
+    }).join('');
+}
+
+function startMealEdit(tile, day) {
+    const current = currentMeals[day] || '';
+    const dayLabel = tile.querySelector('.meal-tile-day').outerHTML;
+    tile.innerHTML = `
+        ${dayLabel}
+        <input type="text" class="meal-tile-input" value="${escapeHtml(current)}" data-day="${day}">
+    `;
+    const input = tile.querySelector('.meal-tile-input');
+    input.focus();
+    input.select();
+
+    function save() {
+        const val = input.value.trim();
+        mealsRef.child(day).set(val);
+    }
+
+    input.addEventListener('blur', save);
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') input.blur();
+        if (e.key === 'Escape') {
+            input.removeEventListener('blur', save);
+            renderMeals();
+        }
+    });
+}
+
 // --- Shopping Lists Widget ---
 let currentStore = 'traderjoes';
 let shopListeners = {};
@@ -448,6 +520,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Firebase widgets
     initNotes();
     initShopping();
+    initMeals();
 
     // Static widgets
     renderCountdown(SAMPLE_TRIPS);

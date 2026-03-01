@@ -351,6 +351,69 @@ body {
     opacity: 0.6;
 }
 
+/* --- Meal Planner Widget --- */
+.meals-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+
+.meal-tile {
+    background: var(--cream);
+    border-radius: 10px;
+    padding: 10px;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.15s;
+    min-height: 64px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.meal-tile:hover {
+    background: #f0ede8;
+}
+
+.meal-tile-day {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--terracotta);
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+}
+
+.meal-tile-meal {
+    font-size: 0.8rem;
+    color: var(--slate);
+    font-weight: 500;
+}
+
+.meal-tile-empty {
+    font-size: 0.75rem;
+    color: var(--slate-light);
+    opacity: 0.5;
+    font-style: italic;
+}
+
+.meal-tile-input {
+    width: 100%;
+    border: 1px solid var(--terracotta);
+    border-radius: 6px;
+    padding: 4px 6px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    text-align: center;
+    background: #fff;
+    color: var(--slate);
+}
+
+.meal-tile-input:focus {
+    outline: none;
+    border-color: var(--terracotta);
+}
+
 /* --- Shopping Widget --- */
 .shop-tabs {
     display: flex;
