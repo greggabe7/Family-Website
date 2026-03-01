@@ -1,0 +1,321 @@
+/* ============================================
+   Pizzo Family Hub — Styles
+   ============================================ */
+
+/* --- CSS Variables --- */
+:root {
+    --cream: #FAF7F2;
+    --warm-white: #FFFEF9;
+    --slate: #2C3E50;
+    --slate-light: #4A5568;
+    --gold: #C9952A;
+    --gold-light: #F0D080;
+    --terracotta: #C96A3A;
+    --sage: #5A7A5A;
+    --sage-light: #E8F0E8;
+    --sky: #3A6EA8;
+    --sky-light: #E8F0F8;
+    --plum: #7A4A8A;
+    --border: rgba(44, 62, 80, 0.1);
+    --shadow: 0 2px 20px rgba(44, 62, 80, 0.08);
+    --shadow-hover: 0 8px 40px rgba(44, 62, 80, 0.15);
+}
+
+/* --- Reset & Base --- */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--cream);
+    color: var(--slate);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* --- Header --- */
+.hub-header {
+    background: var(--slate);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.hub-header-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 24px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.hub-logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.25rem;
+    color: var(--gold);
+    text-decoration: none;
+    letter-spacing: 0.02em;
+}
+
+.hub-nav {
+    display: flex;
+    gap: 24px;
+}
+
+.hub-nav-link {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.8);
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.hub-nav-link:hover,
+.hub-nav-link.active {
+    color: #fff;
+}
+
+/* --- Photo Grid --- */
+.photo-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    grid-template-rows: repeat(2, 170px);
+    gap: 3px;
+    background: var(--slate);
+}
+
+.photo-grid-item {
+    position: relative;
+    overflow: hidden;
+}
+
+.photo-grid-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.3s, filter 0.3s;
+}
+
+.photo-grid-item:hover img {
+    transform: scale(1.05);
+    filter: brightness(1.08);
+}
+
+.photo-caption {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 40px;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.4));
+    display: flex;
+    align-items: flex-end;
+    padding: 0 8px 6px;
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.9);
+    pointer-events: none;
+}
+
+/* --- Widget Grid Container --- */
+.widget-grid-container {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 24px;
+}
+
+.widget-grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr;
+    gap: 16px;
+}
+
+/* --- Widget Shell --- */
+.widget {
+    background: var(--warm-white);
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    padding: 20px;
+    border-top: 3px solid var(--slate-light);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.widget:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-hover);
+}
+
+/* Widget accent colors */
+.widget-calendar { border-top-color: var(--sky); }
+.widget-notes { border-top-color: var(--gold); }
+.widget-shopping { border-top-color: var(--sage); }
+.widget-chores { border-top-color: var(--terracotta); }
+.widget-meals { border-top-color: var(--terracotta); }
+.widget-countdown { border-top-color: var(--plum); }
+.widget-allowance { border-top-color: var(--sage); }
+.widget-wins { border-top-color: var(--gold); }
+.widget-quickref { border-top-color: var(--slate-light); }
+
+/* Widget Header */
+.widget-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.widget-title-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.widget-icon {
+    font-size: 1.1rem;
+}
+
+.widget-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--slate);
+}
+
+.widget-action {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--slate-light);
+    text-decoration: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+    cursor: pointer;
+}
+
+.widget:hover .widget-action {
+    opacity: 1;
+}
+
+/* Widget Body */
+.widget-body {
+    min-height: 80px;
+}
+
+.widget-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 80px;
+    color: var(--slate-light);
+    font-size: 0.85rem;
+    opacity: 0.5;
+}
+
+/* --- App Links Row --- */
+.app-links {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 8px 24px 32px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+}
+
+.app-link-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 18px;
+    background: var(--warm-white);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--slate);
+    text-decoration: none;
+    transition: all 0.2s;
+    box-shadow: 0 1px 4px rgba(44, 62, 80, 0.05);
+}
+
+.app-link-pill:hover {
+    background: var(--slate);
+    color: #fff;
+    box-shadow: var(--shadow);
+}
+
+/* --- Footer --- */
+.hub-footer {
+    text-align: center;
+    padding: 24px;
+    font-size: 0.8rem;
+    color: var(--slate-light);
+    opacity: 0.6;
+}
+
+/* ============================================
+   Responsive
+   ============================================ */
+
+/* Tablet */
+@media (max-width: 960px) {
+    .photo-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+
+    .widget-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+/* Mobile */
+@media (max-width: 600px) {
+    .photo-grid {
+        grid-template-columns: repeat(3, 1fr);
+        grid-template-rows: repeat(2, 130px);
+    }
+
+    .widget-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .hub-header-inner {
+        padding: 0 16px;
+    }
+
+    .hub-nav {
+        gap: 16px;
+    }
+
+    .hub-nav-link {
+        font-size: 0.8rem;
+    }
+
+    .widget-grid-container {
+        padding: 16px;
+    }
+
+    .widget-grid {
+        gap: 12px;
+    }
+
+    .app-links {
+        padding: 8px 16px 24px;
+    }
+
+    /* Ensure widget actions are always visible on touch */
+    .widget-action {
+        opacity: 1;
+    }
+}
+
+/* Prevent iOS zoom on inputs */
+input, select, textarea {
+    font-size: 16px;
+}

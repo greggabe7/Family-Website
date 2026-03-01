@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pizzo Family Hub</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="hub.css">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="hub-header">
+        <div class="hub-header-inner">
+            <a href="/hub.html" class="hub-logo"><em>the pizzo family</em></a>
+            <nav class="hub-nav">
+                <a href="/hub.html" class="hub-nav-link active">Home</a>
+                <a href="/index.html" class="hub-nav-link">Photos</a>
+                <a href="https://gabriel-trip-planner.netlify.app/" class="hub-nav-link">Trips</a>
+                <a href="https://helenas-book-library.netlify.app/" class="hub-nav-link">Books</a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Photo Grid -->
+    <section class="photo-grid">
+        <div class="photo-grid-item"><img src="https://i.imgur.com/hs554rR.jpeg" alt="Family photo"><div class="photo-caption"></div></div>
+        <div class="photo-grid-item"><img src="https://i.imgur.com/UxW60hx.jpeg" alt="Family photo"><div class="photo-caption"></div></div>
+        <div class="photo-grid-item"><img src="https://i.imgur.com/bVp8I7u.jpeg" alt="Family photo"><div class="photo-caption"></div></div>
+        <div class="photo-grid-item"><img src="https://i.imgur.com/3QiGgLa.jpeg" alt="Family photo"><div class="photo-caption"></div></div>
+        <div class="photo-grid-item"><img src="https://i.imgur.com/uPMRhnF.jpeg" alt="Family photo"><div class="photo-caption"></div></div>
+        <div class="photo-grid-item"><img src="https://i.imgur.com/1Nb2UMs.jpeg" alt="Family photo"><div class="photo-caption"></div></div>
+        <div class="photo-grid-item"><img src="https://i.imgur.com/p9E9lai.jpeg" alt="Family photo"><div class="photo-caption"></div></div>
+        <div class="photo-grid-item"><img src="https://i.imgur.com/K3nSDpT.jpeg" alt="Family photo"><div class="photo-caption"></div></div>
+        <div class="photo-grid-item"><img src="https://i.imgur.com/9d0xZsc.jpeg" alt="Family photo"><div class="photo-caption"></div></div>
+        <div class="photo-grid-item"><img src="https://i.imgur.com/GFf8aZe.jpeg" alt="Family photo"><div class="photo-caption"></div></div>
+        <div class="photo-grid-item"><img src="https://i.imgur.com/hs554rR.jpeg" alt="Family photo"><div class="photo-caption"></div></div>
+        <div class="photo-grid-item"><img src="https://i.imgur.com/UxW60hx.jpeg" alt="Family photo"><div class="photo-caption"></div></div>
+    </section>
+
+    <!-- Widget Grid -->
+    <main class="widget-grid-container">
+        <div class="widget-grid">
+
+            <!-- Calendar Widget -->
+            <div class="widget widget-calendar" id="widget-calendar">
+                <div class="widget-header">
+                    <div class="widget-title-group">
+                        <span class="widget-icon">📅</span>
+                        <h2 class="widget-title">Family Calendar</h2>
+                    </div>
+                    <a href="https://calendar.google.com" target="_blank" class="widget-action">Open →</a>
+                </div>
+                <div class="widget-body">
+                    <div class="widget-placeholder">Calendar widget loading...</div>
+                </div>
+            </div>
+
+            <!-- Notes Widget -->
+            <div class="widget widget-notes" id="widget-notes">
+                <div class="widget-header">
+                    <div class="widget-title-group">
+                        <span class="widget-icon">📝</span>
+                        <h2 class="widget-title">Family Notes</h2>
+                    </div>
+                    <span class="widget-action">Add →</span>
+                </div>
+                <div class="widget-body">
+                    <div class="widget-placeholder">Notes widget loading...</div>
+                </div>
+            </div>
+
+            <!-- Shopping Widget -->
+            <div class="widget widget-shopping" id="widget-shopping">
+                <div class="widget-header">
+                    <div class="widget-title-group">
+                        <span class="widget-icon">🛒</span>
+                        <h2 class="widget-title">Shopping Lists</h2>
+                    </div>
+                    <span class="widget-action">View →</span>
+                </div>
+                <div class="widget-body">
+                    <div class="widget-placeholder">Shopping widget loading...</div>
+                </div>
+            </div>
+
+            <!-- Chores Widget -->
+            <div class="widget widget-chores" id="widget-chores">
+                <div class="widget-header">
+                    <div class="widget-title-group">
+                        <span class="widget-icon">✅</span>
+                        <h2 class="widget-title">Chores</h2>
+                    </div>
+                    <a href="/kids-money-tracker.html" target="_blank" class="widget-action">Full board →</a>
+                </div>
+                <div class="widget-body">
+                    <div class="widget-placeholder">Chores widget loading...</div>
+                </div>
+            </div>
+
+            <!-- Meals Widget -->
+            <div class="widget widget-meals" id="widget-meals">
+                <div class="widget-header">
+                    <div class="widget-title-group">
+                        <span class="widget-icon">🍽️</span>
+                        <h2 class="widget-title">Meal Planner</h2>
+                    </div>
+                    <span class="widget-action">Edit →</span>
+                </div>
+                <div class="widget-body">
+                    <div class="widget-placeholder">Meals widget loading...</div>
+                </div>
+            </div>
+
+            <!-- Countdown Widget -->
+            <div class="widget widget-countdown" id="widget-countdown">
+                <div class="widget-header">
+                    <div class="widget-title-group">
+                        <span class="widget-icon">✈️</span>
+                        <h2 class="widget-title">Trip Countdowns</h2>
+                    </div>
+                    <span class="widget-action">Manage →</span>
+                </div>
+                <div class="widget-body">
+                    <div class="widget-placeholder">Countdown widget loading...</div>
+                </div>
+            </div>
+
+            <!-- Allowance Widget -->
+            <div class="widget widget-allowance" id="widget-allowance">
+                <div class="widget-header">
+                    <div class="widget-title-group">
+                        <span class="widget-icon">💰</span>
+                        <h2 class="widget-title">Allowance</h2>
+                    </div>
+                    <a href="/kids-money-tracker.html" target="_blank" class="widget-action">View history →</a>
+                </div>
+                <div class="widget-body">
+                    <div class="widget-placeholder">Allowance widget loading...</div>
+                </div>
+            </div>
+
+            <!-- Wins Widget -->
+            <div class="widget widget-wins" id="widget-wins">
+                <div class="widget-header">
+                    <div class="widget-title-group">
+                        <span class="widget-icon">🎉</span>
+                        <h2 class="widget-title">Family Wins</h2>
+                    </div>
+                    <span class="widget-action">Celebrate →</span>
+                </div>
+                <div class="widget-body">
+                    <div class="widget-placeholder">Wins widget loading...</div>
+                </div>
+            </div>
+
+            <!-- Quick Reference Widget -->
+            <div class="widget widget-quickref" id="widget-quickref">
+                <div class="widget-header">
+                    <div class="widget-title-group">
+                        <span class="widget-icon">📋</span>
+                        <h2 class="widget-title">Quick Reference</h2>
+                    </div>
+                    <span class="widget-action">Edit →</span>
+                </div>
+                <div class="widget-body">
+                    <div class="widget-placeholder">Quick Reference loading...</div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- App Links Row -->
+    <section class="app-links">
+        <a href="/kids-money-tracker.html" class="app-link-pill">💰 Allowance Tracker</a>
+        <a href="/index.html" class="app-link-pill">📸 Photo Albums</a>
+        <a href="https://gabriel-trip-planner.netlify.app/" class="app-link-pill">✈️ Trip Planner</a>
+        <a href="https://helenas-book-library.netlify.app/" class="app-link-pill">📚 Book Library</a>
+        <a href="https://el-project-de-stuffies.netlify.app/" class="app-link-pill">🧸 Stuffies</a>
+    </section>
+
+    <!-- Footer -->
+    <footer class="hub-footer">
+        <p>the pizzo family &middot; 2026</p>
+    </footer>
+
+    <script src="hub.js"></script>
+</body>
+</html>
