@@ -10,6 +10,25 @@
     <link rel="stylesheet" href="hub.css">
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <!--
+    ============================================================
+    CLAUDE AI INTEGRATION — Shopping List REST API
+    ============================================================
+    Firebase path: hub/shopping/{store}
+    Store keys: traderjoes, wholefoods, stater
+
+    To add an item via REST API (no auth required):
+    POST https://gabriel-family-allowance-default-rtdb.firebaseio.com/hub/shopping/{store}.json
+    Body: {"item":"milk","checked":false,"timestamp":1234567890,"addedBy":"Claude"}
+
+    Example curl:
+    curl -X POST "https://gabriel-family-allowance-default-rtdb.firebaseio.com/hub/shopping/traderjoes.json" \
+      -d '{"item":"Organic milk","checked":false,"timestamp":'$(date +%s000)',"addedBy":"Claude"}'
+
+    To read a store's items:
+    GET https://gabriel-family-allowance-default-rtdb.firebaseio.com/hub/shopping/{store}.json
+    ============================================================
+    -->
     <style>
         body {
             background: var(--cream);
@@ -24,21 +43,49 @@
             padding: 24px 20px 60px;
         }
 
+        .page-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+        }
+
         .page-title {
             font-family: 'Playfair Display', serif;
             font-size: 1.8rem;
             font-weight: 700;
-            margin: 0 0 24px;
+            margin: 0;
             color: var(--slate);
         }
 
         .page-title .icon { margin-right: 8px; }
 
+        .export-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 18px;
+            background: none;
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--slate-light);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .export-btn:hover {
+            border-color: var(--sky);
+            color: var(--sky);
+        }
+
         /* Store tabs */
         .store-tabs {
             display: flex;
             gap: 8px;
-            margin-bottom: 20px;
+            margin-bottom: 12px;
         }
 
         .store-tab {
@@ -64,12 +111,68 @@
             border-color: var(--sage);
         }
 
+        .store-tab[data-store="all"].active {
+            background: var(--slate);
+            border-color: var(--slate);
+        }
+
+        /* Filter bar */
+        .filter-bar {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .filter-pill {
+            padding: 6px 14px;
+            border: 1.5px solid var(--border);
+            border-radius: 20px;
+            background: none;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--slate-light);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .filter-pill:hover { border-color: var(--slate-light); }
+
+        .filter-pill.active {
+            background: var(--slate);
+            color: white;
+            border-color: var(--slate);
+        }
+
+        .filter-pill[data-person="Dad"].active { background: var(--sky); border-color: var(--sky); }
+        .filter-pill[data-person="Mom"].active { background: var(--plum); border-color: var(--plum); }
+        .filter-pill[data-person="Helena"].active { background: var(--terracotta); border-color: var(--terracotta); }
+        .filter-pill[data-person="Maria"].active { background: var(--sage); border-color: var(--sage); }
+
         /* Add item row */
         .add-row {
             display: flex;
             gap: 10px;
-            margin-bottom: 24px;
+            margin-bottom: 20px;
         }
+
+        .add-row.hidden { display: none; }
+
+        .add-person {
+            padding: 12px 10px;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--slate);
+            background: var(--warm-white);
+            outline: none;
+            cursor: pointer;
+        }
+
+        .add-person:focus { border-color: var(--sage); }
 
         .add-input {
             flex: 1;
@@ -109,11 +212,30 @@
             gap: 6px;
         }
 
+        .store-group-header {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: var(--slate);
+            padding: 16px 0 8px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 6px;
+        }
+
+        .store-group-header:first-child { padding-top: 0; }
+
+        .store-group-empty {
+            padding: 8px 16px;
+            color: #bbb;
+            font-size: 0.9rem;
+            font-style: italic;
+        }
+
         .item-row {
             display: flex;
             align-items: center;
-            gap: 12px;
-            padding: 14px 16px;
+            gap: 10px;
+            padding: 12px 16px;
             background: var(--warm-white);
             border-radius: 12px;
             border: 1px solid var(--border);
@@ -141,6 +263,22 @@
             color: var(--slate-light);
         }
 
+        .item-badge {
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .item-badge[data-person="Dad"] { background: var(--sky); }
+        .item-badge[data-person="Mom"] { background: var(--plum); }
+        .item-badge[data-person="Helena"] { background: var(--terracotta); }
+        .item-badge[data-person="Maria"] { background: var(--sage); }
+        .item-badge[data-person="Claude"] { background: var(--gold); }
+        .item-badge[data-person=""] { display: none; }
+
         .item-delete {
             background: none;
             border: none;
@@ -164,9 +302,16 @@
             border-top: 1px solid var(--border);
             font-size: 0.85rem;
             color: var(--slate-light);
+            gap: 8px;
+            flex-wrap: wrap;
         }
 
-        .clear-btn {
+        .footer-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .clear-btn, .reset-btn {
             padding: 8px 16px;
             background: none;
             border: 1px solid var(--border);
@@ -183,6 +328,11 @@
             color: var(--terracotta);
         }
 
+        .reset-btn:hover, .reset-btn.confirm {
+            border-color: #c0392b;
+            color: #c0392b;
+        }
+
         .empty-state {
             text-align: center;
             padding: 40px 20px;
@@ -193,8 +343,11 @@
         @media (max-width: 480px) {
             .page-container { padding: 16px 14px 40px; }
             .page-title { font-size: 1.4rem; }
-            .store-tab { padding: 12px 6px; font-size: 0.85rem; }
+            .store-tab { padding: 12px 4px; font-size: 0.8rem; }
             .add-input, .add-btn { padding: 12px 14px; }
+            .add-person { padding: 10px 6px; font-size: 0.8rem; }
+            .export-btn { padding: 8px 12px; font-size: 0.8rem; }
+            .filter-pill { padding: 5px 10px; font-size: 0.75rem; }
         }
     </style>
 </head>
@@ -214,15 +367,33 @@
     </header>
 
     <div class="page-container">
-        <h1 class="page-title"><span class="icon">🛒</span>Shopping Lists</h1>
+        <div class="page-header">
+            <h1 class="page-title"><span class="icon">🛒</span>Shopping Lists</h1>
+            <button class="export-btn" id="export-btn">📋 Export</button>
+        </div>
 
         <div class="store-tabs">
             <button class="store-tab active" data-store="traderjoes">Trader Joe's</button>
             <button class="store-tab" data-store="wholefoods">Whole Foods</button>
             <button class="store-tab" data-store="stater">Stater</button>
+            <button class="store-tab" data-store="all">Full List</button>
         </div>
 
-        <div class="add-row">
+        <div class="filter-bar" id="filter-bar">
+            <button class="filter-pill active" data-person="all">All</button>
+            <button class="filter-pill" data-person="Dad">Dad</button>
+            <button class="filter-pill" data-person="Mom">Mom</button>
+            <button class="filter-pill" data-person="Helena">Helena</button>
+            <button class="filter-pill" data-person="Maria">Maria</button>
+        </div>
+
+        <div class="add-row" id="add-row">
+            <select id="add-person" class="add-person">
+                <option value="Dad">Dad</option>
+                <option value="Mom">Mom</option>
+                <option value="Helena">Helena</option>
+                <option value="Maria">Maria</option>
+            </select>
             <input type="text" id="add-input" class="add-input" placeholder="Add an item...">
             <button id="add-btn" class="add-btn">Add</button>
         </div>
@@ -244,13 +415,25 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
-        let currentStore = 'traderjoes';
-        let currentListener = null;
+        const STORES = {
+            traderjoes: "Trader Joe's",
+            wholefoods: "Whole Foods",
+            stater: "Stater"
+        };
 
+        let currentStore = 'traderjoes';
+        let currentFilter = 'all';
+        let activeListeners = [];
+        let allStoreData = { traderjoes: null, wholefoods: null, stater: null };
+        let resetTimer = null;
+
+        const personSelect = document.getElementById('add-person');
         const input = document.getElementById('add-input');
         const addBtn = document.getElementById('add-btn');
+        const addRow = document.getElementById('add-row');
         const listEl = document.getElementById('item-list');
         const footerEl = document.getElementById('list-footer');
+        const exportBtn = document.getElementById('export-btn');
 
         // Tab switching
         document.querySelectorAll('.store-tab').forEach(tab => {
@@ -258,19 +441,52 @@
                 document.querySelector('.store-tab.active').classList.remove('active');
                 tab.classList.add('active');
                 currentStore = tab.dataset.store;
-                listenToStore(currentStore);
-                input.focus();
+
+                if (currentStore === 'all') {
+                    addRow.classList.add('hidden');
+                    listenToAllStores();
+                } else {
+                    addRow.classList.remove('hidden');
+                    listenToStore(currentStore);
+                    input.focus();
+                }
             });
         });
+
+        // Filter switching
+        document.querySelectorAll('.filter-pill').forEach(pill => {
+            pill.addEventListener('click', () => {
+                document.querySelector('.filter-pill.active').classList.remove('active');
+                pill.classList.add('active');
+                currentFilter = pill.dataset.person;
+                rerender();
+            });
+        });
+
+        // Clean up all active listeners
+        function clearListeners() {
+            activeListeners.forEach(fn => fn());
+            activeListeners = [];
+        }
+
+        // Re-render current view
+        function rerender() {
+            if (currentStore === 'all') {
+                renderFullList();
+            } else {
+                renderSingleStore(allStoreData[currentStore]);
+            }
+        }
 
         // Add item
         function addItem() {
             const text = input.value.trim();
-            if (!text) return;
+            if (!text || currentStore === 'all') return;
             db.ref(`hub/shopping/${currentStore}`).push({
                 item: text,
                 checked: false,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                addedBy: personSelect.value
             });
             input.value = '';
             input.focus();
@@ -279,65 +495,208 @@
         addBtn.addEventListener('click', addItem);
         input.addEventListener('keydown', (e) => { if (e.key === 'Enter') addItem(); });
 
-        // Listen to store
+        // Listen to single store
         function listenToStore(store) {
-            if (currentListener) currentListener();
+            clearListeners();
             const ref = db.ref(`hub/shopping/${store}`);
-            const cb = ref.on('value', (snap) => renderList(snap.val()));
-            currentListener = () => ref.off('value', cb);
+            const cb = ref.on('value', (snap) => {
+                allStoreData[store] = snap.val();
+                renderSingleStore(snap.val());
+            });
+            activeListeners.push(() => ref.off('value', cb));
         }
 
-        // Render list
-        function renderList(data) {
+        // Listen to all stores
+        function listenToAllStores() {
+            clearListeners();
+            Object.keys(STORES).forEach(storeKey => {
+                const ref = db.ref(`hub/shopping/${storeKey}`);
+                const cb = ref.on('value', (snap) => {
+                    allStoreData[storeKey] = snap.val();
+                    renderFullList();
+                });
+                activeListeners.push(() => ref.off('value', cb));
+            });
+        }
+
+        // Sort items: unchecked first, then by timestamp
+        function sortItems(data) {
+            const items = Object.entries(data).map(([id, v]) => ({ id, ...v }));
+            items.sort((a, b) => (a.checked === b.checked ? a.timestamp - b.timestamp : a.checked ? 1 : -1));
+            return items;
+        }
+
+        // Apply person filter
+        function applyFilter(items) {
+            if (currentFilter === 'all') return items;
+            return items.filter(i => (i.addedBy || '') === currentFilter);
+        }
+
+        // Render a single item row
+        function renderItemRow(item, storeKey) {
+            const person = item.addedBy || '';
+            return `
+                <div class="item-row${item.checked ? ' checked' : ''}">
+                    <input type="checkbox" class="item-checkbox" data-id="${item.id}" data-store="${storeKey}" ${item.checked ? 'checked' : ''}>
+                    <span class="item-name">${escapeHtml(item.item)}</span>
+                    <span class="item-badge" data-person="${escapeHtml(person)}">${escapeHtml(person)}</span>
+                    <button class="item-delete" data-id="${item.id}" data-store="${storeKey}">×</button>
+                </div>
+            `;
+        }
+
+        // Render single store view
+        function renderSingleStore(data) {
             if (!data) {
                 listEl.innerHTML = '<div class="empty-state">List is empty — add something!</div>';
                 footerEl.innerHTML = '';
                 return;
             }
 
-            const items = Object.entries(data).map(([id, v]) => ({ id, ...v }));
-            items.sort((a, b) => (a.checked === b.checked ? a.timestamp - b.timestamp : a.checked ? 1 : -1));
+            const allItems = sortItems(data);
+            const filtered = applyFilter(allItems);
 
-            const remaining = items.filter(i => !i.checked).length;
-            const checked = items.filter(i => i.checked).length;
-
-            listEl.innerHTML = items.map(i => `
-                <div class="item-row${i.checked ? ' checked' : ''}">
-                    <input type="checkbox" class="item-checkbox" data-id="${i.id}" ${i.checked ? 'checked' : ''}>
-                    <span class="item-name">${escapeHtml(i.item)}</span>
-                    <button class="item-delete" data-id="${i.id}">×</button>
-                </div>
-            `).join('');
-
-            if (items.length > 0) {
-                footerEl.innerHTML = `
-                    <span>${remaining} remaining${checked > 0 ? `, ${checked} checked` : ''}</span>
-                    ${checked > 0 ? '<button class="clear-btn" id="clear-checked-btn">Clear checked</button>' : ''}
-                `;
-            } else {
-                footerEl.innerHTML = '';
+            if (filtered.length === 0 && currentFilter !== 'all') {
+                listEl.innerHTML = `<div class="empty-state">No items from ${currentFilter}</div>`;
+                renderFooter(0, 0, allItems.length > 0);
+                return;
             }
+
+            const remaining = filtered.filter(i => !i.checked).length;
+            const checked = filtered.filter(i => i.checked).length;
+
+            listEl.innerHTML = filtered.map(i => renderItemRow(i, currentStore)).join('');
+            renderFooter(remaining, checked, allItems.length > 0);
         }
 
-        // Event delegation
+        // Render full list view (all stores grouped)
+        function renderFullList() {
+            let html = '';
+            let totalRemaining = 0;
+            let totalChecked = 0;
+            let hasAnyItems = false;
+
+            Object.entries(STORES).forEach(([storeKey, storeName]) => {
+                html += `<div class="store-group-header">${storeName}</div>`;
+                const data = allStoreData[storeKey];
+                if (!data) {
+                    html += '<div class="store-group-empty">No items</div>';
+                    return;
+                }
+
+                const allItems = sortItems(data);
+                const filtered = applyFilter(allItems);
+                if (allItems.length > 0) hasAnyItems = true;
+
+                if (filtered.length === 0) {
+                    html += `<div class="store-group-empty">${currentFilter !== 'all' ? 'No items from ' + currentFilter : 'No items'}</div>`;
+                    return;
+                }
+
+                totalRemaining += filtered.filter(i => !i.checked).length;
+                totalChecked += filtered.filter(i => i.checked).length;
+
+                html += filtered.map(i => renderItemRow(i, storeKey)).join('');
+            });
+
+            listEl.innerHTML = html;
+            renderFooter(totalRemaining, totalChecked, hasAnyItems);
+        }
+
+        // Render footer
+        function renderFooter(remaining, checked, hasItems) {
+            if (remaining === 0 && checked === 0 && !hasItems) {
+                footerEl.innerHTML = '';
+                return;
+            }
+            footerEl.innerHTML = `
+                <span>${remaining} remaining${checked > 0 ? `, ${checked} checked` : ''}</span>
+                <div class="footer-actions">
+                    ${checked > 0 ? '<button class="clear-btn" id="clear-checked-btn">Clear checked</button>' : ''}
+                    ${hasItems ? '<button class="reset-btn" id="reset-btn">Reset list</button>' : ''}
+                </div>
+            `;
+        }
+
+        // Event delegation — checkbox toggle
         document.addEventListener('change', (e) => {
             if (e.target.matches('.item-checkbox')) {
-                db.ref(`hub/shopping/${currentStore}/${e.target.dataset.id}/checked`).set(e.target.checked);
+                db.ref(`hub/shopping/${e.target.dataset.store}/${e.target.dataset.id}/checked`).set(e.target.checked);
             }
         });
 
+        // Event delegation — delete, clear, reset
         document.addEventListener('click', (e) => {
-            // Delete single item
             if (e.target.matches('.item-delete')) {
-                db.ref(`hub/shopping/${currentStore}/${e.target.dataset.id}`).remove();
+                db.ref(`hub/shopping/${e.target.dataset.store}/${e.target.dataset.id}`).remove();
             }
-            // Clear all checked
+
             if (e.target.id === 'clear-checked-btn') {
-                const checkboxes = listEl.querySelectorAll('.item-checkbox:checked');
-                checkboxes.forEach(cb => {
-                    db.ref(`hub/shopping/${currentStore}/${cb.dataset.id}`).remove();
+                listEl.querySelectorAll('.item-checkbox:checked').forEach(cb => {
+                    db.ref(`hub/shopping/${cb.dataset.store}/${cb.dataset.id}`).remove();
                 });
             }
+
+            if (e.target.id === 'reset-btn') {
+                const btn = e.target;
+                if (btn.classList.contains('confirm')) {
+                    // Second click — actually reset
+                    clearTimeout(resetTimer);
+                    if (currentStore === 'all') {
+                        Object.keys(STORES).forEach(k => db.ref(`hub/shopping/${k}`).remove());
+                    } else {
+                        db.ref(`hub/shopping/${currentStore}`).remove();
+                    }
+                    btn.classList.remove('confirm');
+                    btn.textContent = 'Reset list';
+                } else {
+                    // First click — show confirmation
+                    btn.classList.add('confirm');
+                    btn.textContent = 'Tap again to confirm';
+                    resetTimer = setTimeout(() => {
+                        btn.classList.remove('confirm');
+                        btn.textContent = 'Reset list';
+                    }, 3000);
+                }
+            }
+        });
+
+        // Export
+        exportBtn.addEventListener('click', () => {
+            let text = '';
+            let filename = '';
+
+            function formatItems(data) {
+                if (!data) return '(empty)\n';
+                let items = sortItems(data);
+                items = applyFilter(items);
+                if (items.length === 0) return '(empty)\n';
+                return items.map(i => {
+                    const who = i.addedBy ? ` [${i.addedBy}]` : '';
+                    return (i.checked ? '☑ ' : '☐ ') + i.item + who;
+                }).join('\n') + '\n';
+            }
+
+            if (currentStore === 'all') {
+                Object.entries(STORES).forEach(([storeKey, storeName], idx) => {
+                    if (idx > 0) text += '\n';
+                    text += storeName + '\n';
+                    text += formatItems(allStoreData[storeKey]);
+                });
+                filename = 'shopping-full-list.txt';
+            } else {
+                text += STORES[currentStore] + '\n';
+                text += formatItems(allStoreData[currentStore]);
+                filename = `shopping-${currentStore}.txt`;
+            }
+
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
         });
 
         function escapeHtml(str) {
