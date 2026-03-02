@@ -22,7 +22,6 @@ try {
     app = firebase.initializeApp(firebaseConfig);
     db = firebase.database();
     storage = firebase.storage();
-    console.log('[Hub] Firebase initialized OK');
 } catch (err) {
     console.error('[Hub] Firebase init failed:', err);
 }
@@ -126,12 +125,9 @@ function enhancePhotoGrid() {
 
 // Load image URLs from Firebase, fall back to defaults
 function loadImageUrls() {
-    console.log('[Hub] loadImageUrls called, reading landingPage/images');
     const imgsRef = db.ref('landingPage/images');
     imgsRef.on('value', (snapshot) => {
         const data = snapshot.val() || {};
-        console.log('[Hub] Firebase images data:', JSON.stringify(data).substring(0, 200));
-        console.log('[Hub] Keys found:', Object.keys(data));
         const items = photoGrid.querySelectorAll('.photo-grid-item');
         items.forEach((item, i) => {
             const img = item.querySelector('img');
@@ -768,29 +764,31 @@ document.addEventListener('change', (e) => {
 
 // --- Allowance Widget (read-only) ---
 function initAllowance() {
-    const historyRef = db.ref('allowanceData/payoutHistory');
-    historyRef.on('value', (snapshot) => {
+    db.ref('allowanceData').on('value', (snapshot) => {
         const el = document.getElementById('allowance-summary');
         const data = snapshot.val();
-        if (!data) {
+        if (!data || !data.earnings) {
             el.innerHTML = '<div class="widget-placeholder" style="height:40px;">No balance data available</div>';
             return;
         }
 
+        const currentYear = new Date().getFullYear().toString();
         const kids = [
             { key: 'helena', name: 'Helena' },
             { key: 'maria', name: 'Maria' }
         ];
 
         el.innerHTML = kids.map(kid => {
-            const payouts = data[kid.key] || [];
-            const balance = Array.isArray(payouts)
-                ? payouts.reduce((sum, p) => sum + (p.amount || 0), 0)
-                : 0;
+            const weekTotal = (data.earnings[kid.key] && data.earnings[kid.key].weekTotal) || 0;
+            const yearPaid = (data.yearlyEarnings && data.yearlyEarnings[kid.key] && data.yearlyEarnings[kid.key][currentYear]) || 0;
+            const yearTotal = Math.round((yearPaid + weekTotal) * 100) / 100;
             return `
                 <div class="allowance-kid-row">
                     <div class="allowance-kid-name">${kid.name}</div>
-                    <div class="allowance-kid-balance">$${balance.toFixed(2)}</div>
+                    <div class="allowance-kid-amounts">
+                        <div class="allowance-week">This week: <strong>$${weekTotal.toFixed(2)}</strong></div>
+                        <div class="allowance-year">${currentYear} total: $${yearTotal.toFixed(2)}</div>
+                    </div>
                 </div>
             `;
         }).join('');
@@ -911,61 +909,40 @@ function enterQuickRefEdit() {
 
 // --- Hub initialization ---
 document.addEventListener('DOMContentLoaded', () => {
-    // Debug banner - will remove after troubleshooting
-    const debugEl = document.createElement('div');
-    debugEl.id = 'debug-banner';
-    debugEl.style.cssText = 'position:fixed;bottom:60px;left:10px;right:10px;background:#111;color:#0f0;font-family:monospace;font-size:12px;padding:10px;border-radius:8px;z-index:9999;max-height:200px;overflow-y:auto;';
-    document.body.appendChild(debugEl);
-    function dbg(msg) { debugEl.textContent += msg + '\n'; console.log('[Hub]', msg); }
+    enhancePhotoGrid();
 
-    dbg('DOMContentLoaded fired');
-    dbg('Firebase obj: ' + (typeof firebase));
-    dbg('db obj: ' + (typeof db));
+    db.ref('landingPage/images').once('value').then((snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            const items = photoGrid.querySelectorAll('.photo-grid-item');
+            items.forEach((item, i) => {
+                const img = item.querySelector('img');
+                const key = 'slot_' + i;
+                if (data[key]) { img.src = data[key]; }
+            });
+        }
+        editToggleBtn.style.display = 'flex';
+    }).catch((err) => {
+        console.error('[Hub] Firebase image load failed:', err);
+    });
 
-    try {
-        enhancePhotoGrid();
-        dbg('enhancePhotoGrid OK');
-    } catch (err) {
-        dbg('enhancePhotoGrid ERROR: ' + err.message);
-    }
-
-    try {
-        dbg('Reading landingPage/images...');
-        db.ref('landingPage/images').once('value').then((snapshot) => {
-            const data = snapshot.val();
-            dbg('Firebase returned: ' + (data ? Object.keys(data).join(', ') : 'NULL'));
-            if (data) {
-                const items = photoGrid.querySelectorAll('.photo-grid-item');
-                dbg('Photo slots found: ' + items.length);
-                let loaded = 0;
-                items.forEach((item, i) => {
-                    const img = item.querySelector('img');
-                    const key = 'slot_' + i;
-                    if (data[key]) {
-                        img.src = data[key];
-                        loaded++;
-                    }
-                });
-                dbg('Images loaded from Firebase: ' + loaded);
-            }
-            editToggleBtn.style.display = 'flex';
-        }).catch((err) => {
-            dbg('Firebase READ ERROR: ' + err.message);
-        });
-
-        loadPositions();
-        dbg('loadPositions started');
-    } catch (err) {
-        dbg('Init error: ' + err.message);
-    }
+    loadPositions();
 
     // Calendar
     fetchCalendarEvents();
     setInterval(fetchCalendarEvents, 30 * 60 * 1000);
 
-    // Firebase widgets
+    // Firebase widgets (public paths — no auth needed)
     initNotes();
     initShopping();
     initQuickRef();
-    initAllowance();
+
+    // Allowance needs auth (allowanceData requires auth != null)
+    firebase.auth().signInAnonymously().then(() => {
+        initAllowance();
+    }).catch(err => {
+        console.error('[Hub] Auth failed:', err);
+        document.getElementById('allowance-summary').innerHTML =
+            '<div class="widget-placeholder">Could not load allowance data</div>';
+    });
 });

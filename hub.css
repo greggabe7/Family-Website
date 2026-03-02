@@ -574,10 +574,24 @@ body {
     color: var(--slate);
 }
 
-.allowance-kid-balance {
-    font-size: 1.3rem;
-    font-weight: 700;
+.allowance-kid-amounts {
+    text-align: right;
+}
+
+.allowance-week {
+    font-size: 1.05rem;
+    color: var(--slate);
+}
+
+.allowance-week strong {
     color: var(--sage);
+    font-size: 1.15rem;
+}
+
+.allowance-year {
+    font-size: 0.75rem;
+    color: #999;
+    margin-top: 2px;
 }
 
 /* --- Shopping Widget --- */

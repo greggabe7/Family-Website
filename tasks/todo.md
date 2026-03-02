@@ -18,25 +18,18 @@
 - [x] Header nav updated: Home, Allowance, Trip Planner, Stuffies, Books
 - [x] Edit FAB always visible (not waiting for Firebase)
 - [x] Firebase appId matched to index.html
-
-## Blocked
-- [ ] **Photos not loading from Firebase** — `landingPage/images` returns "permission denied"
-  - Root cause: Firebase security rules only allow `/hub/` path, not `/landingPage/`
-  - Fix: Update Firebase Realtime Database rules to allow read/write on `landingPage/` (and ideally all paths)
-  - Helper page created: `fix-rules.html` at http://localhost:8888/fix-rules.html
-  - Rules to set: `{ "rules": { ".read": true, ".write": true } }`
-  - After rules fix: refresh hub.html and photos should load
+- [x] Fix Firebase security rules — `landingPage/` now public read/write, `allowanceData/` kept auth-protected
+- [x] Connect Allowance widget to Firebase — added anonymous auth + live weekTotal/yearlyEarnings display
+- [x] Remove debug logging from hub.js (debug banner, console.log statements)
+- [x] Remove debug.html and fix-rules.html helper files
 
 ## Still Todo
-- [ ] Fix Firebase security rules (see Blocked above)
-- [ ] Remove debug logging from hub.js (debug banner, console.log statements)
-- [ ] Remove debug.html and fix-rules.html helper files
 - [ ] Test photo edit: upload, reposition (drag + scroll zoom), restore to default
-- [ ] Test all 5 widgets work with Firebase
+- [ ] Test all 5 widgets work with Firebase (Notes, Shopping, Quick Ref confirmed; Calendar needs API key)
 - [ ] Mobile responsive testing (400px)
+- [ ] Calendar widget: needs Google Calendar API key + Calendar ID (or remove/replace)
 - [ ] Clean up — remove tasks/ from git if not wanted
 
 ## Notes
 - Local server: `cd Family-Website && python3 -m http.server 8888`
-- Chrome extension (Claude in Chrome) not connecting — Claude Desktop app's native host conflicts with Claude Code CLI. Workaround attempted but MCP bridge still not establishing. Not critical for hub work.
-- Restored native host manifest backup needed: `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.anthropic.claude_browser_extension.json.bak`
+- Chrome in Chrome MCP is now connected and working

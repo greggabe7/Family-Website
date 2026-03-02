@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Family Notes — Gabriel Family</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="hub.css">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <style>
+        body {
+            background: var(--cream);
+            font-family: 'DM Sans', sans-serif;
+            color: var(--slate);
+            margin: 0;
+        }
+
+        .page-container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 24px 20px 60px;
+        }
+
+        .page-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin: 0 0 24px;
+            color: var(--slate);
+        }
+
+        .page-title .icon { margin-right: 8px; }
+
+        /* Post form */
+        .post-form {
+            background: var(--warm-white);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 28px;
+        }
+
+        .post-top-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .author-select {
+            padding: 10px 14px;
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: var(--slate);
+            background: var(--cream);
+            outline: none;
+            cursor: pointer;
+        }
+
+        .author-select:focus { border-color: var(--gold); }
+
+        .char-count {
+            margin-left: auto;
+            font-size: 0.8rem;
+            color: #bbb;
+        }
+
+        .post-input-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .post-input {
+            flex: 1;
+            padding: 14px 16px;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 1rem;
+            background: white;
+            color: var(--slate);
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .post-input:focus { border-color: var(--gold); }
+        .post-input::placeholder { color: #aaa; }
+
+        .post-btn {
+            padding: 14px 24px;
+            background: var(--gold);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .post-btn:hover { opacity: 0.85; }
+
+        /* Notes feed */
+        .notes-feed {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .note-card {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 16px;
+            background: var(--warm-white);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            transition: box-shadow 0.2s;
+        }
+
+        .note-card:hover {
+            box-shadow: 0 2px 12px rgba(44, 62, 80, 0.06);
+        }
+
+        .note-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: white;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .note-badge[data-author="Dad"] { background: var(--sky); }
+        .note-badge[data-author="Mom"] { background: var(--plum); }
+        .note-badge[data-author="Helena"] { background: var(--terracotta); }
+        .note-badge[data-author="Maria"] { background: var(--sage); }
+
+        .note-body {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .note-text {
+            font-size: 1.05rem;
+            color: var(--slate);
+            line-height: 1.5;
+            word-break: break-word;
+        }
+
+        .note-time {
+            font-size: 0.8rem;
+            color: #aaa;
+            margin-top: 4px;
+        }
+
+        .note-delete {
+            background: none;
+            border: none;
+            color: #ccc;
+            font-size: 1.3rem;
+            cursor: pointer;
+            padding: 0 4px;
+            line-height: 1;
+            flex-shrink: 0;
+            transition: color 0.2s;
+        }
+
+        .note-delete:hover { color: var(--terracotta); }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--slate-light);
+            font-size: 1rem;
+        }
+
+        @media (max-width: 480px) {
+            .page-container { padding: 16px 14px 40px; }
+            .page-title { font-size: 1.4rem; }
+            .post-form { padding: 12px; }
+            .post-input, .post-btn { padding: 12px 14px; }
+            .note-card { padding: 12px; }
+        }
+    </style>
+</head>
+<body>
+
+    <header class="hub-header">
+        <div class="hub-header-inner">
+            <a href="/hub.html" class="hub-logo"><em>the gabriel family</em></a>
+            <nav class="hub-nav">
+                <a href="/hub.html">Home</a>
+                <a href="/kids-money-tracker.html">Allowance</a>
+                <a href="/trip-planner.html">Trip Planner</a>
+                <a href="/stuffies.html">Stuffies</a>
+                <a href="/book-library.html">Books</a>
+            </nav>
+        </div>
+    </header>
+
+    <div class="page-container">
+        <h1 class="page-title"><span class="icon">📝</span>Family Notes</h1>
+
+        <div class="post-form">
+            <div class="post-top-row">
+                <select id="author-select" class="author-select">
+                    <option value="Dad">Dad</option>
+                    <option value="Mom">Mom</option>
+                    <option value="Helena">Helena</option>
+                    <option value="Maria">Maria</option>
+                </select>
+                <span class="char-count" id="char-count">200</span>
+            </div>
+            <div class="post-input-row">
+                <input type="text" id="post-input" class="post-input" placeholder="Write a note..." maxlength="200">
+                <button id="post-btn" class="post-btn">Post</button>
+            </div>
+        </div>
+
+        <div class="notes-feed" id="notes-feed"></div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyARiateAk1EJggk09iMDdCvNZDPDNcu7EU",
+            authDomain: "gabriel-family-allowance.firebaseapp.com",
+            databaseURL: "https://gabriel-family-allowance-default-rtdb.firebaseio.com",
+            projectId: "gabriel-family-allowance",
+            storageBucket: "gabriel-family-allowance.firebasestorage.app",
+            messagingSenderId: "351490113717",
+            appId: "1:351490113717:web:6e5a3e96b8e36e84e49486"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const notesRef = db.ref('hub/notes');
+
+        const authorEl = document.getElementById('author-select');
+        const inputEl = document.getElementById('post-input');
+        const postBtn = document.getElementById('post-btn');
+        const feedEl = document.getElementById('notes-feed');
+        const charCount = document.getElementById('char-count');
+
+        // Character counter
+        inputEl.addEventListener('input', () => {
+            charCount.textContent = 200 - inputEl.value.length;
+        });
+
+        // Post note
+        function postNote() {
+            const text = inputEl.value.trim();
+            if (!text) return;
+            notesRef.push({
+                author: authorEl.value,
+                text: text,
+                timestamp: Date.now()
+            });
+            inputEl.value = '';
+            charCount.textContent = '200';
+            inputEl.focus();
+        }
+
+        postBtn.addEventListener('click', postNote);
+        inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') postNote(); });
+
+        // Relative time formatting
+        function formatRelativeTime(ts) {
+            const diff = Date.now() - ts;
+            const mins = Math.floor(diff / 60000);
+            if (mins < 1) return 'Just now';
+            if (mins < 60) return `${mins}m ago`;
+            const noteDate = new Date(ts);
+            const today = new Date();
+            if (noteDate.toDateString() === today.toDateString()) {
+                return 'Today ' + noteDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+            }
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+            if (noteDate.toDateString() === yesterday.toDateString()) return 'Yesterday';
+            return noteDate.toLocaleDateString([], { month: 'short', day: 'numeric' });
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        // Listen for notes
+        notesRef.orderByChild('timestamp').on('value', (snap) => {
+            const data = snap.val();
+            if (!data) {
+                feedEl.innerHTML = '<div class="empty-state">No notes yet — post one above!</div>';
+                return;
+            }
+
+            const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
+            const notes = Object.entries(data).map(([id, v]) => ({ id, ...v }));
+
+            // Auto-delete old notes
+            notes.forEach(n => {
+                if (n.timestamp < cutoff) notesRef.child(n.id).remove();
+            });
+
+            const active = notes.filter(n => n.timestamp >= cutoff);
+            active.sort((a, b) => b.timestamp - a.timestamp);
+
+            if (active.length === 0) {
+                feedEl.innerHTML = '<div class="empty-state">No notes yet — post one above!</div>';
+                return;
+            }
+
+            feedEl.innerHTML = active.map(n => `
+                <div class="note-card">
+                    <span class="note-badge" data-author="${escapeHtml(n.author)}">${escapeHtml(n.author)}</span>
+                    <div class="note-body">
+                        <div class="note-text">${escapeHtml(n.text)}</div>
+                        <div class="note-time">${formatRelativeTime(n.timestamp)}</div>
+                    </div>
+                    <button class="note-delete" data-id="${n.id}">×</button>
+                </div>
+            `).join('');
+        });
+
+        // Delete note
+        document.addEventListener('click', (e) => {
+            if (e.target.matches('.note-delete')) {
+                notesRef.child(e.target.dataset.id).remove();
+            }
+        });
+
+        inputEl.focus();
+    </script>
+</body>
+</html>

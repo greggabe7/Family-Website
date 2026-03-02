@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shopping Lists — Gabriel Family</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="hub.css">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <style>
+        body {
+            background: var(--cream);
+            font-family: 'DM Sans', sans-serif;
+            color: var(--slate);
+            margin: 0;
+        }
+
+        .page-container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 24px 20px 60px;
+        }
+
+        .page-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin: 0 0 24px;
+            color: var(--slate);
+        }
+
+        .page-title .icon { margin-right: 8px; }
+
+        /* Store tabs */
+        .store-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .store-tab {
+            flex: 1;
+            padding: 14px 8px;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            background: var(--warm-white);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--slate-light);
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .store-tab:hover { border-color: var(--sage); }
+
+        .store-tab.active {
+            background: var(--sage);
+            color: white;
+            border-color: var(--sage);
+        }
+
+        /* Add item row */
+        .add-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 24px;
+        }
+
+        .add-input {
+            flex: 1;
+            padding: 14px 16px;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 1rem;
+            background: var(--warm-white);
+            color: var(--slate);
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .add-input:focus { border-color: var(--sage); }
+        .add-input::placeholder { color: #aaa; }
+
+        .add-btn {
+            padding: 14px 24px;
+            background: var(--sage);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .add-btn:hover { opacity: 0.85; }
+
+        /* Item list */
+        .item-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .item-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            background: var(--warm-white);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            transition: opacity 0.2s;
+        }
+
+        .item-row.checked { opacity: 0.5; }
+
+        .item-checkbox {
+            width: 22px;
+            height: 22px;
+            accent-color: var(--sage);
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        .item-name {
+            flex: 1;
+            font-size: 1.05rem;
+            color: var(--slate);
+        }
+
+        .item-row.checked .item-name {
+            text-decoration: line-through;
+            color: var(--slate-light);
+        }
+
+        .item-delete {
+            background: none;
+            border: none;
+            color: #ccc;
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 0 4px;
+            line-height: 1;
+            transition: color 0.2s;
+        }
+
+        .item-delete:hover { color: var(--terracotta); }
+
+        /* Footer */
+        .list-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 16px;
+            padding: 12px 0;
+            border-top: 1px solid var(--border);
+            font-size: 0.85rem;
+            color: var(--slate-light);
+        }
+
+        .clear-btn {
+            padding: 8px 16px;
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.85rem;
+            color: var(--slate-light);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .clear-btn:hover {
+            border-color: var(--terracotta);
+            color: var(--terracotta);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--slate-light);
+            font-size: 1rem;
+        }
+
+        @media (max-width: 480px) {
+            .page-container { padding: 16px 14px 40px; }
+            .page-title { font-size: 1.4rem; }
+            .store-tab { padding: 12px 6px; font-size: 0.85rem; }
+            .add-input, .add-btn { padding: 12px 14px; }
+        }
+    </style>
+</head>
+<body>
+
+    <header class="hub-header">
+        <div class="hub-header-inner">
+            <a href="/hub.html" class="hub-logo"><em>the gabriel family</em></a>
+            <nav class="hub-nav">
+                <a href="/hub.html">Home</a>
+                <a href="/kids-money-tracker.html">Allowance</a>
+                <a href="/trip-planner.html">Trip Planner</a>
+                <a href="/stuffies.html">Stuffies</a>
+                <a href="/book-library.html">Books</a>
+            </nav>
+        </div>
+    </header>
+
+    <div class="page-container">
+        <h1 class="page-title"><span class="icon">🛒</span>Shopping Lists</h1>
+
+        <div class="store-tabs">
+            <button class="store-tab active" data-store="traderjoes">Trader Joe's</button>
+            <button class="store-tab" data-store="wholefoods">Whole Foods</button>
+            <button class="store-tab" data-store="stater">Stater</button>
+        </div>
+
+        <div class="add-row">
+            <input type="text" id="add-input" class="add-input" placeholder="Add an item...">
+            <button id="add-btn" class="add-btn">Add</button>
+        </div>
+
+        <div class="item-list" id="item-list"></div>
+        <div class="list-footer" id="list-footer"></div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyARiateAk1EJggk09iMDdCvNZDPDNcu7EU",
+            authDomain: "gabriel-family-allowance.firebaseapp.com",
+            databaseURL: "https://gabriel-family-allowance-default-rtdb.firebaseio.com",
+            projectId: "gabriel-family-allowance",
+            storageBucket: "gabriel-family-allowance.firebasestorage.app",
+            messagingSenderId: "351490113717",
+            appId: "1:351490113717:web:6e5a3e96b8e36e84e49486"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        let currentStore = 'traderjoes';
+        let currentListener = null;
+
+        const input = document.getElementById('add-input');
+        const addBtn = document.getElementById('add-btn');
+        const listEl = document.getElementById('item-list');
+        const footerEl = document.getElementById('list-footer');
+
+        // Tab switching
+        document.querySelectorAll('.store-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelector('.store-tab.active').classList.remove('active');
+                tab.classList.add('active');
+                currentStore = tab.dataset.store;
+                listenToStore(currentStore);
+                input.focus();
+            });
+        });
+
+        // Add item
+        function addItem() {
+            const text = input.value.trim();
+            if (!text) return;
+            db.ref(`hub/shopping/${currentStore}`).push({
+                item: text,
+                checked: false,
+                timestamp: Date.now()
+            });
+            input.value = '';
+            input.focus();
+        }
+
+        addBtn.addEventListener('click', addItem);
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') addItem(); });
+
+        // Listen to store
+        function listenToStore(store) {
+            if (currentListener) currentListener();
+            const ref = db.ref(`hub/shopping/${store}`);
+            const cb = ref.on('value', (snap) => renderList(snap.val()));
+            currentListener = () => ref.off('value', cb);
+        }
+
+        // Render list
+        function renderList(data) {
+            if (!data) {
+                listEl.innerHTML = '<div class="empty-state">List is empty — add something!</div>';
+                footerEl.innerHTML = '';
+                return;
+            }
+
+            const items = Object.entries(data).map(([id, v]) => ({ id, ...v }));
+            items.sort((a, b) => (a.checked === b.checked ? a.timestamp - b.timestamp : a.checked ? 1 : -1));
+
+            const remaining = items.filter(i => !i.checked).length;
+            const checked = items.filter(i => i.checked).length;
+
+            listEl.innerHTML = items.map(i => `
+                <div class="item-row${i.checked ? ' checked' : ''}">
+                    <input type="checkbox" class="item-checkbox" data-id="${i.id}" ${i.checked ? 'checked' : ''}>
+                    <span class="item-name">${escapeHtml(i.item)}</span>
+                    <button class="item-delete" data-id="${i.id}">×</button>
+                </div>
+            `).join('');
+
+            if (items.length > 0) {
+                footerEl.innerHTML = `
+                    <span>${remaining} remaining${checked > 0 ? `, ${checked} checked` : ''}</span>
+                    ${checked > 0 ? '<button class="clear-btn" id="clear-checked-btn">Clear checked</button>' : ''}
+                `;
+            } else {
+                footerEl.innerHTML = '';
+            }
+        }
+
+        // Event delegation
+        document.addEventListener('change', (e) => {
+            if (e.target.matches('.item-checkbox')) {
+                db.ref(`hub/shopping/${currentStore}/${e.target.dataset.id}/checked`).set(e.target.checked);
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            // Delete single item
+            if (e.target.matches('.item-delete')) {
+                db.ref(`hub/shopping/${currentStore}/${e.target.dataset.id}`).remove();
+            }
+            // Clear all checked
+            if (e.target.id === 'clear-checked-btn') {
+                const checkboxes = listEl.querySelectorAll('.item-checkbox:checked');
+                checkboxes.forEach(cb => {
+                    db.ref(`hub/shopping/${currentStore}/${cb.dataset.id}`).remove();
+                });
+            }
+        });
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        // Start
+        listenToStore(currentStore);
+        input.focus();
+    </script>
+</body>
+</html>
