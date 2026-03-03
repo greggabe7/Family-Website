@@ -3,11 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Shopping Lists — Gabriel Family</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="hub.css">
+    <link rel="stylesheet" href="hub.css?v=3">
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <!--
@@ -15,7 +18,7 @@
     CLAUDE AI INTEGRATION — Shopping List REST API
     ============================================================
     Firebase path: hub/shopping/{store}
-    Store keys: traderjoes, wholefoods, stater
+    Store keys: traderjoes, wholefoods, stater, general
 
     To add an item via REST API (no auth required):
     POST https://gabriel-family-allowance-default-rtdb.firebaseio.com/hub/shopping/{store}.json
@@ -376,6 +379,7 @@
             <button class="store-tab active" data-store="traderjoes">Trader Joe's</button>
             <button class="store-tab" data-store="wholefoods">Whole Foods</button>
             <button class="store-tab" data-store="stater">Stater</button>
+            <button class="store-tab" data-store="general">General</button>
             <button class="store-tab" data-store="all">Full List</button>
         </div>
 
@@ -393,6 +397,12 @@
                 <option value="Mom">Mom</option>
                 <option value="Helena">Helena</option>
                 <option value="Maria">Maria</option>
+            </select>
+            <select id="add-store" class="add-person">
+                <option value="traderjoes">Trader Joe's</option>
+                <option value="wholefoods">Whole Foods</option>
+                <option value="stater">Stater</option>
+                <option value="general">General</option>
             </select>
             <input type="text" id="add-input" class="add-input" placeholder="Add an item...">
             <button id="add-btn" class="add-btn">Add</button>
@@ -418,16 +428,18 @@
         const STORES = {
             traderjoes: "Trader Joe's",
             wholefoods: "Whole Foods",
-            stater: "Stater"
+            stater: "Stater",
+            general: "General"
         };
 
         let currentStore = 'traderjoes';
         let currentFilter = 'all';
         let activeListeners = [];
-        let allStoreData = { traderjoes: null, wholefoods: null, stater: null };
+        let allStoreData = { traderjoes: null, wholefoods: null, stater: null, general: null };
         let resetTimer = null;
 
         const personSelect = document.getElementById('add-person');
+        const storeSelect = document.getElementById('add-store');
         const input = document.getElementById('add-input');
         const addBtn = document.getElementById('add-btn');
         const addRow = document.getElementById('add-row');
@@ -442,14 +454,16 @@
                 tab.classList.add('active');
                 currentStore = tab.dataset.store;
 
+                addRow.classList.remove('hidden');
                 if (currentStore === 'all') {
-                    addRow.classList.add('hidden');
+                    storeSelect.style.display = '';
                     listenToAllStores();
                 } else {
-                    addRow.classList.remove('hidden');
+                    storeSelect.value = currentStore;
+                    storeSelect.style.display = 'none';
                     listenToStore(currentStore);
-                    input.focus();
                 }
+                input.focus();
             });
         });
 
@@ -481,8 +495,9 @@
         // Add item
         function addItem() {
             const text = input.value.trim();
-            if (!text || currentStore === 'all') return;
-            db.ref(`hub/shopping/${currentStore}`).push({
+            if (!text) return;
+            const targetStore = currentStore === 'all' ? storeSelect.value : currentStore;
+            db.ref(`hub/shopping/${targetStore}`).push({
                 item: text,
                 checked: false,
                 timestamp: Date.now(),
@@ -706,6 +721,8 @@
         }
 
         // Start
+        storeSelect.value = currentStore;
+        storeSelect.style.display = 'none';
         listenToStore(currentStore);
         input.focus();
     </script>

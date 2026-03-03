@@ -846,14 +846,10 @@ body {
     color: var(--slate-light);
     font-size: 1rem;
     cursor: pointer;
-    opacity: 0;
+    opacity: 0.5;
     transition: opacity 0.15s;
     padding: 0 4px;
     flex-shrink: 0;
-}
-
-.note-item:hover .note-delete {
-    opacity: 0.5;
 }
 
 .note-delete:hover {

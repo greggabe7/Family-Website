@@ -3,11 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Gabriel Family Hub</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="hub.css">
+    <link rel="stylesheet" href="hub.css?v=3">
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
@@ -114,9 +117,10 @@
                 </div>
                 <div class="widget-body">
                     <div class="shop-tabs">
-                        <button class="shop-tab active" data-store="traderjoes">Trader Joe's</button>
+                        <button class="shop-tab active" data-store="traderjoes">TJ's</button>
                         <button class="shop-tab" data-store="wholefoods">Whole Foods</button>
                         <button class="shop-tab" data-store="stater">Stater</button>
+                        <button class="shop-tab" data-store="general">General</button>
                     </div>
                     <div class="shop-add-row">
                         <input type="text" id="shop-input" class="shop-input" placeholder="Add item...">
@@ -267,6 +271,6 @@
     <!-- Hidden file input for photo uploads -->
     <input type="file" id="photoFileInput" accept="image/*" style="display:none" />
 
-    <script src="hub.js"></script>
+    <script src="hub.js?v=3"></script>
 </body>
 </html>
