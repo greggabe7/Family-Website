@@ -66,6 +66,31 @@
     <main class="widget-grid-container">
         <div class="widget-grid">
 
+            <!-- Shopping Widget -->
+            <div class="widget widget-shopping" id="widget-shopping">
+                <div class="widget-header">
+                    <div class="widget-title-group">
+                        <span class="widget-icon">🛒</span>
+                        <h2 class="widget-title">Shopping Lists</h2>
+                    </div>
+                    <a href="/shopping.html" class="widget-action">View →</a>
+                </div>
+                <div class="widget-body">
+                    <div class="shop-tabs">
+                        <button class="shop-tab active" data-store="traderjoes">TJ's</button>
+                        <button class="shop-tab" data-store="wholefoods">Whole Foods</button>
+                        <button class="shop-tab" data-store="stater">Stater</button>
+                        <button class="shop-tab" data-store="general">General</button>
+                    </div>
+                    <div class="shop-add-row">
+                        <input type="text" id="shop-input" class="shop-input" placeholder="Add item...">
+                        <button id="shop-add-btn" class="shop-add-btn">Add</button>
+                    </div>
+                    <div class="shop-list" id="shop-list"></div>
+                    <div class="shop-footer" id="shop-footer"></div>
+                </div>
+            </div>
+
             <!-- Calendar Widget -->
             <div class="widget widget-calendar" id="widget-calendar">
                 <div class="widget-header">
@@ -105,31 +130,6 @@
                         </div>
                     </div>
                     <div class="notes-list" id="notes-list"></div>
-                </div>
-            </div>
-
-            <!-- Shopping Widget -->
-            <div class="widget widget-shopping" id="widget-shopping">
-                <div class="widget-header">
-                    <div class="widget-title-group">
-                        <span class="widget-icon">🛒</span>
-                        <h2 class="widget-title">Shopping Lists</h2>
-                    </div>
-                    <a href="/shopping.html" class="widget-action">View →</a>
-                </div>
-                <div class="widget-body">
-                    <div class="shop-tabs">
-                        <button class="shop-tab active" data-store="traderjoes">TJ's</button>
-                        <button class="shop-tab" data-store="wholefoods">Whole Foods</button>
-                        <button class="shop-tab" data-store="stater">Stater</button>
-                        <button class="shop-tab" data-store="general">General</button>
-                    </div>
-                    <div class="shop-add-row">
-                        <input type="text" id="shop-input" class="shop-input" placeholder="Add item...">
-                        <button id="shop-add-btn" class="shop-add-btn">Add</button>
-                    </div>
-                    <div class="shop-list" id="shop-list"></div>
-                    <div class="shop-footer" id="shop-footer"></div>
                 </div>
             </div>
 
