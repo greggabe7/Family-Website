@@ -142,7 +142,12 @@ body {
     height: 100%;
     object-fit: cover;
     display: block;
-    transition: transform 0.3s, filter 0.3s;
+    transition: transform 0.3s, filter 0.3s, opacity 0.4s;
+    opacity: 0;
+}
+
+.photo-grid-item img.loaded {
+    opacity: 1;
 }
 
 .photo-grid-item:hover img {
@@ -1105,6 +1110,10 @@ body {
 @media (max-width: 600px) {
     .photo-grid {
         grid-template-columns: repeat(3, 1fr);
+    }
+
+    .photo-grid-item:nth-child(n+13) {
+        display: none;
     }
 
     .widget-grid {

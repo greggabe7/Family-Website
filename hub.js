@@ -28,24 +28,24 @@ try {
 
 // --- Default photo URLs ---
 const DEFAULT_IMAGES = [
-    'https://i.imgur.com/hs554rR.jpeg',
-    'https://i.imgur.com/UxW60hx.jpeg',
-    'https://i.imgur.com/bVp8I7u.jpeg',
-    'https://i.imgur.com/3QiGgLa.jpeg',
-    'https://i.imgur.com/uPMRhnF.jpeg',
-    'https://i.imgur.com/1Nb2UMs.jpeg',
-    'https://i.imgur.com/p9E9lai.jpeg',
-    'https://i.imgur.com/K3nSDpT.jpeg',
-    'https://i.imgur.com/9d0xZsc.jpeg',
-    'https://i.imgur.com/GFf8aZe.jpeg',
-    'https://i.imgur.com/hs554rR.jpeg',
-    'https://i.imgur.com/UxW60hx.jpeg',
-    'https://i.imgur.com/bVp8I7u.jpeg',
-    'https://i.imgur.com/3QiGgLa.jpeg',
-    'https://i.imgur.com/uPMRhnF.jpeg',
-    'https://i.imgur.com/1Nb2UMs.jpeg',
-    'https://i.imgur.com/p9E9lai.jpeg',
-    'https://i.imgur.com/K3nSDpT.jpeg'
+    'https://i.imgur.com/hs554rRl.jpeg',
+    'https://i.imgur.com/UxW60hxl.jpeg',
+    'https://i.imgur.com/bVp8I7ul.jpeg',
+    'https://i.imgur.com/3QiGgLal.jpeg',
+    'https://i.imgur.com/uPMRhnFl.jpeg',
+    'https://i.imgur.com/1Nb2UMsl.jpeg',
+    'https://i.imgur.com/p9E9lail.jpeg',
+    'https://i.imgur.com/K3nSDpTl.jpeg',
+    'https://i.imgur.com/9d0xZscl.jpeg',
+    'https://i.imgur.com/GFf8aZel.jpeg',
+    'https://i.imgur.com/hs554rRl.jpeg',
+    'https://i.imgur.com/UxW60hxl.jpeg',
+    'https://i.imgur.com/bVp8I7ul.jpeg',
+    'https://i.imgur.com/3QiGgLal.jpeg',
+    'https://i.imgur.com/uPMRhnFl.jpeg',
+    'https://i.imgur.com/1Nb2UMsl.jpeg',
+    'https://i.imgur.com/p9E9lail.jpeg',
+    'https://i.imgur.com/K3nSDpTl.jpeg'
 ];
 
 // --- Photo Management System ---
@@ -107,6 +107,12 @@ function enhancePhotoGrid() {
             this.src = DEFAULT_IMAGES[i];
         };
 
+        // Fade in when loaded
+        img.onload = function () {
+            this.classList.add('loaded');
+        };
+        if (img.complete) img.classList.add('loaded');
+
         // Click handlers for replace/move/restore
         overlay.addEventListener('click', (e) => {
             if (!editMode || wrapper.classList.contains('uploading')) return;
@@ -132,7 +138,8 @@ function loadImageUrls() {
         items.forEach((item, i) => {
             const img = item.querySelector('img');
             const key = 'slot_' + i;
-            if (data[key]) {
+            if (data[key] && img.src !== data[key]) {
+                img.classList.remove('loaded');
                 img.src = data[key];
             }
         });
@@ -227,7 +234,7 @@ async function resizeAndUpload(file, slotIndex) {
     progressEl.textContent = 'Resizing...';
 
     try {
-        const blob = await resizeImage(file, 1200, 0.8);
+        const blob = await resizeImage(file, 600, 0.75);
         const storageRef = storage.ref('landingPage/slot_' + slotIndex + '.jpg');
         const uploadTask = storageRef.put(blob, { contentType: 'image/jpeg' });
 
@@ -811,6 +818,7 @@ let quickrefEditMode = false;
 
 function initQuickRef() {
     const titleEl = document.querySelector('#widget-quickref .widget-title');
+    if (!titleEl) return;
 
     titleEl.addEventListener('dblclick', () => {
         if (!quickrefEditMode) enterQuickRefEdit();
