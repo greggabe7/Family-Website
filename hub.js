@@ -659,7 +659,7 @@ function initNotes() {
 }
 
 // --- Shopping Lists Widget ---
-let currentStore = 'traderjoes';
+let currentStore = 'general';
 let shopListeners = {};
 
 function initShopping() {

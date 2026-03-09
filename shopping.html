@@ -376,10 +376,10 @@
         </div>
 
         <div class="store-tabs">
-            <button class="store-tab active" data-store="traderjoes">Trader Joe's</button>
+            <button class="store-tab active" data-store="general">General</button>
+            <button class="store-tab" data-store="traderjoes">Trader Joe's</button>
             <button class="store-tab" data-store="wholefoods">Whole Foods</button>
             <button class="store-tab" data-store="stater">Stater</button>
-            <button class="store-tab" data-store="general">General</button>
             <button class="store-tab" data-store="all">Full List</button>
         </div>
 
@@ -399,10 +399,10 @@
                 <option value="Maria">Maria</option>
             </select>
             <select id="add-store" class="add-person">
+                <option value="general">General</option>
                 <option value="traderjoes">Trader Joe's</option>
                 <option value="wholefoods">Whole Foods</option>
                 <option value="stater">Stater</option>
-                <option value="general">General</option>
             </select>
             <input type="text" id="add-input" class="add-input" placeholder="Add an item...">
             <button id="add-btn" class="add-btn">Add</button>
@@ -426,13 +426,13 @@
         const db = firebase.database();
 
         const STORES = {
+            general: "General",
             traderjoes: "Trader Joe's",
             wholefoods: "Whole Foods",
-            stater: "Stater",
-            general: "General"
+            stater: "Stater"
         };
 
-        let currentStore = 'traderjoes';
+        let currentStore = 'general';
         let currentFilter = 'all';
         let activeListeners = [];
         let allStoreData = { traderjoes: null, wholefoods: null, stater: null, general: null };
@@ -463,7 +463,6 @@
                     storeSelect.style.display = 'none';
                     listenToStore(currentStore);
                 }
-                input.focus();
             });
         });
 
@@ -724,7 +723,6 @@
         storeSelect.value = currentStore;
         storeSelect.style.display = 'none';
         listenToStore(currentStore);
-        input.focus();
     </script>
 </body>
 </html>
