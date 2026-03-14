@@ -727,45 +727,22 @@ function renderShopList(data) {
 
     const items = Object.entries(data)
         .map(([id, item]) => ({ id, ...item }))
-        .sort((a, b) => {
-            if (a.checked !== b.checked) return a.checked ? 1 : -1;
-            return a.timestamp - b.timestamp;
-        });
-
-    const remaining = items.filter(i => !i.checked).length;
-    const checked = items.filter(i => i.checked).length;
+        .sort((a, b) => a.timestamp - b.timestamp);
 
     listEl.innerHTML = items.map(item => `
-        <div class="shop-item ${item.checked ? 'checked' : ''}">
-            <input type="checkbox" ${item.checked ? 'checked' : ''} data-id="${item.id}" data-store="${currentStore}">
+        <div class="shop-item" data-id="${item.id}" data-store="${currentStore}">
             <span class="shop-item-name">${escapeHtml(item.item)}</span>
         </div>
     `).join('');
 
-    let footerHtml = `<span>${remaining} item${remaining !== 1 ? 's' : ''} remaining`;
-    if (checked > 0) footerHtml += ` &middot; ${checked} checked off`;
-    footerHtml += '</span>';
-    if (checked > 0) {
-        footerHtml += `<button class="shop-clear-btn" id="shop-clear-checked">Clear checked</button>`;
-    }
-    footerEl.innerHTML = footerHtml;
-
-    const clearBtn = document.getElementById('shop-clear-checked');
-    if (clearBtn) {
-        clearBtn.addEventListener('click', () => {
-            items.filter(i => i.checked).forEach(i => {
-                db.ref(`hub/shopping/${currentStore}/${i.id}`).remove();
-            });
-        });
-    }
+    footerEl.innerHTML = `<span>${items.length} item${items.length !== 1 ? 's' : ''}</span>`;
 }
 
-// Event delegation for checkbox toggles
-document.addEventListener('change', (e) => {
-    if (e.target.matches('.shop-item input[type="checkbox"]')) {
-        const id = e.target.dataset.id;
-        const store = e.target.dataset.store;
-        db.ref(`hub/shopping/${store}/${id}/checked`).set(e.target.checked);
+// Event delegation — click item to delete
+document.addEventListener('click', (e) => {
+    const item = e.target.closest('.shop-item[data-id]');
+    if (item) {
+        db.ref(`hub/shopping/${item.dataset.store}/${item.dataset.id}`).remove();
     }
 });
 

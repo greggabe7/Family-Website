@@ -242,28 +242,18 @@
             background: var(--warm-white);
             border-radius: 12px;
             border: 1px solid var(--border);
-            transition: opacity 0.2s;
+            cursor: pointer;
+            transition: opacity 0.15s, background 0.15s;
         }
 
-        .item-row.checked { opacity: 0.5; }
-
-        .item-checkbox {
-            width: 22px;
-            height: 22px;
-            accent-color: var(--sage);
-            cursor: pointer;
-            flex-shrink: 0;
+        .item-row:hover {
+            background: rgba(201, 106, 58, 0.08);
         }
 
         .item-name {
             flex: 1;
             font-size: 1.05rem;
             color: var(--slate);
-        }
-
-        .item-row.checked .item-name {
-            text-decoration: line-through;
-            color: var(--slate-light);
         }
 
         .item-badge {
@@ -282,18 +272,6 @@
         .item-badge[data-person="Claude"] { background: var(--gold); }
         .item-badge[data-person=""] { display: none; }
 
-        .item-delete {
-            background: none;
-            border: none;
-            color: #ccc;
-            font-size: 1.2rem;
-            cursor: pointer;
-            padding: 0 4px;
-            line-height: 1;
-            transition: color 0.2s;
-        }
-
-        .item-delete:hover { color: var(--terracotta); }
 
         /* Footer */
         .list-footer {
@@ -314,7 +292,7 @@
             gap: 8px;
         }
 
-        .clear-btn, .reset-btn {
+        .reset-btn {
             padding: 8px 16px;
             background: none;
             border: 1px solid var(--border);
@@ -324,11 +302,6 @@
             color: var(--slate-light);
             cursor: pointer;
             transition: all 0.2s;
-        }
-
-        .clear-btn:hover {
-            border-color: var(--terracotta);
-            color: var(--terracotta);
         }
 
         .reset-btn:hover, .reset-btn.confirm {
@@ -533,10 +506,10 @@
             });
         }
 
-        // Sort items: unchecked first, then by timestamp
+        // Sort items by timestamp
         function sortItems(data) {
             const items = Object.entries(data).map(([id, v]) => ({ id, ...v }));
-            items.sort((a, b) => (a.checked === b.checked ? a.timestamp - b.timestamp : a.checked ? 1 : -1));
+            items.sort((a, b) => a.timestamp - b.timestamp);
             return items;
         }
 
@@ -550,11 +523,9 @@
         function renderItemRow(item, storeKey) {
             const person = item.addedBy || '';
             return `
-                <div class="item-row${item.checked ? ' checked' : ''}">
-                    <input type="checkbox" class="item-checkbox" data-id="${item.id}" data-store="${storeKey}" ${item.checked ? 'checked' : ''}>
+                <div class="item-row" data-id="${item.id}" data-store="${storeKey}">
                     <span class="item-name">${escapeHtml(item.item)}</span>
                     <span class="item-badge" data-person="${escapeHtml(person)}">${escapeHtml(person)}</span>
-                    <button class="item-delete" data-id="${item.id}" data-store="${storeKey}">×</button>
                 </div>
             `;
         }
@@ -572,22 +543,18 @@
 
             if (filtered.length === 0 && currentFilter !== 'all') {
                 listEl.innerHTML = `<div class="empty-state">No items from ${currentFilter}</div>`;
-                renderFooter(0, 0, allItems.length > 0);
+                renderFooter(0, allItems.length > 0);
                 return;
             }
 
-            const remaining = filtered.filter(i => !i.checked).length;
-            const checked = filtered.filter(i => i.checked).length;
-
             listEl.innerHTML = filtered.map(i => renderItemRow(i, currentStore)).join('');
-            renderFooter(remaining, checked, allItems.length > 0);
+            renderFooter(filtered.length, allItems.length > 0);
         }
 
         // Render full list view (all stores grouped)
         function renderFullList() {
             let html = '';
-            let totalRemaining = 0;
-            let totalChecked = 0;
+            let totalCount = 0;
             let hasAnyItems = false;
 
             Object.entries(STORES).forEach(([storeKey, storeName]) => {
@@ -607,48 +574,35 @@
                     return;
                 }
 
-                totalRemaining += filtered.filter(i => !i.checked).length;
-                totalChecked += filtered.filter(i => i.checked).length;
+                totalCount += filtered.length;
 
                 html += filtered.map(i => renderItemRow(i, storeKey)).join('');
             });
 
             listEl.innerHTML = html;
-            renderFooter(totalRemaining, totalChecked, hasAnyItems);
+            renderFooter(totalCount, hasAnyItems);
         }
 
         // Render footer
-        function renderFooter(remaining, checked, hasItems) {
-            if (remaining === 0 && checked === 0 && !hasItems) {
+        function renderFooter(count, hasItems) {
+            if (count === 0 && !hasItems) {
                 footerEl.innerHTML = '';
                 return;
             }
             footerEl.innerHTML = `
-                <span>${remaining} remaining${checked > 0 ? `, ${checked} checked` : ''}</span>
+                <span>${count} item${count !== 1 ? 's' : ''}</span>
                 <div class="footer-actions">
-                    ${checked > 0 ? '<button class="clear-btn" id="clear-checked-btn">Clear checked</button>' : ''}
                     ${hasItems ? '<button class="reset-btn" id="reset-btn">Reset list</button>' : ''}
                 </div>
             `;
         }
 
-        // Event delegation — checkbox toggle
-        document.addEventListener('change', (e) => {
-            if (e.target.matches('.item-checkbox')) {
-                db.ref(`hub/shopping/${e.target.dataset.store}/${e.target.dataset.id}/checked`).set(e.target.checked);
-            }
-        });
-
-        // Event delegation — delete, clear, reset
+        // Event delegation — click item to delete, clear, reset
         document.addEventListener('click', (e) => {
-            if (e.target.matches('.item-delete')) {
-                db.ref(`hub/shopping/${e.target.dataset.store}/${e.target.dataset.id}`).remove();
-            }
-
-            if (e.target.id === 'clear-checked-btn') {
-                listEl.querySelectorAll('.item-checkbox:checked').forEach(cb => {
-                    db.ref(`hub/shopping/${cb.dataset.store}/${cb.dataset.id}`).remove();
-                });
+            const row = e.target.closest('.item-row[data-id]');
+            if (row && !e.target.matches('.reset-btn, .filter-pill, .store-tab')) {
+                db.ref(`hub/shopping/${row.dataset.store}/${row.dataset.id}`).remove();
+                return;
             }
 
             if (e.target.id === 'reset-btn') {
@@ -687,7 +641,7 @@
                 if (items.length === 0) return '(empty)\n';
                 return items.map(i => {
                     const who = i.addedBy ? ` [${i.addedBy}]` : '';
-                    return (i.checked ? '☑ ' : '☐ ') + i.item + who;
+                    return '• ' + i.item + who;
                 }).join('\n') + '\n';
             }
 
@@ -719,10 +673,22 @@
             return div.innerHTML;
         }
 
-        // Start
-        storeSelect.value = currentStore;
-        storeSelect.style.display = 'none';
-        listenToStore(currentStore);
+        // Start — check URL for tab parameter
+        const urlTab = new URLSearchParams(window.location.search).get('tab');
+        if (urlTab && (urlTab === 'all' || STORES[urlTab])) {
+            currentStore = urlTab;
+            document.querySelector('.store-tab.active').classList.remove('active');
+            document.querySelector(`.store-tab[data-store="${currentStore}"]`).classList.add('active');
+        }
+
+        if (currentStore === 'all') {
+            storeSelect.style.display = '';
+            listenToAllStores();
+        } else {
+            storeSelect.value = currentStore;
+            storeSelect.style.display = 'none';
+            listenToStore(currentStore);
+        }
     </script>
 </body>
 </html>
