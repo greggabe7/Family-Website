@@ -4319,7 +4319,7 @@
                                                         </div>
                                                         <div class="flex gap-2">
                                                             <button
-                                                                onclick="state.editingGoal='${childKey}'; state.tempGoalName=${JSON.stringify(state.goals[childKey].name)}; state.tempGoalAmount=${state.goals[childKey].amount}; render();"
+                                                                onclick="state.editingGoal='${childKey}'; state.tempGoalName='${escapeHtml(state.goals[childKey].name.replace(/'/g, "\\'"))}'; state.tempGoalAmount=${state.goals[childKey].amount}; render();"
                                                                 class="flex-1 px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
                                                             >
                                                                 Edit
