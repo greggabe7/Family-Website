@@ -752,6 +752,9 @@
             if (!state.lastModified) state.lastModified = Date.now();
             // Default weekly bonus amount
             if (state.weeklyBonusAmount === undefined) state.weeklyBonusAmount = 5.00;
+            // Schema reset date — clamps earning period so pre-restructure history (with colliding task IDs)
+            // can never be reread. Set when the task ID space is reset; bump on future restructures.
+            if (!state.schemaResetDate) state.schemaResetDate = 'Sun Apr 05 2026';
             // Remove legacy dailyBonusAwarded if present
             delete state.dailyBonusAwarded;
 
@@ -2137,6 +2140,13 @@
                     if (!earliest || d < earliest) earliest = d;
                 }
                 startDate = earliest || new Date(today);
+            }
+
+            // Clamp to schemaResetDate so pre-restructure history (with colliding task IDs) is never read
+            if (state.schemaResetDate) {
+                const resetDate = new Date(state.schemaResetDate);
+                resetDate.setHours(0, 0, 0, 0);
+                if (startDate < resetDate) startDate = resetDate;
             }
 
             startDate.setHours(0, 0, 0, 0);
