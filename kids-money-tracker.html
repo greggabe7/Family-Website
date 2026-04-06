@@ -143,103 +143,6 @@
             }
         }
 
-        /* Pot of Gold Daily Bonus Animation */
-        .pot-of-gold-container {
-            position: fixed;
-            top: -150px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 10000;
-            pointer-events: none;
-            animation: pot-float-down 2.5s ease-out forwards;
-        }
-
-        @keyframes pot-float-down {
-            0% {
-                top: -150px;
-                opacity: 0;
-            }
-            10% {
-                opacity: 1;
-            }
-            50% {
-                top: 30%;
-            }
-            70% {
-                top: 25%;
-                opacity: 1;
-            }
-            100% {
-                top: 20%;
-                opacity: 0;
-            }
-        }
-
-        .pot-of-gold {
-            font-size: 80px;
-            text-align: center;
-            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
-            animation: pot-wobble 0.5s ease-in-out infinite;
-        }
-
-        @keyframes pot-wobble {
-            0%, 100% { transform: rotate(-3deg); }
-            50% { transform: rotate(3deg); }
-        }
-
-        .bonus-text {
-            text-align: center;
-            font-size: 24px;
-            font-weight: bold;
-            color: #fbbf24;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.5), 0 0 20px #fbbf24;
-            margin-top: 10px;
-            animation: bonus-pulse 0.5s ease-in-out infinite;
-        }
-
-        @keyframes bonus-pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-        }
-
-        .gold-coin {
-            position: absolute;
-            font-size: 24px;
-            animation: coin-fall 1.5s ease-in forwards;
-            opacity: 0;
-        }
-
-        @keyframes coin-fall {
-            0% {
-                transform: translateY(0) rotate(0deg);
-                opacity: 1;
-            }
-            100% {
-                transform: translateY(var(--fall-distance)) rotate(var(--rotation));
-                opacity: 0;
-            }
-        }
-
-        .gold-sparkle {
-            position: absolute;
-            width: 8px;
-            height: 8px;
-            background: radial-gradient(circle, #ffd700 0%, #ffaa00 50%, transparent 70%);
-            border-radius: 50%;
-            animation: sparkle-burst 1s ease-out forwards;
-        }
-
-        @keyframes sparkle-burst {
-            0% {
-                transform: translate(0, 0) scale(1);
-                opacity: 1;
-            }
-            100% {
-                transform: translate(var(--tx), var(--ty)) scale(0);
-                opacity: 0;
-            }
-        }
-
         /* Drag and Drop Styles */
         .task-item-draggable {
             cursor: grab;
@@ -446,6 +349,24 @@
             }
         }
 
+        // Auto-remove one-time tasks that both kids have completed
+        function cleanupCompletedOneTimeTasks() {
+            const oneTimeTasks = state.tasks.filter(t => t.taskType === 'oneTime');
+            let removed = false;
+            for (const task of oneTimeTasks) {
+                const mariaCompleted = state.completedTasks.maria.includes(task.id) ||
+                    Object.values(state.completionHistory.maria || {}).some(day => day.includes(task.id));
+                const helenaCompleted = state.completedTasks.helena.includes(task.id) ||
+                    Object.values(state.completionHistory.helena || {}).some(day => day.includes(task.id));
+                if (mariaCompleted && helenaCompleted) {
+                    state.tasks = state.tasks.filter(t => t.id !== task.id);
+                    removed = true;
+                    console.log(`Auto-removed completed one-time task: "${task.name}"`);
+                }
+            }
+            return removed;
+        }
+
         // Silent version of recalculate (no confirm dialog, no alert)
         function silentRecalculateEarnings() {
             const today = new Date().toDateString();
@@ -455,69 +376,29 @@
                 let weekTotal = 0;
                 let todayTotal = 0;
 
-                // Calculate today's earnings
-                const otherChild = childKey === 'maria' ? 'helena' : 'maria';
+                // Calculate today's earnings (task payouts only)
                 state.completedTasks[childKey].forEach(taskId => {
                     const task = state.tasks.find(t => t.id === taskId);
                     if (task) {
-                        let payout = task.payout;
-                        if (task.isJoint && !state.completedTasks[otherChild].includes(taskId)) {
-                            payout = 0; // Joint task: other child hasn't completed, no payout
-                        }
-                        todayTotal = roundMoney(todayTotal + payout);
-                        weekTotal = roundMoney(weekTotal + payout);
+                        todayTotal = roundMoney(todayTotal + task.payout);
+                        weekTotal = roundMoney(weekTotal + task.payout);
                     }
                 });
 
-                // Calculate from history (entire earning period)
+                // Calculate from history (entire earning period, excluding today)
                 for (const date of earningDates) {
                     if (date === today) continue;
-
                     if (state.completionHistory[childKey][date]) {
                         state.completionHistory[childKey][date].forEach(taskId => {
                             const task = state.tasks.find(t => t.id === taskId);
                             if (task) {
-                                let payout = task.payout;
-                                if (task.isJoint && !(state.completionHistory[otherChild][date] || []).includes(taskId)) {
-                                    payout = 0; // Joint task: other child didn't complete on this day
-                                }
-                                weekTotal = roundMoney(weekTotal + payout);
+                                weekTotal = roundMoney(weekTotal + task.payout);
                             }
                         });
                     }
-
-                    // Re-validate daily bonus from actual completion data
-                    const completedForDay = state.completionHistory[childKey][date] || [];
-                    const skippedForDay = (state.skippedHistory[childKey] && state.skippedHistory[childKey][date]) || [];
-                    const dailyTasksForDay = state.tasks.filter(t => {
-                        if (skippedForDay.includes(t.id)) return false;
-                        if (t.days && (t.days.includes('weekly') || t.days.includes('monthly') || t.days.includes('oneTime'))) return false;
-                        if (t.section === 'bonus') return false;
-                        return taskAppliesToDate(t, new Date(date), childKey);
-                    });
-                    const dayAllComplete = dailyTasksForDay.length > 0 && dailyTasksForDay.every(t => completedForDay.includes(t.id));
-                    state.dailyBonusAwarded[childKey][date] = dayAllComplete;
-                    if (dayAllComplete) {
-                        weekTotal = roundMoney(weekTotal + 1.00);
-                    }
                 }
 
-                // Re-validate today's daily bonus from actual completion data
-                const todaySkipped = state.skippedTasks[childKey] || [];
-                const todayDailyTasks = state.tasks.filter(t => {
-                    if (todaySkipped.includes(t.id)) return false;
-                    if (t.days && (t.days.includes('weekly') || t.days.includes('monthly') || t.days.includes('oneTime'))) return false;
-                    if (t.section === 'bonus') return false;
-                    return isTaskApplicableToday(t);
-                });
-                const todayAllComplete = todayDailyTasks.length > 0 && todayDailyTasks.every(t => state.completedTasks[childKey].includes(t.id));
-                state.dailyBonusAwarded[childKey][today] = todayAllComplete;
-                if (todayAllComplete) {
-                    todayTotal = roundMoney(todayTotal + 1.00);
-                    weekTotal = roundMoney(weekTotal + 1.00);
-                }
-
-                // Evaluate and award weekly streak bonuses for complete calendar weeks in the earning period
+                // Evaluate weekly bonus for complete calendar weeks in the earning period
                 const processedWeeks = new Set();
                 for (const date of earningDates) {
                     const calWeek = getCalendarWeekDates(new Date(date));
@@ -526,8 +407,8 @@
                     processedWeeks.add(weekStart);
 
                     // Already awarded — just add to total
-                    if (state.weeklyStreakAwarded[childKey][weekStart]) {
-                        weekTotal = roundMoney(weekTotal + state.weeklyStreakBonus);
+                    if (state.weeklyBonusAwarded[childKey][weekStart]) {
+                        weekTotal = roundMoney(weekTotal + state.weeklyBonusAmount);
                         continue;
                     }
 
@@ -535,46 +416,82 @@
                     const weekEnd = calWeek[6];
                     if (new Date(weekEnd) > new Date(today)) continue;
 
-                    let hasFullWeek = true;
-                    for (const wd of calWeek) {
-                        const wdObj = new Date(wd);
-                        const completedForDay = wd === today
-                            ? state.completedTasks[childKey]
-                            : (state.completionHistory[childKey][wd] || []);
-                        const skippedForDay = wd === today
-                            ? state.skippedTasks[childKey]
-                            : (state.skippedHistory[childKey][wd] || []);
-
-                        const applicableTasks = state.tasks.filter(task => {
-                            if (!task.days) return false;
-                            if (task.days.includes('weekly') || task.days.includes('monthly') || task.days.includes('oneTime')) return false;
-                            if (task.section === 'bonus') return false;
-                            const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-                            const dayName = dayNames[wdObj.getDay()];
-                            return task.days.some(d => {
-                                if (d === dayName) return true;
-                                if (d === 'weekday' && wdObj.getDay() >= 1 && wdObj.getDay() <= 5) return true;
-                                return false;
-                            });
-                        });
-
-                        const activeTasks = applicableTasks.filter(t => !skippedForDay.includes(t.id));
-                        if (activeTasks.length === 0) continue;
-                        if (!activeTasks.every(t => completedForDay.includes(t.id))) {
-                            hasFullWeek = false;
-                            break;
-                        }
-                    }
-
-                    if (hasFullWeek && state.weeklyStreakBonus > 0) {
-                        state.weeklyStreakAwarded[childKey][weekStart] = true;
-                        weekTotal = roundMoney(weekTotal + state.weeklyStreakBonus);
+                    if (checkWeeklyBonusCriteria(childKey, calWeek) && state.weeklyBonusAmount > 0) {
+                        state.weeklyBonusAwarded[childKey][weekStart] = true;
+                        weekTotal = roundMoney(weekTotal + state.weeklyBonusAmount);
                     }
                 }
 
                 state.earnings[childKey].weekTotal = roundMoney(weekTotal);
                 state.earnings[childKey].todayTotal = roundMoney(todayTotal);
             });
+        }
+
+        // Check if all weekly bonus criteria are met for a given calendar week
+        // Returns true if all bonus-eligible daily tasks were done every applicable day
+        // AND all bonus-eligible flexible tasks hit their weeklyRequired count
+        function checkWeeklyBonusCriteria(childKey, weekDates) {
+            const today = new Date().toDateString();
+
+            // Check 1: All bonus-eligible daily tasks done every applicable day
+            const dailyBonusTasks = state.tasks.filter(t => t.bonusEligible && t.taskType === 'assigned');
+            for (const date of weekDates) {
+                const dateObj = new Date(date);
+                const completedForDay = date === today
+                    ? state.completedTasks[childKey]
+                    : (state.completionHistory[childKey][date] || []);
+                const skippedForDay = date === today
+                    ? (state.skippedTasks[childKey] || [])
+                    : (state.skippedHistory[childKey]?.[date] || []);
+
+                const applicableTasks = dailyBonusTasks.filter(task => {
+                    if (skippedForDay.includes(task.id)) return false;
+                    return taskAppliesToDate(task, dateObj, childKey);
+                });
+
+                if (applicableTasks.length === 0) continue;
+                if (!applicableTasks.every(t => completedForDay.includes(t.id))) {
+                    return false;
+                }
+            }
+
+            // Check 2: All bonus-eligible flexible tasks hit weeklyRequired count
+            const flexibleBonusTasks = state.tasks.filter(t => t.bonusEligible && t.taskType === 'flexible');
+            for (const task of flexibleBonusTasks) {
+                let count = 0;
+                for (const date of weekDates) {
+                    const completedForDay = date === today
+                        ? state.completedTasks[childKey]
+                        : (state.completionHistory[childKey][date] || []);
+                    const skippedForDay = date === today
+                        ? (state.skippedTasks[childKey] || [])
+                        : (state.skippedHistory[childKey]?.[date] || []);
+                    if (completedForDay.includes(task.id)) count++;
+                    // Count skipped days as excused (don't penalize)
+                    if (skippedForDay.includes(task.id)) count++;
+                }
+                if (count < (task.weeklyRequired || 0)) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        // Get the count of completions for a flexible task in the current calendar week
+        function getFlexibleTaskWeekCount(childKey, taskId) {
+            const today = new Date();
+            const weekDates = getCalendarWeekDates(today);
+            const todayStr = today.toDateString();
+            let count = 0;
+            for (const date of weekDates) {
+                if (new Date(date) > today) continue;
+                const completedForDay = date === todayStr
+                    ? state.completedTasks[childKey]
+                    : (state.completionHistory[childKey][date] || []);
+                if (completedForDay.includes(taskId)) count++;
+            }
+            return count;
         }
 
         // HTML escape helper to prevent XSS attacks in user-provided content
@@ -677,69 +594,6 @@
             });
         }
 
-        // Daily Bonus Pot of Gold Animation
-        function showDailyBonusAnimation(childName) {
-            const container = document.createElement('div');
-            container.className = 'pot-of-gold-container';
-
-            // Create pot of gold
-            const pot = document.createElement('div');
-            pot.className = 'pot-of-gold';
-            pot.textContent = '🏆';
-            container.appendChild(pot);
-
-            // Create bonus text
-            const bonusText = document.createElement('div');
-            bonusText.className = 'bonus-text';
-            bonusText.innerHTML = `${childName}<br>+$1 BONUS!`;
-            container.appendChild(bonusText);
-
-            document.body.appendChild(container);
-
-            // Sprinkle gold coins
-            const coinEmojis = ['🪙', '💰', '✨', '⭐'];
-            let coinInterval = setInterval(() => {
-                for (let i = 0; i < 3; i++) {
-                    const coin = document.createElement('div');
-                    coin.className = 'gold-coin';
-                    coin.textContent = coinEmojis[Math.floor(Math.random() * coinEmojis.length)];
-                    coin.style.left = (Math.random() * 120 - 60) + 'px';
-                    coin.style.top = '40px';
-                    coin.style.setProperty('--fall-distance', (150 + Math.random() * 100) + 'px');
-                    coin.style.setProperty('--rotation', (Math.random() * 720 - 360) + 'deg');
-                    coin.style.animationDelay = (Math.random() * 0.3) + 's';
-                    container.appendChild(coin);
-
-                    // Remove coin after animation
-                    setTimeout(() => coin.remove(), 1800);
-                }
-
-                // Add sparkles
-                for (let i = 0; i < 5; i++) {
-                    const sparkle = document.createElement('div');
-                    sparkle.className = 'gold-sparkle';
-                    sparkle.style.left = (Math.random() * 100 - 50) + 'px';
-                    sparkle.style.top = (Math.random() * 60 + 20) + 'px';
-                    const angle = Math.random() * Math.PI * 2;
-                    const distance = 30 + Math.random() * 50;
-                    sparkle.style.setProperty('--tx', (Math.cos(angle) * distance) + 'px');
-                    sparkle.style.setProperty('--ty', (Math.sin(angle) * distance) + 'px');
-                    container.appendChild(sparkle);
-
-                    setTimeout(() => sparkle.remove(), 1000);
-                }
-            }, 200);
-
-            // Stop spawning coins after 2 seconds
-            setTimeout(() => {
-                clearInterval(coinInterval);
-            }, 2000);
-
-            // Remove container after animation completes
-            setTimeout(() => {
-                container.remove();
-            }, 3000);
-        }
 
         // State management
         const APP_VERSION = "2.0"; // Track version for data migration
@@ -750,8 +604,10 @@
             showAddTask: false,
             newTaskName: '',
             newTaskPayout: 0.15,
-            newTaskSection: 'morning',
+            newTaskSection: 'assigned',
             newTaskDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], // All days by default
+            newTaskType: 'assigned', // 'assigned', 'flexible', 'bonus', 'oneTime'
+            newTaskWeeklyRequired: 3, // For flexible tasks
             lastResetDate: new Date().toDateString(),
             defaultPayout: 0.15,
             syncedFromReward: false,
@@ -763,7 +619,7 @@
             editingTaskName: null,
             tempTaskName: '',
             editingFrequency: null,
-            editingJoint: null,
+            editingTaskType: null,
             showHistory: false,
             selectedHistoryChild: null,
             historyWeekOffset: 0,
@@ -771,21 +627,28 @@
             tempGoalName: '',
             tempGoalAmount: 0,
             
+            // Task types: 'assigned' (bonus-eligible, must do on each assigned day),
+            //             'flexible' (bonus-eligible, do X times per week, shows every day),
+            //             'bonus' (not bonus-eligible, shows every day, extra money),
+            //             'oneTime' (one-time bonus, disappears after completion)
             tasks: [
-                { id: 1, name: 'Brush teeth and hair without being asked', section: 'morning', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
-                { id: 2, name: 'Make bed', section: 'morning', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
-                { id: 3, name: 'Take vitamins', section: 'morning', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
-                { id: 4, name: 'Fill water bottle', section: 'morning', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
-                { id: 5, name: 'Out door by 7:45', section: 'morning', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
-                { id: 6, name: 'Hang backpack and coat up', section: 'afterSchool', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
-                { id: 7, name: 'Empty lunch and/or snack box', section: 'afterSchool', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
-                { id: 8, name: 'Put water bottle at sink', section: 'afterSchool', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
-                { id: 9, name: 'Practice a skill 10 mins', section: 'evening', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
-                { id: 10, name: 'Schoolwork for 20 mins', section: 'evening', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
-                { id: 11, name: 'Brush teeth and rinse nose without being asked', section: 'evening', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
-                { id: 12, name: 'Prepare backpack for following day', section: 'evening', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
-                { id: 13, name: 'Clean up living room and garage', section: 'evening', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false },
-                { id: 14, name: 'Shower AND hang up towel', section: 'evening', payout: 0.15, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], frequency: 'daily', isJoint: false }
+                // Assigned Days tasks
+                { id: 1, name: 'Make Bed', section: 'assigned', payout: 0.25, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], taskType: 'assigned', weeklyRequired: 0, bonusEligible: true },
+                { id: 2, name: 'Clear Table', section: 'assigned', payout: 0.25, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], taskType: 'assigned', weeklyRequired: 0, bonusEligible: true },
+                { id: 3, name: 'Sweep Floor', section: 'assigned', payout: 0.25, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], taskType: 'assigned', weeklyRequired: 0, bonusEligible: true },
+                { id: 4, name: 'Put Everything In Its Place After School', section: 'assigned', payout: 0.25, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'], taskType: 'assigned', weeklyRequired: 0, bonusEligible: true },
+                // Flexible tasks
+                { id: 5, name: 'Schoolwork for 20 mins (math for Helena)', section: 'flexible', payout: 1.00, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], taskType: 'flexible', weeklyRequired: 2, bonusEligible: true },
+                { id: 6, name: 'Empty Dishwasher', section: 'flexible', payout: 0.25, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], taskType: 'flexible', weeklyRequired: 2, bonusEligible: true },
+                { id: 7, name: 'Trash To Curb', section: 'flexible', payout: 0.25, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], taskType: 'flexible', weeklyRequired: 1, bonusEligible: true },
+                { id: 8, name: 'Trash From Curb', section: 'flexible', payout: 0.25, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], taskType: 'flexible', weeklyRequired: 1, bonusEligible: true },
+                { id: 9, name: 'Sunday Prep - Clean Car and Backpacks Together', section: 'flexible', payout: 0.50, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], taskType: 'flexible', weeklyRequired: 1, bonusEligible: true },
+                { id: 10, name: 'Practice a Skill 15 Mins Outside Class', section: 'flexible', payout: 0.50, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], taskType: 'flexible', weeklyRequired: 2, bonusEligible: true },
+                // Bonus tasks (extra $, not required for weekly bonus)
+                { id: 11, name: 'Fold Laundry', section: 'bonus', payout: 1.00, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], taskType: 'bonus', weeklyRequired: 0, bonusEligible: false },
+                { id: 12, name: 'Take Out Trash', section: 'bonus', payout: 0.25, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], taskType: 'bonus', weeklyRequired: 0, bonusEligible: false },
+                { id: 13, name: 'Take Out Recycling', section: 'bonus', payout: 0.25, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], taskType: 'bonus', weeklyRequired: 0, bonusEligible: false },
+                { id: 14, name: 'Straighten Up Living Room', section: 'bonus', payout: 0.50, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], taskType: 'bonus', weeklyRequired: 0, bonusEligible: false }
             ],
             
             users: {
@@ -825,11 +688,6 @@
                 helena: {}
             },
 
-            dailyBonusAwarded: {
-                maria: {},
-                helena: {}
-            },
-
             goals: {
                 maria: { active: false, name: '', amount: 0, saved: 0 },
                 helena: { active: false, name: '', amount: 0, saved: 0 }
@@ -840,8 +698,8 @@
                 helena: []
             },
             
-            weeklyStreakBonus: 3.00,
-            weeklyStreakAwarded: {
+            weeklyBonusAmount: 5.00,
+            weeklyBonusAwarded: {
                 maria: {},
                 helena: {}
             },
@@ -881,8 +739,7 @@
             ensureChildProperty('completionHistory', () => ({}));
             ensureChildProperty('skippedHistory', () => ({}));
             ensureChildProperty('payoutHistory', () => []);
-            ensureChildProperty('weeklyStreakAwarded', () => ({}));
-            ensureChildProperty('dailyBonusAwarded', () => ({}));
+            ensureChildProperty('weeklyBonusAwarded', () => ({}));
             ensureChildProperty('yearlyEarnings', () => ({}));
 
             // Goals has a different default (null instead of empty container)
@@ -893,6 +750,30 @@
             if (!state.lastResetDate) state.lastResetDate = new Date().toDateString();
             // Initialize timestamp for sync conflict resolution (migration)
             if (!state.lastModified) state.lastModified = Date.now();
+            // Default weekly bonus amount
+            if (state.weeklyBonusAmount === undefined) state.weeklyBonusAmount = 5.00;
+            // Remove legacy dailyBonusAwarded if present
+            delete state.dailyBonusAwarded;
+
+            // Migrate tasks from old schema (isJoint/frequency) to new schema (taskType/weeklyRequired/bonusEligible)
+            if (state.tasks && state.tasks.length > 0) {
+                state.tasks.forEach(task => {
+                    if (task.taskType === undefined) {
+                        // Determine taskType from old fields
+                        if (task.days && task.days.includes('oneTime')) {
+                            task.taskType = 'oneTime';
+                        } else if (task.section === 'bonus') {
+                            task.taskType = 'bonus';
+                        } else {
+                            task.taskType = 'assigned';
+                        }
+                        task.weeklyRequired = task.weeklyRequired || 0;
+                        task.bonusEligible = task.taskType !== 'bonus' && task.taskType !== 'oneTime';
+                        delete task.isJoint;
+                        delete task.frequency;
+                    }
+                });
+            }
 
             // Sanitize: Ensure earnings are never negative
             ['maria', 'helena'].forEach(childKey => {
@@ -958,7 +839,7 @@
             delete copy.editingTaskName;
             delete copy.tempTaskName;
             delete copy.editingFrequency;
-            delete copy.editingJoint;
+            delete copy.editingTaskType;
             delete copy.editingGoal;
             delete copy.tempGoalName;
             delete copy.tempGoalAmount;
@@ -970,6 +851,8 @@
             delete copy.newTaskPayout;
             delete copy.newTaskSection;
             delete copy.newTaskDays;
+            delete copy.newTaskType;
+            delete copy.newTaskWeeklyRequired;
             return copy;
         }
 
@@ -1197,20 +1080,19 @@
                 state.skippedHistory.maria[yesterday] = [...state.skippedTasks.maria];
                 state.skippedHistory.helena[yesterday] = [...state.skippedTasks.helena];
 
-                // Check daily bonus for yesterday before clearing today's data
-                checkHistoryDailyBonus('maria', yesterday);
-                checkHistoryDailyBonus('helena', yesterday);
-
                 state.completedTasks = { maria: [], helena: [] };
                 state.skippedTasks = { maria: [], helena: [] };
                 state.earnings.maria.todayTotal = 0;
                 state.earnings.helena.todayTotal = 0;
                 state.lastResetDate = today;
 
-                // If we crossed a week boundary (today is Sunday), check weekly streak for the just-completed week
+                // Remove one-time tasks that both kids have completed
+                cleanupCompletedOneTimeTasks();
+
+                // If we crossed a week boundary (today is Sunday), check weekly bonus for the just-completed week
                 if (new Date(today).getDay() === 0) {
-                    checkWeeklyStreak('maria');
-                    checkWeeklyStreak('helena');
+                    checkWeeklyBonus('maria');
+                    checkWeeklyBonus('helena');
                 }
 
                 saveState();
@@ -1291,54 +1173,29 @@
         }
 
         function resetToDefaultChores() {
-            if (!confirm('This will replace all current chores with the default list (Every Day). Are you sure?')) return;
+            if (!confirm('This will replace all current chores with the default placeholder list. Are you sure?')) return;
 
             const allDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-            state.tasks = [
-                { id: 1, name: 'Brush teeth and hair without being asked', section: 'morning', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
-                { id: 2, name: 'Make bed', section: 'morning', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
-                { id: 3, name: 'Take vitamins', section: 'morning', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
-                { id: 4, name: 'Fill water bottle', section: 'morning', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
-                { id: 5, name: 'Out door by 7:45', section: 'morning', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
-                { id: 6, name: 'Hang backpack and coat up', section: 'afterSchool', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
-                { id: 7, name: 'Empty lunch and/or snack box', section: 'afterSchool', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
-                { id: 8, name: 'Put water bottle at sink', section: 'afterSchool', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
-                { id: 9, name: 'Practice a skill 10 mins', section: 'evening', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
-                { id: 10, name: 'Schoolwork for 20 mins', section: 'evening', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
-                { id: 11, name: 'Brush teeth and rinse nose without being asked', section: 'evening', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
-                { id: 12, name: 'Prepare backpack for following day', section: 'evening', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
-                { id: 13, name: 'Clean up living room and garage', section: 'evening', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false },
-                { id: 14, name: 'Shower AND hang up towel', section: 'evening', payout: 0.15, days: [...allDays], frequency: 'daily', isJoint: false }
-            ];
-
-            saveState();
-            alert('Chores have been reset to defaults (Every Day)!');
-            render();
-        }
-
-        function resetToWeekdayChores() {
-            if (!confirm('This will replace all current chores with the default list (Weekdays Only: Mon-Fri). Are you sure?')) return;
-
             const weekdays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
             state.tasks = [
-                { id: 1, name: 'Brush teeth and hair without being asked', section: 'morning', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
-                { id: 2, name: 'Make bed', section: 'morning', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
-                { id: 3, name: 'Take vitamins', section: 'morning', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
-                { id: 4, name: 'Fill water bottle', section: 'morning', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
-                { id: 5, name: 'Out door by 7:45', section: 'morning', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
-                { id: 6, name: 'Hang backpack and coat up', section: 'afterSchool', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
-                { id: 7, name: 'Empty lunch and/or snack box', section: 'afterSchool', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
-                { id: 8, name: 'Put water bottle at sink', section: 'afterSchool', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
-                { id: 9, name: 'Practice a skill 10 mins', section: 'evening', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
-                { id: 10, name: 'Schoolwork for 20 mins', section: 'evening', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
-                { id: 11, name: 'Brush teeth and rinse nose without being asked', section: 'evening', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
-                { id: 12, name: 'Prepare backpack for following day', section: 'evening', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
-                { id: 13, name: 'Clean up living room and garage', section: 'evening', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false },
-                { id: 14, name: 'Shower AND hang up towel', section: 'evening', payout: 0.15, days: [...weekdays], frequency: 'daily', isJoint: false }
+                { id: 1, name: 'Make Bed', section: 'assigned', payout: 0.25, days: [...allDays], taskType: 'assigned', weeklyRequired: 0, bonusEligible: true },
+                { id: 2, name: 'Clear Table', section: 'assigned', payout: 0.25, days: [...allDays], taskType: 'assigned', weeklyRequired: 0, bonusEligible: true },
+                { id: 3, name: 'Sweep Floor', section: 'assigned', payout: 0.25, days: [...allDays], taskType: 'assigned', weeklyRequired: 0, bonusEligible: true },
+                { id: 4, name: 'Put Everything In Its Place After School', section: 'assigned', payout: 0.25, days: [...weekdays], taskType: 'assigned', weeklyRequired: 0, bonusEligible: true },
+                { id: 5, name: 'Schoolwork for 20 mins (math for Helena)', section: 'flexible', payout: 1.00, days: [...allDays], taskType: 'flexible', weeklyRequired: 2, bonusEligible: true },
+                { id: 6, name: 'Empty Dishwasher', section: 'flexible', payout: 0.25, days: [...allDays], taskType: 'flexible', weeklyRequired: 2, bonusEligible: true },
+                { id: 7, name: 'Trash To Curb', section: 'flexible', payout: 0.25, days: [...allDays], taskType: 'flexible', weeklyRequired: 1, bonusEligible: true },
+                { id: 8, name: 'Trash From Curb', section: 'flexible', payout: 0.25, days: [...allDays], taskType: 'flexible', weeklyRequired: 1, bonusEligible: true },
+                { id: 9, name: 'Sunday Prep - Clean Car and Backpacks Together', section: 'flexible', payout: 0.50, days: [...allDays], taskType: 'flexible', weeklyRequired: 1, bonusEligible: true },
+                { id: 10, name: 'Practice a Skill 15 Mins Outside Class', section: 'flexible', payout: 0.50, days: [...allDays], taskType: 'flexible', weeklyRequired: 2, bonusEligible: true },
+                { id: 11, name: 'Fold Laundry', section: 'bonus', payout: 1.00, days: [...allDays], taskType: 'bonus', weeklyRequired: 0, bonusEligible: false },
+                { id: 12, name: 'Take Out Trash', section: 'bonus', payout: 0.25, days: [...allDays], taskType: 'bonus', weeklyRequired: 0, bonusEligible: false },
+                { id: 13, name: 'Take Out Recycling', section: 'bonus', payout: 0.25, days: [...allDays], taskType: 'bonus', weeklyRequired: 0, bonusEligible: false },
+                { id: 14, name: 'Straighten Up Living Room', section: 'bonus', payout: 0.50, days: [...allDays], taskType: 'bonus', weeklyRequired: 0, bonusEligible: false }
             ];
 
             saveState();
-            alert('Chores have been reset to defaults (Weekdays Only: Mon-Fri)!');
+            alert('Chores have been reset to defaults!');
             render();
         }
 
@@ -1375,11 +1232,8 @@
             // Clear skipped history
             state.skippedHistory = { maria: {}, helena: {} };
 
-            // Clear daily bonus awarded
-            state.dailyBonusAwarded = { maria: {}, helena: {} };
-
-            // Clear weekly streak awarded
-            state.weeklyStreakAwarded = { maria: {}, helena: {} };
+            // Clear weekly bonus awarded
+            state.weeklyBonusAwarded = { maria: {}, helena: {} };
 
             // Reset default payout to 0.15
             state.defaultPayout = 0.15;
@@ -1403,143 +1257,28 @@
         }
 
         function recalculateEarningsFromHistory() {
-            if (!confirm('This will recalculate all earnings based on completion history.\n\nOrphaned task completions (deleted tasks) will be removed.\nDaily bonuses will be recalculated.\nWeekly streaks will be rechecked.\n\nContinue?')) return;
+            if (!confirm('This will recalculate all earnings based on completion history.\n\nOrphaned task completions (deleted tasks) will be removed.\nWeekly bonuses will be rechecked.\n\nContinue?')) return;
 
             const validTaskIds = state.tasks.map(t => t.id);
-            const today = new Date().toDateString();
 
+            // Clean up orphaned task IDs
             ['maria', 'helena'].forEach(childKey => {
-                const earningDates = getEarningPeriodDates(childKey);
-                let weekTotal = 0;
-                let todayTotal = 0;
-
-                // Clean up and recalculate from today's completed tasks
                 state.completedTasks[childKey] = state.completedTasks[childKey].filter(id => validTaskIds.includes(id));
                 state.skippedTasks[childKey] = state.skippedTasks[childKey].filter(id => validTaskIds.includes(id));
 
-                // Calculate today's earnings
-                const otherChild = childKey === 'maria' ? 'helena' : 'maria';
-                state.completedTasks[childKey].forEach(taskId => {
-                    const task = state.tasks.find(t => t.id === taskId);
-                    if (task) {
-                        let payout = task.payout;
-                        if (task.isJoint && !state.completedTasks[otherChild].includes(taskId)) {
-                            payout = 0;
-                        }
-                        todayTotal = roundMoney(todayTotal + payout);
-                        weekTotal = roundMoney(weekTotal + payout);
-                    }
-                });
-
-                // Clean up and recalculate from completion history (entire earning period)
-                for (const date of earningDates) {
-                    if (date === today) continue; // Already handled above
-
-                    if (state.completionHistory[childKey][date]) {
-                        // Remove orphaned task IDs
-                        state.completionHistory[childKey][date] = state.completionHistory[childKey][date].filter(id => validTaskIds.includes(id));
-
-                        // Add up earnings for this day
-                        state.completionHistory[childKey][date].forEach(taskId => {
-                            const task = state.tasks.find(t => t.id === taskId);
-                            if (task) {
-                                let payout = task.payout;
-                                if (task.isJoint && !(state.completionHistory[otherChild][date] || []).includes(taskId)) {
-                                    payout = 0;
-                                }
-                                weekTotal = roundMoney(weekTotal + payout);
-                            }
-                        });
-                    }
-
-                    if (state.skippedHistory[childKey][date]) {
-                        state.skippedHistory[childKey][date] = state.skippedHistory[childKey][date].filter(id => validTaskIds.includes(id));
-                    }
+                for (const date in state.completionHistory[childKey]) {
+                    state.completionHistory[childKey][date] = state.completionHistory[childKey][date].filter(id => validTaskIds.includes(id));
+                }
+                for (const date in state.skippedHistory[childKey]) {
+                    state.skippedHistory[childKey][date] = state.skippedHistory[childKey][date].filter(id => validTaskIds.includes(id));
                 }
 
-                // Recalculate daily bonuses for all dates in earning period
-                for (const date of earningDates) {
-                    const dateObj = new Date(date);
-                    const completedForDay = date === today
-                        ? state.completedTasks[childKey]
-                        : (state.completionHistory[childKey][date] || []);
-                    const skippedForDay = date === today
-                        ? state.skippedTasks[childKey]
-                        : (state.skippedHistory[childKey][date] || []);
-
-                    // Get applicable daily tasks (exclude weekly/monthly/oneTime/bonus section)
-                    const dailyTasks = state.tasks.filter(t => {
-                        if (skippedForDay.includes(t.id)) return false;
-                        if (t.days && (t.days.includes('weekly') || t.days.includes('monthly') || t.days.includes('oneTime'))) return false;
-                        if (t.section === 'bonus') return false;
-                        return taskAppliesToDate(t, dateObj, childKey);
-                    });
-
-                    const allComplete = dailyTasks.length > 0 && dailyTasks.every(t => completedForDay.includes(t.id));
-
-                    if (allComplete) {
-                        weekTotal = roundMoney(weekTotal + 1.00);
-                        if (date === today) todayTotal = roundMoney(todayTotal + 1.00);
-                        state.dailyBonusAwarded[childKey][date] = true;
-                    } else {
-                        state.dailyBonusAwarded[childKey][date] = false;
-                    }
-                }
-
-                // Recalculate weekly streaks for all complete calendar weeks in the earning period
-                // Build set of unique calendar weeks that overlap the earning period
-                const processedWeeks = new Set();
-                for (const date of earningDates) {
-                    const calWeek = getCalendarWeekDates(new Date(date));
-                    const weekStart = calWeek[0];
-                    if (processedWeeks.has(weekStart)) continue;
-                    processedWeeks.add(weekStart);
-
-                    const weekEnd = calWeek[6];
-                    // Only evaluate complete weeks (all 7 days in the past or today)
-                    if (new Date(weekEnd) > new Date(today)) continue;
-
-                    let hasFullWeek = true;
-                    for (const wd of calWeek) {
-                        const wdObj = new Date(wd);
-                        const completedForDay = wd === today
-                            ? state.completedTasks[childKey]
-                            : (state.completionHistory[childKey][wd] || []);
-                        const skippedForDay = wd === today
-                            ? state.skippedTasks[childKey]
-                            : (state.skippedHistory[childKey][wd] || []);
-
-                        const applicableTasks = state.tasks.filter(task => {
-                            if (!task.days) return false;
-                            if (task.days.includes('weekly') || task.days.includes('monthly') || task.days.includes('oneTime')) return false;
-                            if (task.section === 'bonus') return false;
-                            const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-                            const dayName = dayNames[wdObj.getDay()];
-                            return task.days.some(d => {
-                                if (d === dayName) return true;
-                                if (d === 'weekday' && wdObj.getDay() >= 1 && wdObj.getDay() <= 5) return true;
-                                return false;
-                            });
-                        });
-
-                        const activeTasks = applicableTasks.filter(t => !skippedForDay.includes(t.id));
-                        if (activeTasks.length === 0) continue;
-                        if (!activeTasks.every(t => completedForDay.includes(t.id))) {
-                            hasFullWeek = false;
-                            break;
-                        }
-                    }
-
-                    if (hasFullWeek) {
-                        state.weeklyStreakAwarded[childKey][weekStart] = true;
-                        weekTotal = roundMoney(weekTotal + state.weeklyStreakBonus);
-                    }
-                }
-
-                // Update earnings (ensure proper rounding)
-                state.earnings[childKey].weekTotal = roundMoney(weekTotal);
-                state.earnings[childKey].todayTotal = roundMoney(todayTotal);
+                // Reset weekly bonus awarded so it gets re-evaluated
+                state.weeklyBonusAwarded[childKey] = {};
             });
+
+            // Use silentRecalculateEarnings for the actual calculation
+            silentRecalculateEarnings();
 
             saveState();
             render();
@@ -1608,102 +1347,34 @@
             if (isSkipped) return;
 
             const isParent = state.currentUser?.isParent;
-            const isWeeklyTask = task && task.days && task.days.includes('weekly');
-            const isMonthlyTask = task && task.days && task.days.includes('monthly');
-            const isOneTimeTask = task && task.days && task.days.includes('oneTime');
-
-            // Check if completed on an earlier day
-            const weeklyCompletedEarlier = isWeeklyTask && !isCompletedToday && isWeeklyTaskCompletedThisWeek(childKey, taskId);
-            const monthlyCompletedEarlier = isMonthlyTask && !isCompletedToday && isMonthlyTaskCompletedThisMonth(childKey, taskId);
-            const completedEarlier = weeklyCompletedEarlier || monthlyCompletedEarlier;
-
-            // For weekly/monthly tasks completed earlier, only parents can toggle (to undo)
-            if (completedEarlier && !isParent) {
-                return; // Kids can't undo tasks completed on earlier days
-            }
+            const isOneTimeTask = task && task.taskType === 'oneTime';
 
             // Allow kids to uncheck their own tasks, but not check other kids' tasks
             if (!isParent && state.currentUser.id !== childKey) return;
 
-            // Determine if we're unchecking a task completed on an earlier day
-            const isUndoingEarlierCompletion = completedEarlier && isParent;
-            const isCompleted = isCompletedToday || isUndoingEarlierCompletion;
-
-            if (isCompleted) {
-                // Remove from today's completed tasks
+            if (isCompletedToday) {
+                // Unchecking
                 state.completedTasks[childKey] = state.completedTasks[childKey].filter(id => id !== taskId);
-
-                // If parent is undoing an earlier completion, also remove from history
-                if (isUndoingEarlierCompletion) {
-                    // Find and remove from completion history
-                    for (const date in state.completionHistory[childKey]) {
-                        if (state.completionHistory[childKey][date].includes(taskId)) {
-                            state.completionHistory[childKey][date] = state.completionHistory[childKey][date].filter(id => id !== taskId);
-                            break;
-                        }
-                    }
-                }
+                subtractEarnings(childKey, taskPayout, taskPayout);
             } else {
-                // Validate task is applicable today before adding (prevents data corruption)
+                // Checking — validate task is applicable today
                 if (task && !isTaskApplicableToday(task)) {
                     console.warn(`Task "${task.name}" is not applicable today, skipping completion`);
                     return;
                 }
                 state.completedTasks[childKey].push(taskId);
+                addEarnings(childKey, taskPayout, taskPayout);
                 playChaChing();
-                // Trigger fireworks when completing a task
                 if (event) {
                     createFireworks(event.clientX, event.clientY);
                 }
             }
 
-            // For joint tasks, only pay out if BOTH kids have completed it
-            let actualPayout = taskPayout;
-            let otherChildPayout = 0;
-            const otherChild = childKey === 'maria' ? 'helena' : 'maria';
-
-            if (task && task.isJoint) {
-                const otherCompleted = state.completedTasks[otherChild].includes(taskId);
-                const thisCompleted = !isCompleted; // New state (we just toggled)
-
-                if (thisCompleted && otherCompleted) {
-                    // This child is the SECOND to complete - pay BOTH children
-                    actualPayout = taskPayout;
-                    otherChildPayout = taskPayout; // Other child also gets paid now
-                } else if (!thisCompleted && otherCompleted) {
-                    // This child unchecked, other still has it - remove payout from BOTH
-                    // Use positive values here; the subtraction happens below
-                    actualPayout = taskPayout;
-                    otherChildPayout = taskPayout;
-                } else {
-                    // Only one has completed (or both unchecked) - no payout yet
-                    actualPayout = 0;
-                }
+            // Check for weekly bonus (only on completing, not uncompleting)
+            if (!isCompletedToday) {
+                checkWeeklyBonus(childKey);
             }
 
-            // Update earnings: subtract when unchecking (isCompleted=true), add when checking
-            if (isCompleted) {
-                subtractEarnings(childKey, actualPayout, actualPayout);
-            } else {
-                addEarnings(childKey, actualPayout, actualPayout);
-            }
-
-            // For joint tasks, also update the other child's earnings
-            if (task && task.isJoint && otherChildPayout !== 0) {
-                if (isCompleted) {
-                    subtractEarnings(otherChild, otherChildPayout, otherChildPayout);
-                } else {
-                    addEarnings(otherChild, otherChildPayout, otherChildPayout);
-                }
-            }
-
-            checkDailyBonus(childKey);
-            
-            // Check for weekly streak (only on completing, not uncompleting)
-            if (!isCompleted) {
-                checkWeeklyStreak(childKey);
-            }
-            
             saveState();
             render();
         }
@@ -1718,17 +1389,7 @@
                 const task = state.tasks.find(t => t.id === taskId);
                 state.completedTasks[childKey] = state.completedTasks[childKey].filter(id => id !== taskId);
                 if (task) {
-                    if (task.isJoint) {
-                        const otherChild = childKey === 'maria' ? 'helena' : 'maria';
-                        if (state.completedTasks[otherChild].includes(taskId)) {
-                            // Joint condition was met, now broken - deduct from both
-                            subtractEarnings(childKey, task.payout, task.payout);
-                            subtractEarnings(otherChild, task.payout, task.payout);
-                        }
-                        // else: joint condition wasn't met, no payout was awarded
-                    } else {
-                        subtractEarnings(childKey, task.payout, task.payout);
-                    }
+                    subtractEarnings(childKey, task.payout, task.payout);
                 }
             }
 
@@ -1738,55 +1399,27 @@
                 state.skippedTasks[childKey].push(taskId);
             }
 
-            checkDailyBonus(childKey);
             saveState();
             render();
         }
 
-        function checkDailyBonus(childKey) {
-            // Only consider tasks that are:
-            // 1. Applicable today (based on day of week)
-            // 2. Not skipped
-            // 3. Not weekly, monthly, one-time, or bonus tasks (those are excluded from daily bonus)
-            const dailyTasks = state.tasks.filter(t => {
-                // Exclude skipped tasks
-                if (state.skippedTasks[childKey].includes(t.id)) return false;
-                // Exclude weekly, monthly, one-time, and bonus tasks
-                if (t.days && (t.days.includes('weekly') || t.days.includes('monthly') || t.days.includes('oneTime'))) return false;
-                // Exclude bonus section tasks (optional tasks don't count toward daily bonus)
-                if (t.section === 'bonus') return false;
-                // Only include tasks applicable today
-                return isTaskApplicableToday(t);
-            });
-
-            const allDailyTasksComplete = dailyTasks.every(t =>
-                state.completedTasks[childKey].includes(t.id)
-            );
-
-            const today = new Date().toDateString();
-            const bonusAlreadyAwarded = state.dailyBonusAwarded[childKey][today];
-
-            if (allDailyTasksComplete && !bonusAlreadyAwarded && dailyTasks.length > 0) {
-                addEarnings(childKey, 1.00, 1.00);
-                state.dailyBonusAwarded[childKey][today] = true;
-                showDailyBonusAnimation(state.users[childKey].name);
-            } else if (!allDailyTasksComplete && bonusAlreadyAwarded) {
-                subtractEarnings(childKey, 1.00, 1.00);
-                state.dailyBonusAwarded[childKey][today] = false;
-            }
-        }
-
         function addTask() {
             if (state.newTaskName.trim()) {
+                const taskType = state.newTaskType || 'assigned';
+                const allDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
                 const newTask = {
                     id: Date.now(),
                     name: state.newTaskName,
-                    section: state.newTaskSection,
-                    days: state.newTaskDays,
+                    section: taskType === 'oneTime' ? 'bonus' : taskType,
+                    days: taskType === 'assigned' ? state.newTaskDays : [...allDays],
                     payout: state.newTaskPayout,
-                    frequency: 'daily',
-                    isJoint: false
+                    taskType: taskType,
+                    weeklyRequired: taskType === 'flexible' ? (state.newTaskWeeklyRequired || 3) : 0,
+                    bonusEligible: taskType === 'assigned' || taskType === 'flexible'
                 };
+                if (taskType === 'oneTime') {
+                    newTask.oneTimeDate = new Date().toDateString();
+                }
                 state.tasks.push(newTask);
                 state.newTaskName = '';
                 state.newTaskPayout = state.defaultPayout;
@@ -1887,10 +1520,8 @@
 
         // Get effective section for drag-and-drop (accounts for frequency-based visual grouping)
         function getDragSection(task) {
-            if (task.days && task.days.includes('weekly')) return '_weekly';
-            if (task.days && task.days.includes('monthly')) return '_monthly';
-            if (task.days && task.days.includes('oneTime')) return '_oneTime';
-            if (task.section === 'bonus') return '_bonus';
+            if (task.taskType === 'oneTime') return '_oneTime';
+            if (task.taskType === 'bonus' || task.section === 'bonus') return '_bonus';
             return task.section;
         }
 
@@ -1971,6 +1602,35 @@
                 task.section = newSection;
                 state.editingSection = null;
                 syncToReward();
+                saveState();
+                render();
+            }
+        }
+
+        function updateTaskType(taskId, newType) {
+            const task = state.tasks.find(t => t.id === taskId);
+            if (task) {
+                task.taskType = newType;
+                task.section = newType; // section matches taskType
+                task.bonusEligible = (newType === 'assigned' || newType === 'flexible');
+                if (newType === 'flexible' && !task.weeklyRequired) {
+                    task.weeklyRequired = 3;
+                }
+                if (newType === 'oneTime') {
+                    task.section = 'bonus'; // one-time tasks show in bonus section
+                    task.oneTimeDate = new Date().toDateString();
+                }
+                state.editingTaskType = null;
+                silentRecalculateEarnings();
+                saveState();
+                render();
+            }
+        }
+
+        function updateTaskWeeklyRequired(taskId, count) {
+            const task = state.tasks.find(t => t.id === taskId);
+            if (task) {
+                task.weeklyRequired = Math.max(1, Math.min(7, count || 1));
                 saveState();
                 render();
             }
@@ -2197,12 +1857,11 @@
                     skippedTasks: state.skippedTasks,
                     completionHistory: state.completionHistory,
                     skippedHistory: state.skippedHistory,
-                    dailyBonusAwarded: state.dailyBonusAwarded,
                     goals: state.goals,
                     payoutHistory: state.payoutHistory,
                     yearlyEarnings: state.yearlyEarnings,
-                    weeklyStreakBonus: state.weeklyStreakBonus,
-                    weeklyStreakAwarded: state.weeklyStreakAwarded,
+                    weeklyBonusAmount: state.weeklyBonusAmount,
+                    weeklyBonusAwarded: state.weeklyBonusAwarded,
                     defaultPayout: state.defaultPayout,
                     lastResetDate: state.lastResetDate
                 }
@@ -2269,10 +1928,20 @@
                                 taskChanges.push('migrated frequency to days');
                             }
 
-                            // Add missing 'isJoint' field
-                            if (migrated.isJoint === undefined) {
-                                migrated.isJoint = false;
-                                taskChanges.push('added isJoint=false');
+                            // Migrate to new task schema
+                            if (migrated.taskType === undefined) {
+                                if (migrated.days && migrated.days.includes('oneTime')) {
+                                    migrated.taskType = 'oneTime';
+                                } else if (migrated.section === 'bonus') {
+                                    migrated.taskType = 'bonus';
+                                } else {
+                                    migrated.taskType = 'assigned';
+                                }
+                                migrated.weeklyRequired = 0;
+                                migrated.bonusEligible = migrated.taskType !== 'bonus' && migrated.taskType !== 'oneTime';
+                                delete migrated.isJoint;
+                                delete migrated.frequency;
+                                taskChanges.push('migrated to new task schema');
                             }
 
                             // Add missing 'payout' field
@@ -2304,7 +1973,6 @@
                     if (data.skippedTasks) state.skippedTasks = data.skippedTasks;
                     if (data.completionHistory) state.completionHistory = data.completionHistory;
                     if (data.skippedHistory) state.skippedHistory = data.skippedHistory;
-                    if (data.dailyBonusAwarded) state.dailyBonusAwarded = data.dailyBonusAwarded;
                     if (data.goals) state.goals = data.goals;
                     if (data.payoutHistory) state.payoutHistory = data.payoutHistory;
                     if (data.yearlyEarnings) {
@@ -2323,8 +1991,8 @@
                         });
                         changes.push('Calculated yearly earnings from payout history');
                     }
-                    if (data.weeklyStreakBonus !== undefined) state.weeklyStreakBonus = data.weeklyStreakBonus;
-                    if (data.weeklyStreakAwarded) state.weeklyStreakAwarded = data.weeklyStreakAwarded;
+                    if (data.weeklyBonusAmount !== undefined) state.weeklyBonusAmount = data.weeklyBonusAmount;
+                    if (data.weeklyBonusAwarded) state.weeklyBonusAwarded = data.weeklyBonusAwarded;
                     if (data.defaultPayout !== undefined) state.defaultPayout = data.defaultPayout;
                     if (data.lastResetDate) state.lastResetDate = data.lastResetDate;
 
@@ -2384,84 +2052,22 @@
             }
         }
 
-        function checkHistoryDailyBonus(childKey, date) {
-            const dateObj = new Date(date);
-            const completedForDay = state.completionHistory[childKey][date] || [];
-            const skippedForDay = state.skippedHistory[childKey][date] || [];
-
-            // Evaluate ALL applicable tasks for the day, not just ones with records
-            const dailyTasks = state.tasks.filter(t => {
-                if (skippedForDay.includes(t.id)) return false;
-                if (t.days && (t.days.includes('weekly') || t.days.includes('monthly') || t.days.includes('oneTime'))) return false;
-                if (t.section === 'bonus') return false;
-                return taskAppliesToDate(t, dateObj, childKey);
-            });
-
-            const allComplete = dailyTasks.length > 0 && dailyTasks.every(t => completedForDay.includes(t.id));
-            const bonusAwarded = state.dailyBonusAwarded[childKey] && state.dailyBonusAwarded[childKey][date];
-
-            if (allComplete && !bonusAwarded) {
-                addEarnings(childKey, 1.00);
-                state.dailyBonusAwarded[childKey][date] = true;
-            } else if (!allComplete && bonusAwarded) {
-                subtractEarnings(childKey, 1.00);
-                state.dailyBonusAwarded[childKey][date] = false;
-            }
-        }
-
-        function toggleHistoryBonus(childKey, date) {
-            const bonusAwarded = state.dailyBonusAwarded[childKey] && state.dailyBonusAwarded[childKey][date];
-            if (bonusAwarded) {
-                subtractEarnings(childKey, 1.00);
-                state.dailyBonusAwarded[childKey][date] = false;
-            } else {
-                addEarnings(childKey, 1.00);
-                state.dailyBonusAwarded[childKey][date] = true;
-            }
-            saveState();
-            render();
-        }
-
         function toggleHistoryTask(childKey, date, taskId) {
             if (!state.completionHistory[childKey][date]) {
                 state.completionHistory[childKey][date] = [];
             }
-            
+
             const dateHistory = state.completionHistory[childKey][date];
             const isCompleted = dateHistory.includes(taskId);
-            
+
             if (isCompleted) {
                 state.completionHistory[childKey][date] = dateHistory.filter(id => id !== taskId);
             } else {
                 state.completionHistory[childKey][date].push(taskId);
             }
 
-            const task = state.tasks.find(t => t.id === taskId);
-            if (task) {
-                const otherChild = childKey === 'maria' ? 'helena' : 'maria';
-                const otherCompleted = (state.completionHistory[otherChild]?.[date] || []).includes(taskId);
-
-                if (task.isJoint) {
-                    if (isCompleted && otherCompleted) {
-                        // Joint was met, now broken - deduct from both
-                        subtractEarnings(childKey, task.payout, 0);
-                        subtractEarnings(otherChild, task.payout, 0);
-                    } else if (!isCompleted && otherCompleted) {
-                        // Joint is now met - add to both
-                        addEarnings(childKey, task.payout, 0);
-                        addEarnings(otherChild, task.payout, 0);
-                    }
-                    // else: only one child involved, joint not met either way, no payout change
-                } else {
-                    if (isCompleted) {
-                        subtractEarnings(childKey, task.payout, 0);
-                    } else {
-                        addEarnings(childKey, task.payout, 0);
-                    }
-                }
-            }
-
-            checkHistoryDailyBonus(childKey, date);
+            // Recalculate everything from scratch (simpler and correct)
+            silentRecalculateEarnings();
             saveState();
             render();
         }
@@ -2477,21 +2083,7 @@
             const isCompleted = dateCompleted.includes(taskId);
 
             if (isSkipped && isCompleted) {
-                const task = state.tasks.find(t => t.id === taskId);
                 state.completionHistory[childKey][date] = dateCompleted.filter(id => id !== taskId);
-                if (task) {
-                    if (task.isJoint) {
-                        const otherChild = childKey === 'maria' ? 'helena' : 'maria';
-                        if ((state.completionHistory[otherChild]?.[date] || []).includes(taskId)) {
-                            // Joint was met, now broken - deduct from both
-                            subtractEarnings(childKey, task.payout, 0);
-                            subtractEarnings(otherChild, task.payout, 0);
-                        }
-                        // else: joint wasn't met, no payout was awarded
-                    } else {
-                        subtractEarnings(childKey, task.payout, 0);
-                    }
-                }
             }
 
             if (isSkipped) {
@@ -2500,7 +2092,8 @@
                 state.skippedHistory[childKey][date].push(taskId);
             }
 
-            checkHistoryDailyBonus(childKey, date);
+            // Recalculate everything from scratch
+            silentRecalculateEarnings();
             saveState();
             render();
         }
@@ -2543,12 +2136,6 @@
                     const d = new Date(dateStr);
                     if (!earliest || d < earliest) earliest = d;
                 }
-                // Also check dailyBonusAwarded for dates
-                const bonusHistory = state.dailyBonusAwarded[childKey] || {};
-                for (const dateStr in bonusHistory) {
-                    const d = new Date(dateStr);
-                    if (!earliest || d < earliest) earliest = d;
-                }
                 startDate = earliest || new Date(today);
             }
 
@@ -2569,15 +2156,6 @@
             return getCalendarWeekDates(new Date());
         }
 
-        function toggleTaskJoint(taskId) {
-            const task = state.tasks.find(t => t.id === taskId);
-            if (task) {
-                task.isJoint = !task.isJoint;
-                saveState();
-                render();
-            }
-        }
-        
         function isTaskApplicableByFrequency(task) {
             if (!task.frequency) task.frequency = 'daily';
             
@@ -2600,9 +2178,8 @@
             return true;
         }
         
-        function checkWeeklyStreak(childKey) {
+        function checkWeeklyBonus(childKey) {
             const today = new Date();
-            const todayStr = today.toDateString();
 
             // Check both current and previous calendar week
             const currentWeek = getCalendarWeekDates(today);
@@ -2615,80 +2192,44 @@
                 const weekEnd = weekDates[6];
 
                 // Don't award if already awarded for this week
-                if (state.weeklyStreakAwarded[childKey][weekStart]) return;
+                if (state.weeklyBonusAwarded[childKey][weekStart]) return;
 
                 // Only evaluate complete weeks (Saturday must be today or in the past)
                 if (new Date(weekEnd) > today) return;
 
-                let hasFullWeek = true;
-
-                for (const date of weekDates) {
-                    const completedForDay = date === todayStr
-                        ? state.completedTasks[childKey]
-                        : (state.completionHistory[childKey][date] || []);
-
-                    const skippedForDay = date === todayStr
-                        ? state.skippedTasks[childKey]
-                        : (state.skippedHistory[childKey][date] || []);
-
-                    const dateObj = new Date(date);
-                    const dayOfWeek = dateObj.getDay();
-
-                    const applicableTasks = state.tasks.filter(task => {
-                        if (!task.days) return false;
-                        if (task.days.includes('weekly') || task.days.includes('monthly') || task.days.includes('oneTime')) return false;
-                        if (task.section === 'bonus') return false;
-
-                        const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-                        const dayName = dayNames[dayOfWeek];
-
-                        return task.days.some(d => {
-                            if (d === dayName) return true;
-                            if (d === 'weekday' && dayOfWeek >= 1 && dayOfWeek <= 5) return true;
-                            return false;
-                        });
-                    });
-
-                    const activeTasks = applicableTasks.filter(t => !skippedForDay.includes(t.id));
-                    if (activeTasks.length === 0) continue;
-
-                    if (!activeTasks.every(t => completedForDay.includes(t.id))) {
-                        hasFullWeek = false;
-                        break;
-                    }
-                }
-
-                if (hasFullWeek && state.weeklyStreakBonus > 0) {
-                    addEarnings(childKey, state.weeklyStreakBonus, 0);
-                    state.weeklyStreakAwarded[childKey][weekStart] = true;
+                if (checkWeeklyBonusCriteria(childKey, weekDates) && state.weeklyBonusAmount > 0) {
+                    addEarnings(childKey, state.weeklyBonusAmount, 0);
+                    state.weeklyBonusAwarded[childKey][weekStart] = true;
                     saveState();
-                    alert(`🔥 ${state.users[childKey].name} earned a $${state.weeklyStreakBonus.toFixed(2)} WEEKLY STREAK BONUS for completing all tasks every day this week!`);
+                    alert(`🎉 ${state.users[childKey].name} earned a $${state.weeklyBonusAmount.toFixed(2)} WEEKLY BONUS for completing all chores this week!`);
                 }
             });
         }
 
         function getSectionIcon(section) {
             switch(section) {
+                case 'assigned': return `<div class="w-5 h-5 text-green-600">${Icons.Check}</div>`;
+                case 'flexible': return `<div class="w-5 h-5 text-blue-500">🔄</div>`;
+                case 'bonus': return `<div class="w-5 h-5 text-yellow-500">${Icons.DollarSign}</div>`;
+                case 'oneTime': return `<div class="w-5 h-5 text-orange-500">⚡</div>`;
+                // Legacy sections
                 case 'morning': return `<div class="w-5 h-5 text-yellow-500">${Icons.Sun}</div>`;
                 case 'afterSchool': return `<div class="w-5 h-5 text-blue-500">${Icons.BookOpen}</div>`;
                 case 'evening': return `<div class="w-5 h-5 text-purple-500">${Icons.Moon}</div>`;
-                case 'bonus': return `<div class="w-5 h-5 text-green-500">${Icons.DollarSign}</div>`;
-                case 'weekly': return `<div class="w-5 h-5 text-blue-600">📅</div>`;
-                case 'monthly': return `<div class="w-5 h-5 text-purple-600">🗓️</div>`;
-                case 'oneTime': return `<div class="w-5 h-5 text-orange-500">⚡</div>`;
                 default: return '';
             }
         }
 
         function getSectionTitle(section) {
             switch(section) {
+                case 'assigned': return 'Daily Chores';
+                case 'flexible': return 'Flexible Chores';
+                case 'bonus': return 'Bonus Chores (Extra $)';
+                case 'oneTime': return 'One-Time Bonus';
+                // Legacy sections
                 case 'morning': return 'Morning';
                 case 'afterSchool': return 'After School/Afternoon';
                 case 'evening': return 'Evening';
-                case 'bonus': return 'Bonus (Optional)';
-                case 'weekly': return 'Weekly Tasks';
-                case 'monthly': return 'Monthly Tasks';
-                case 'oneTime': return 'One-Time Tasks';
                 default: return section;
             }
         }
@@ -2697,17 +2238,13 @@
         function renderTaskItem(task, childKey) {
             const isCompletedToday = state.completedTasks[childKey].includes(task.id);
             const isSkipped = state.skippedTasks[childKey].includes(task.id);
-            const isWeeklyTask = task.days && task.days.includes('weekly');
-            const isMonthlyTask = task.days && task.days.includes('monthly');
-            const isOneTimeTask = task.days && task.days.includes('oneTime');
-            const weeklyCompletedEarlier = isWeeklyTask && !isCompletedToday && isWeeklyTaskCompletedThisWeek(childKey, task.id);
-            const monthlyCompletedEarlier = isMonthlyTask && !isCompletedToday && isMonthlyTaskCompletedThisMonth(childKey, task.id);
-            const weeklyCompletionDate = weeklyCompletedEarlier ? getWeeklyTaskCompletionDate(childKey, task.id) : null;
-            const monthlyCompletionDate = monthlyCompletedEarlier ? getMonthlyTaskCompletionDate(childKey, task.id) : null;
-            const completedEarlier = weeklyCompletedEarlier || monthlyCompletedEarlier;
-            const isCompleted = isCompletedToday || completedEarlier;
-            // Parents can always click to undo; kids can't click on tasks completed earlier
-            const isDisabled = isSkipped || (completedEarlier && !state.currentUser.isParent);
+            const isFlexible = task.taskType === 'flexible';
+            const isOneTimeTask = task.taskType === 'oneTime' || (task.days && task.days.includes('oneTime'));
+            const isDisabled = isSkipped;
+
+            // For flexible tasks, show weekly progress
+            const flexCount = isFlexible ? getFlexibleTaskWeekCount(childKey, task.id) : 0;
+            const flexRequired = isFlexible ? (task.weeklyRequired || 0) : 0;
 
             return `
                 <div class="flex gap-2">
@@ -2730,24 +2267,24 @@
                         class="flex-1 text-left p-3 rounded-lg transition-all duration-300 border-2 ${
                             isSkipped
                                 ? 'bg-gray-100 border-gray-300 opacity-50 cursor-not-allowed'
-                                : isCompleted
-                                ? 'bg-gradient-to-r from-green-100 to-emerald-100 border-green-400' + ((completedEarlier && !state.currentUser.isParent) ? ' cursor-not-allowed' : ' hover:from-red-50 hover:to-red-100 hover:border-red-300')
+                                : isCompletedToday
+                                ? 'bg-gradient-to-r from-green-100 to-emerald-100 border-green-400 hover:from-red-50 hover:to-red-100 hover:border-red-300'
                                 : 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 hover:from-green-100 hover:to-emerald-100'
                         }"
-                        title="${isCompleted && state.currentUser.isParent ? 'Click to undo completion and deduct $' + task.payout.toFixed(2) : ''}"
+                        title="${isCompletedToday && state.currentUser.isParent ? 'Click to undo completion and deduct $' + task.payout.toFixed(2) : ''}"
                     >
                         <div class="flex justify-between items-center">
                             <div class="flex items-center gap-2 flex-1">
                                 <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
                                     isSkipped
                                         ? 'bg-gray-300 border-gray-400'
-                                        : isCompleted
+                                        : isCompletedToday
                                         ? 'bg-green-500 border-green-500'
                                         : 'border-gray-300'
                                 }">
                                     ${isSkipped ? `
                                         <span class="text-white text-xs">—</span>
-                                    ` : isCompleted ? `
+                                    ` : isCompletedToday ? `
                                         <div class="w-3 h-3 text-white">${Icons.Check}</div>
                                     ` : ''}
                                 </div>
@@ -2755,37 +2292,29 @@
                                     <span class="text-sm ${
                                         isSkipped
                                             ? 'text-gray-400 line-through'
-                                            : isCompleted
+                                            : isCompletedToday
                                             ? 'text-gray-600 line-through'
                                             : 'text-gray-700'
                                     }">
-                                        ${task.isJoint ? '👯 ' : ''}${escapeHtml(task.name)}
+                                        ${escapeHtml(task.name)}
                                     </span>
-                                    ${weeklyCompletedEarlier ? `
-                                        <span class="text-xs text-green-600">Done ${weeklyCompletionDate}${state.currentUser.isParent ? ' • Click to undo' : ''}</span>
-                                    ` : monthlyCompletedEarlier ? `
-                                        <span class="text-xs text-green-600">Done ${monthlyCompletionDate}${state.currentUser.isParent ? ' • Click to undo' : ''}</span>
-                                    ` : isCompleted && isOneTimeTask && state.currentUser.isParent ? `
-                                        <span class="text-xs text-orange-500">Completed • Click to undo</span>
-                                    ` : isCompleted && state.currentUser.isParent ? `
-                                        <span class="text-xs text-green-600">Click to undo</span>
-                                    ` : isWeeklyTask && !isCompleted ? `
-                                        <span class="text-xs text-blue-500">Complete any day this week</span>
-                                    ` : isMonthlyTask && !isCompleted ? `
-                                        <span class="text-xs text-purple-500">Complete any day this month</span>
-                                    ` : isOneTimeTask && !isCompleted ? `
+                                    ${isFlexible && !isSkipped ? `
+                                        <span class="text-xs ${flexCount >= flexRequired ? 'text-green-600' : 'text-blue-500'}">${flexCount} of ${flexRequired} this week</span>
+                                    ` : isOneTimeTask && !isCompletedToday ? `
                                         <span class="text-xs text-orange-500">One-time task</span>
+                                    ` : isCompletedToday && state.currentUser.isParent ? `
+                                        <span class="text-xs text-green-600">Click to undo</span>
                                     ` : ''}
                                 </div>
                             </div>
                             <span class="font-bold ${
                                 isSkipped
                                     ? 'text-gray-400'
-                                    : isCompleted
+                                    : isCompletedToday
                                     ? 'text-green-600'
                                     : 'text-green-700'
                             }">
-                                ${isSkipped ? 'N/A' : isCompleted ? '✓' : task.payout.toFixed(2)}
+                                ${isSkipped ? 'N/A' : isCompletedToday ? '✓' : task.payout.toFixed(2)}
                             </span>
                         </div>
                     </button>
@@ -2843,20 +2372,20 @@
             const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
             const todayName = dayNames[today];
 
-            // Check special frequencies first
+            // Flexible tasks show every day (can be done any day)
+            if (task.taskType === 'flexible') return true;
+
+            // Bonus-type tasks show every day
+            if (task.taskType === 'bonus') return true;
+
             // One-time tasks always show until completed, skipped, or deleted
-            if (task.days.includes('oneTime')) {
+            if (task.taskType === 'oneTime' || task.days.includes('oneTime')) {
                 if (!task.oneTimeDate) task.oneTimeDate = todayStr;
                 return true;
             }
 
-            // Weekly tasks show every day - can be completed any day of the week
-            if (task.days.includes('weekly')) {
-                return true;
-            }
-
-            // Monthly tasks show every day - can be completed any day of the month
-            if (task.days.includes('monthly')) {
+            // Legacy: Weekly/monthly tasks show every day
+            if (task.days.includes('weekly') || task.days.includes('monthly')) {
                 return true;
             }
 
@@ -2871,69 +2400,40 @@
 
         function groupTasks(childKey) {
             // Filter tasks to only show ones applicable today
-            const applicableTasks = state.tasks.filter(task => {
-                return isTaskApplicableToday(task);
-            });
+            const applicableTasks = state.tasks.filter(task => isTaskApplicableToday(task));
 
-            // Separate daily tasks from special frequency tasks
-            const dailyTasks = applicableTasks.filter(t =>
-                !t.days || (!t.days.includes('weekly') && !t.days.includes('monthly') && !t.days.includes('oneTime'))
-            );
-            const weeklyTasks = applicableTasks.filter(t => t.days && t.days.includes('weekly'));
-            const monthlyTasks = applicableTasks.filter(t => t.days && t.days.includes('monthly'));
+            const assignedTasks = applicableTasks.filter(t => t.taskType === 'assigned');
+            const flexibleTasks = applicableTasks.filter(t => t.taskType === 'flexible');
+            const bonusTasks = applicableTasks.filter(t => t.taskType === 'bonus');
 
-            // One-time tasks: hide once completed (today or any past day)
-            let oneTimeTasks = applicableTasks.filter(t => t.days && t.days.includes('oneTime'));
+            // One-time tasks: show as completed for the child who did it, uncompleted for the other
+            // Hide only if this child completed it on a prior day (today's completion still shows)
+            let oneTimeTasks = applicableTasks.filter(t => t.taskType === 'oneTime' || (t.days && t.days.includes('oneTime')));
             if (childKey) {
-                const isParent = state.currentUser?.isParent;
                 oneTimeTasks = oneTimeTasks.filter(t => {
-                    const isCompleted = state.completedTasks[childKey].includes(t.id);
-                    const isSkipped = state.skippedTasks[childKey].includes(t.id);
-                    // Check if completed on any past day
+                    const isCompletedToday = state.completedTasks[childKey].includes(t.id);
                     const wasCompletedBefore = Object.values(state.completionHistory[childKey] || {})
                         .some(dayTasks => dayTasks.includes(t.id));
-                    const wasSkippedBefore = Object.values(state.skippedHistory[childKey] || {})
-                        .some(dayTasks => dayTasks.includes(t.id));
-                    // Hide if completed or skipped (today or any past day)
-                    if (isSkipped || wasSkippedBefore) return false;
-                    if (isCompleted || wasCompletedBefore) {
-                        // Parents can see today's completed tasks (to undo), but not past ones
-                        if (isCompleted && isParent) return true;
-                        return false;
-                    }
+                    // If completed on a prior day, hide it (it's done for this child)
+                    if (wasCompletedBefore && !isCompletedToday) return false;
                     return true;
                 });
             }
 
             return {
-                morning: dailyTasks.filter(t => t.section === 'morning'),
-                afterSchool: dailyTasks.filter(t => t.section === 'afterSchool'),
-                evening: dailyTasks.filter(t => t.section === 'evening'),
-                bonus: dailyTasks.filter(t => t.section === 'bonus'),
-                weekly: weeklyTasks,
-                monthly: monthlyTasks,
+                assigned: assignedTasks,
+                flexible: flexibleTasks,
+                bonus: bonusTasks,
                 oneTime: oneTimeTasks
             };
         }
 
         function groupAllTasks() {
-            // Return ALL tasks regardless of day (for Manage Chores section)
-            // Separate daily tasks from special frequency tasks
-            const dailyTasks = state.tasks.filter(t =>
-                !t.days || (!t.days.includes('weekly') && !t.days.includes('monthly') && !t.days.includes('oneTime'))
-            );
-            const weeklyTasks = state.tasks.filter(t => t.days && t.days.includes('weekly'));
-            const monthlyTasks = state.tasks.filter(t => t.days && t.days.includes('monthly'));
-            const oneTimeTasks = state.tasks.filter(t => t.days && t.days.includes('oneTime'));
-
             return {
-                morning: dailyTasks.filter(t => t.section === 'morning'),
-                afterSchool: dailyTasks.filter(t => t.section === 'afterSchool'),
-                evening: dailyTasks.filter(t => t.section === 'evening'),
-                bonus: dailyTasks.filter(t => t.section === 'bonus'),
-                weekly: weeklyTasks,
-                monthly: monthlyTasks,
-                oneTime: oneTimeTasks
+                assigned: state.tasks.filter(t => t.taskType === 'assigned'),
+                flexible: state.tasks.filter(t => t.taskType === 'flexible'),
+                bonus: state.tasks.filter(t => t.taskType === 'bonus'),
+                oneTime: state.tasks.filter(t => t.taskType === 'oneTime' || (t.days && t.days.includes('oneTime')))
             };
         }
 
@@ -3221,21 +2721,7 @@
             const canEdit = state.currentUser.isParent || state.currentUser.id === childKey;
             const isOwnCard = state.currentUser.id === childKey;
             const groupedTasks = groupTasks(childKey);
-            const today = new Date().toDateString();
-            const hasBonus = state.dailyBonusAwarded[childKey][today];
-            
-            // Calculate progress toward bonus (only daily tasks applicable today, excluding weekly/monthly/oneTime/bonus)
-            const dailyBonusTasks = state.tasks.filter(t => {
-                if (state.skippedTasks[childKey].includes(t.id)) return false;
-                if (t.days && (t.days.includes('weekly') || t.days.includes('monthly') || t.days.includes('oneTime'))) return false;
-                // Exclude bonus section tasks (optional tasks don't count toward daily bonus)
-                if (t.section === 'bonus') return false;
-                return isTaskApplicableToday(t);
-            });
-            const completedCount = dailyBonusTasks.filter(t => state.completedTasks[childKey].includes(t.id)).length;
-            const totalActiveTasks = dailyBonusTasks.length;
-            const bonusProgress = totalActiveTasks > 0 ? Math.round((completedCount / totalActiveTasks) * 100) : 0;
-            
+
             return `
                 <div class="bg-white rounded-lg shadow-lg p-6">
                     <div class="flex items-center gap-2 mb-4">
@@ -3266,111 +2752,84 @@
                             </h2>
                         `}
                     </div>
-                    
-                    <!-- Daily Bonus Indicator -->
-                    <div class="mb-4 p-4 rounded-lg ${hasBonus ? 'bg-gradient-to-r from-yellow-100 to-amber-100 border-2 border-yellow-400' : 'bg-gray-50 border-2 border-gray-200'}">
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center gap-3">
-                                ${hasBonus ? `
-                                    <div class="text-4xl animate-bounce">🏆</div>
-                                    <div>
-                                        <div class="text-lg font-bold text-yellow-700">Daily Bonus Earned!</div>
-                                        <div class="text-sm text-yellow-600">+$1.00 for completing all tasks!</div>
-                                    </div>
-                                ` : `
-                                    <div class="text-3xl">🎯</div>
-                                    <div>
-                                        <div class="text-sm font-semibold text-gray-700">Daily Bonus Progress</div>
-                                        <div class="text-xs text-gray-600">${completedCount}/${totalActiveTasks} tasks • Complete all for +$1.00!</div>
-                                    </div>
-                                `}
-                            </div>
-                            ${!hasBonus ? `
-                                <div class="text-2xl font-bold ${bonusProgress === 100 ? 'text-green-600' : 'text-gray-400'}">${bonusProgress}%</div>
-                            ` : ''}
-                        </div>
-                        ${!hasBonus && totalActiveTasks > 0 ? `
-                            <div class="mt-2 bg-gray-200 rounded-full h-2 overflow-hidden">
-                                <div class="bg-gradient-to-r from-green-400 to-emerald-500 h-full transition-all duration-500" style="width: ${bonusProgress}%"></div>
-                            </div>
-                        ` : ''}
-                    </div>
-                    
-                    <!-- Weekly Streak Bonus Progress -->
+
+                    <!-- Weekly Bonus Progress -->
                     ${(() => {
                         const weekDates = getWeekDates();
                         const weekStart = weekDates[0];
-                        const hasWeeklyBonus = state.weeklyStreakAwarded[childKey][weekStart];
-                        
-                        // Calculate how many days this week they've completed all tasks
+                        const hasWeeklyBonus = state.weeklyBonusAwarded[childKey][weekStart];
+                        const today = new Date();
+                        const todayStr = today.toDateString();
+
+                        // Count perfect days for daily bonus-eligible tasks
                         let completedDays = 0;
-                        const today = new Date().toDateString();
-                        
+                        const dailyBonusTasks = state.tasks.filter(t => t.bonusEligible && t.taskType === 'assigned');
+
                         for (const date of weekDates) {
-                            const completedForDay = date === today 
+                            if (new Date(date) > today) continue;
+                            const completedForDay = date === todayStr
                                 ? state.completedTasks[childKey]
                                 : (state.completionHistory[childKey][date] || []);
-                            
-                            const skippedForDay = date === today
-                                ? state.skippedTasks[childKey]
-                                : (state.skippedHistory[childKey][date] || []);
-                            
-                            const dateObj = new Date(date);
-                            const dayOfWeek = dateObj.getDay();
-                            
-                            const applicableTasks = state.tasks.filter(task => {
-                                if (!task.days) return false;
-                                // Exclude weekly, monthly, one-time, and bonus tasks
-                                if (task.days.includes('weekly') || task.days.includes('monthly') || task.days.includes('oneTime')) return false;
-                                // Exclude bonus section tasks (optional tasks don't count toward weekly streak)
-                                if (task.section === 'bonus') return false;
+                            const skippedForDay = date === todayStr
+                                ? (state.skippedTasks[childKey] || [])
+                                : (state.skippedHistory[childKey]?.[date] || []);
 
-                                const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-                                const dayName = dayNames[dayOfWeek];
-
-                                const appliesToDay = task.days.some(d => {
-                                    if (d === dayName) return true;
-                                    if (d === 'weekday' && dayOfWeek >= 1 && dayOfWeek <= 5) return true;
-                                    return false;
-                                });
-                                return appliesToDay;
+                            const applicableTasks = dailyBonusTasks.filter(task => {
+                                if (skippedForDay.includes(task.id)) return false;
+                                return taskAppliesToDate(task, new Date(date), childKey);
                             });
-                            
-                            const activeTasks = applicableTasks.filter(t => !skippedForDay.includes(t.id));
-                            
-                            if (activeTasks.length === 0) continue;
-                            
-                            const allCompleted = activeTasks.every(t => completedForDay.includes(t.id));
-                            if (allCompleted) completedDays++;
+
+                            if (applicableTasks.length === 0) continue;
+                            if (applicableTasks.every(t => completedForDay.includes(t.id))) completedDays++;
                         }
-                        
-                        const streakProgress = Math.round((completedDays / 7) * 100);
-                        
+
+                        // Check flexible task progress
+                        const flexibleBonusTasks = state.tasks.filter(t => t.bonusEligible && t.taskType === 'flexible');
+                        const flexProgress = flexibleBonusTasks.map(task => {
+                            const count = getFlexibleTaskWeekCount(childKey, task.id);
+                            return { name: task.name, count, required: task.weeklyRequired || 0, met: count >= (task.weeklyRequired || 0) };
+                        });
+                        const allFlexMet = flexProgress.every(f => f.met);
+                        const daysPast = weekDates.filter(d => new Date(d) <= today).length;
+                        const overallProgress = daysPast > 0 ? Math.round((completedDays / daysPast) * 100) : 0;
+
+                        // Calculate overall progress: daily tasks row + flexible tasks
+                        const totalItems = 1 + flexProgress.length; // 1 for daily tasks row
+                        const metItems = (completedDays === 7 ? 1 : 0) + flexProgress.filter(f => f.met).length;
+                        const overallPct = totalItems > 0 ? Math.round((metItems / totalItems) * 100) : 0;
+
                         return `
                             <div class="mb-4 p-3 rounded-lg ${hasWeeklyBonus ? 'bg-gradient-to-r from-orange-100 to-red-100 border-2 border-orange-400' : 'bg-blue-50 border-2 border-blue-200'}">
-                                <div class="flex items-center justify-between">
-                                    <div class="flex items-center gap-2">
-                                        ${hasWeeklyBonus ? `
-                                            <div class="text-3xl">🔥</div>
-                                            <div>
-                                                <div class="text-base font-bold text-orange-700">Weekly Streak Bonus!</div>
-                                                <div class="text-xs text-orange-600">+$${state.weeklyStreakBonus.toFixed(2)} for 7 perfect days!</div>
-                                            </div>
-                                        ` : `
-                                            <div class="text-2xl">🔥</div>
-                                            <div>
-                                                <div class="text-sm font-semibold text-blue-700">Weekly Streak Progress</div>
-                                                <div class="text-xs text-blue-600">${completedDays}/7 perfect days • Earn $${state.weeklyStreakBonus.toFixed(2)}!</div>
-                                            </div>
-                                        `}
-                                    </div>
-                                    ${!hasWeeklyBonus ? `
-                                        <div class="text-xl font-bold ${streakProgress === 100 ? 'text-orange-600' : 'text-blue-400'}">${completedDays}/7</div>
-                                    ` : ''}
+                                <div class="flex items-center gap-2">
+                                    ${hasWeeklyBonus ? `
+                                        <div class="text-3xl">🎉</div>
+                                        <div>
+                                            <div class="text-base font-bold text-orange-700">Weekly Bonus Earned!</div>
+                                            <div class="text-xs text-orange-600">+$${state.weeklyBonusAmount.toFixed(2)} for completing all chores!</div>
+                                        </div>
+                                    ` : `
+                                        <div class="text-2xl">🎯</div>
+                                        <div>
+                                            <div class="text-sm font-semibold text-blue-700">Weekly Bonus Progress</div>
+                                            <div class="text-xs text-blue-600">Earn $${state.weeklyBonusAmount.toFixed(2)}!</div>
+                                        </div>
+                                    `}
                                 </div>
                                 ${!hasWeeklyBonus ? `
+                                    <div class="mt-2 space-y-1">
+                                        <div class="flex justify-between text-xs">
+                                            <span class="${completedDays === 7 ? 'text-green-600' : 'text-gray-600'}">All Daily Chores Completed</span>
+                                            <span class="${completedDays === 7 ? 'text-green-600 font-semibold' : 'text-blue-500'}">${completedDays}/7${completedDays === 7 ? ' ✓' : ''}</span>
+                                        </div>
+                                        ${flexProgress.map(f => `
+                                            <div class="flex justify-between text-xs">
+                                                <span class="${f.met ? 'text-green-600' : 'text-gray-600'}">${escapeHtml(f.name)}</span>
+                                                <span class="${f.met ? 'text-green-600 font-semibold' : 'text-blue-500'}">${f.count}/${f.required}${f.met ? ' ✓' : ''}</span>
+                                            </div>
+                                        `).join('')}
+                                    </div>
                                     <div class="mt-2 bg-blue-200 rounded-full h-2 overflow-hidden">
-                                        <div class="bg-gradient-to-r from-orange-400 to-red-500 h-full transition-all duration-500" style="width: ${streakProgress}%"></div>
+                                        <div class="bg-gradient-to-r from-orange-400 to-red-500 h-full transition-all duration-500" style="width: ${overallPct}%"></div>
                                     </div>
                                 ` : ''}
                             </div>
@@ -3424,7 +2883,7 @@
                     ${canEdit ? `
                         <div class="space-y-4">
                             <!-- Daily Tasks by Time of Day -->
-                            ${['morning', 'afterSchool', 'evening', 'bonus'].map(section => `
+                            ${['assigned', 'flexible', 'bonus'].map(section => `
                                 <div>
                                     <div class="flex items-center gap-2 mb-2">
                                         ${getSectionIcon(section)}
@@ -3435,34 +2894,6 @@
                                     </div>
                                 </div>
                             `).join('')}
-
-                            <!-- Weekly Tasks Section (only show if there are weekly tasks) -->
-                            ${groupedTasks.weekly && groupedTasks.weekly.length > 0 ? `
-                                <div class="border-t pt-4 mt-4">
-                                    <div class="flex items-center gap-2 mb-2">
-                                        ${getSectionIcon('weekly')}
-                                        <h3 class="font-semibold text-blue-700">${getSectionTitle('weekly')}</h3>
-                                        <span class="text-xs text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full">Complete once this week</span>
-                                    </div>
-                                    <div class="space-y-2">
-                                        ${groupedTasks.weekly.map(task => renderTaskItem(task, childKey)).join('')}
-                                    </div>
-                                </div>
-                            ` : ''}
-
-                            <!-- Monthly Tasks Section (only show if there are monthly tasks) -->
-                            ${groupedTasks.monthly && groupedTasks.monthly.length > 0 ? `
-                                <div class="border-t pt-4 mt-4">
-                                    <div class="flex items-center gap-2 mb-2">
-                                        ${getSectionIcon('monthly')}
-                                        <h3 class="font-semibold text-purple-700">${getSectionTitle('monthly')}</h3>
-                                        <span class="text-xs text-purple-500 bg-purple-50 px-2 py-0.5 rounded-full">Complete once this month</span>
-                                    </div>
-                                    <div class="space-y-2">
-                                        ${groupedTasks.monthly.map(task => renderTaskItem(task, childKey)).join('')}
-                                    </div>
-                                </div>
-                            ` : ''}
 
                             <!-- One-Time Tasks Section (only show if there are one-time tasks) -->
                             ${groupedTasks.oneTime && groupedTasks.oneTime.length > 0 ? `
@@ -3495,20 +2926,8 @@
             const dateStr = dateObj.toDateString();
             const isToday = dateStr === new Date().toDateString();
 
-            // One-time tasks only show on the day they were completed or today if not yet completed
-            if (task.days.includes('oneTime')) {
-                if (isToday) return true;
-                // For past days, only show if it was completed or skipped that day
-                if (childKey) {
-                    const completed = state.completionHistory[childKey]?.[dateStr] || [];
-                    const skipped = state.skippedHistory[childKey]?.[dateStr] || [];
-                    return completed.includes(task.id) || skipped.includes(task.id);
-                }
-                return false;
-            }
-
-            // Bonus section tasks only show on the day they were completed or today
-            if (task.section === 'bonus') {
+            // One-time tasks only show on the day they were completed or today
+            if (task.taskType === 'oneTime' || (task.days && task.days.includes('oneTime'))) {
                 if (isToday) return true;
                 if (childKey) {
                     const completed = state.completionHistory[childKey]?.[dateStr] || [];
@@ -3518,19 +2937,27 @@
                 return false;
             }
 
-            // Weekly tasks: show every day of the week (can be completed any day)
-            if (task.days.includes('weekly')) {
-                return true;
+            // Flexible tasks apply to every day (can be done any day)
+            if (task.taskType === 'flexible') return true;
+
+            // Bonus-type tasks only show on the day they were completed or today
+            if (task.taskType === 'bonus' || task.section === 'bonus') {
+                if (isToday) return true;
+                if (childKey) {
+                    const completed = state.completionHistory[childKey]?.[dateStr] || [];
+                    const skipped = state.skippedHistory[childKey]?.[dateStr] || [];
+                    return completed.includes(task.id) || skipped.includes(task.id);
+                }
+                return false;
             }
 
-            // Monthly tasks: show every day of the month (can be completed any day)
-            if (task.days.includes('monthly')) {
+            // Legacy: Weekly/monthly tasks show every day
+            if (task.days.includes('weekly') || task.days.includes('monthly')) {
                 return true;
             }
 
             return task.days.some(d => {
                 if (d === dayName) return true;
-                // Support legacy 'weekday' format (Mon-Fri)
                 if (d === 'weekday' && dayOfWeek >= 1 && dayOfWeek <= 5) return true;
                 return false;
             });
@@ -3558,7 +2985,7 @@
             const wStart = new Date(weekDates[0]);
             const wEnd = new Date(weekDates[6]);
             const weekLabel = wStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' - ' + wEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-            const weekStreakAwarded = state.weeklyStreakAwarded[childKey] && state.weeklyStreakAwarded[childKey][weekDates[0]];
+            const weekBonusAwarded = state.weeklyBonusAwarded[childKey] && state.weeklyBonusAwarded[childKey][weekDates[0]];
 
             // Build week options for dropdown (current week + 8 prior weeks)
             const weekOptions = [];
@@ -3607,7 +3034,7 @@
                                 ${isCurrentWeek ? 'This Week' : 'Week of'} ${weekLabel}
                             </h3>
                             <div class="flex items-center gap-2">
-                                ${weekStreakAwarded ? '<span class="text-sm font-semibold text-orange-600">🔥 Streak Bonus!</span>' : ''}
+                                ${weekBonusAwarded ? '<span class="text-sm font-semibold text-orange-600">🎉 Weekly Bonus!</span>' : ''}
                             </div>
                         </div>
                         <div class="p-4 space-y-4">
@@ -3626,8 +3053,6 @@
                                 const dayTasks = state.tasks.filter(t => taskAppliesToDate(t, dateObj, childKey));
                                 const activeTasks = dayTasks.filter(t => !skippedForDay.includes(t.id));
                                 const completedCount = completedForDay.filter(id => dayTasks.some(t => t.id === id)).length;
-                                const bonusAwarded = state.dailyBonusAwarded[childKey] && state.dailyBonusAwarded[childKey][date];
-
                                 return `
                                     <div class="border border-gray-200 rounded-lg p-4">
                                         <div class="flex justify-between items-center mb-3">
@@ -3702,22 +3127,6 @@
                                                 `;
                                             }).join('')}
                                         </div>
-                                        <div class="mt-3 pt-3 border-t border-gray-200">
-                                            <button
-                                                onclick="${isToday ? '' : `toggleHistoryBonus('${childKey}', '${date}')`}"
-                                                class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition ${
-                                                    bonusAwarded
-                                                        ? 'bg-yellow-100 border border-yellow-400 text-yellow-800'
-                                                        : 'bg-gray-50 border border-gray-300 text-gray-500 hover:bg-gray-100'
-                                                } ${isToday ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}"
-                                                ${isToday ? 'disabled' : ''}
-                                                title="${isToday ? 'Bonus is managed automatically today' : (bonusAwarded ? 'Remove daily bonus' : 'Award daily bonus')}"
-                                            >
-                                                <span>${bonusAwarded ? '🏆' : '○'}</span>
-                                                <span>Daily Bonus (+$1.00)</span>
-                                                <span>${bonusAwarded ? '✓' : ''}</span>
-                                            </button>
-                                        </div>
                                     </div>
                                 `;
                             }).join('')}
@@ -3772,10 +3181,9 @@
                                 class="px-2 py-1 border border-gray-300 rounded text-sm"
                                 autofocus
                             >
-                                <option value="morning" ${task.section === 'morning' ? 'selected' : ''}>Morning</option>
-                                <option value="afterSchool" ${task.section === 'afterSchool' ? 'selected' : ''}>After School/Afternoon</option>
-                                <option value="evening" ${task.section === 'evening' ? 'selected' : ''}>Evening</option>
-                                <option value="bonus" ${task.section === 'bonus' ? 'selected' : ''}>Bonus (Optional)</option>
+                                <option value="assigned" ${task.section === 'assigned' ? 'selected' : ''}>Daily Chores</option>
+                                <option value="flexible" ${task.section === 'flexible' ? 'selected' : ''}>Flexible Chores</option>
+                                <option value="bonus" ${task.section === 'bonus' ? 'selected' : ''}>Bonus Chores</option>
                             </select>
                         ` : `
                             <span
@@ -3872,15 +3280,41 @@
                                 $${task.payout.toFixed(2)}
                             </span>
                         `}
-                        <button
-                            onclick="toggleTaskJoint(${task.id})"
-                            class="text-xs px-2 py-1 rounded transition ${
-                                task.isJoint ? 'bg-pink-100 text-pink-700 border border-pink-300' : 'bg-gray-100 text-gray-500'
-                            }"
-                            title="${task.isJoint ? 'Joint task - both kids must complete' : 'Individual task - click to make joint'}"
-                        >
-                            ${task.isJoint ? '👯 Joint' : '👤'}
-                        </button>
+                        ${state.editingTaskType === task.id ? `
+                            <select
+                                onchange="updateTaskType(${task.id}, this.value)"
+                                onblur="state.editingTaskType=null; render();"
+                                class="px-2 py-1 border border-gray-300 rounded text-xs"
+                                autofocus
+                            >
+                                <option value="assigned" ${task.taskType === 'assigned' ? 'selected' : ''}>Assigned Days</option>
+                                <option value="flexible" ${task.taskType === 'flexible' ? 'selected' : ''}>Flexible</option>
+                                <option value="bonus" ${task.taskType === 'bonus' ? 'selected' : ''}>Bonus</option>
+                                <option value="oneTime" ${task.taskType === 'oneTime' ? 'selected' : ''}>One-Time</option>
+                            </select>
+                            ${task.taskType === 'flexible' ? `
+                                <input type="number" min="1" max="7" value="${task.weeklyRequired || 3}"
+                                    onchange="updateTaskWeeklyRequired(${task.id}, parseInt(this.value))"
+                                    class="w-12 px-1 py-1 border border-gray-300 rounded text-xs" title="Times per week" />
+                                <span class="text-xs text-gray-500">/wk</span>
+                            ` : ''}
+                        ` : `
+                            <span
+                                onclick="state.editingTaskType=${task.id}; render();"
+                                class="text-xs px-2 py-1 rounded cursor-pointer transition ${
+                                    task.taskType === 'assigned' ? 'bg-green-100 text-green-700' :
+                                    task.taskType === 'flexible' ? 'bg-blue-100 text-blue-700' :
+                                    task.taskType === 'bonus' ? 'bg-yellow-100 text-yellow-700' :
+                                    'bg-orange-100 text-orange-700'
+                                }"
+                                title="Click to change task type"
+                            >
+                                ${task.taskType === 'assigned' ? getDayLabel(task.days) :
+                                  task.taskType === 'flexible' ? 'Flex ' + (task.weeklyRequired || 0) + 'x/wk' :
+                                  task.taskType === 'bonus' ? 'Bonus' :
+                                  task.taskType === 'oneTime' ? 'One-Time' : 'Assigned'}
+                            </span>
+                        `}
                         <div class="drag-handle flex items-center px-1" title="Drag to reorder">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path>
@@ -3925,7 +3359,7 @@
                                 placeholder="Enter new chore name..."
                                 class="w-full px-4 py-2 border border-gray-300 rounded-lg"
                             />
-                            <div class="flex gap-2">
+                            <div class="flex gap-2 flex-wrap">
                                 <div class="flex items-center gap-1">
                                     <span class="text-sm font-medium text-gray-700">$</span>
                                     <input
@@ -3938,67 +3372,65 @@
                                     />
                                 </div>
                                 <select
-                                    onchange="state.newTaskSection = this.value"
-                                    class="flex-1 px-4 py-2 border border-gray-300 rounded-lg"
+                                    onchange="state.newTaskType = this.value; render();"
+                                    class="px-3 py-2 border border-gray-300 rounded-lg"
                                 >
-                                    <option value="morning" ${state.newTaskSection === 'morning' ? 'selected' : ''}>Morning</option>
-                                    <option value="afterSchool" ${state.newTaskSection === 'afterSchool' ? 'selected' : ''}>After School/Afternoon</option>
-                                    <option value="evening" ${state.newTaskSection === 'evening' ? 'selected' : ''}>Evening</option>
-                                    <option value="bonus" ${state.newTaskSection === 'bonus' ? 'selected' : ''}>Bonus (Optional)</option>
+                                    <option value="assigned" ${(state.newTaskType || 'assigned') === 'assigned' ? 'selected' : ''}>Assigned Days</option>
+                                    <option value="flexible" ${state.newTaskType === 'flexible' ? 'selected' : ''}>Flexible</option>
+                                    <option value="bonus" ${state.newTaskType === 'bonus' ? 'selected' : ''}>Bonus</option>
+                                    <option value="oneTime" ${state.newTaskType === 'oneTime' ? 'selected' : ''}>One-Time</option>
                                 </select>
                             </div>
-                            <div class="border border-gray-300 rounded-lg p-3">
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Which days does this chore apply?</label>
-                                <div class="grid grid-cols-4 gap-2 mb-3">
-                                    <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
-                                        <input type="checkbox" ${state.newTaskDays.includes('monday') ? 'checked' : ''} onchange="toggleTaskDay('monday'); render();" class="w-4 h-4 text-green-600 rounded" aria-label="Monday" />
-                                        <span class="text-sm">Mon</span>
-                                    </label>
-                                    <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
-                                        <input type="checkbox" ${state.newTaskDays.includes('tuesday') ? 'checked' : ''} onchange="toggleTaskDay('tuesday'); render();" class="w-4 h-4 text-green-600 rounded" aria-label="Tuesday" />
-                                        <span class="text-sm">Tue</span>
-                                    </label>
-                                    <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
-                                        <input type="checkbox" ${state.newTaskDays.includes('wednesday') ? 'checked' : ''} onchange="toggleTaskDay('wednesday'); render();" class="w-4 h-4 text-green-600 rounded" aria-label="Wednesday" />
-                                        <span class="text-sm">Wed</span>
-                                    </label>
-                                    <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
-                                        <input type="checkbox" ${state.newTaskDays.includes('thursday') ? 'checked' : ''} onchange="toggleTaskDay('thursday'); render();" class="w-4 h-4 text-green-600 rounded" aria-label="Thursday" />
-                                        <span class="text-sm">Thu</span>
-                                    </label>
-                                    <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
-                                        <input type="checkbox" ${state.newTaskDays.includes('friday') ? 'checked' : ''} onchange="toggleTaskDay('friday'); render();" class="w-4 h-4 text-green-600 rounded" aria-label="Friday" />
-                                        <span class="text-sm">Fri</span>
-                                    </label>
-                                    <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
-                                        <input type="checkbox" ${state.newTaskDays.includes('saturday') ? 'checked' : ''} onchange="toggleTaskDay('saturday'); render();" class="w-4 h-4 text-blue-600 rounded" aria-label="Saturday" />
-                                        <span class="text-sm">Sat</span>
-                                    </label>
-                                    <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
-                                        <input type="checkbox" ${state.newTaskDays.includes('sunday') ? 'checked' : ''} onchange="toggleTaskDay('sunday'); render();" class="w-4 h-4 text-blue-600 rounded" aria-label="Sunday" />
-                                        <span class="text-sm">Sun</span>
-                                    </label>
-                                    <button onclick="toggleAllDays(); render();" class="text-xs px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded" aria-label="Select all days or none">All/None</button>
+                            ${state.newTaskType === 'flexible' ? `
+                                <div class="flex items-center gap-2">
+                                    <span class="text-sm text-gray-700">Required</span>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max="7"
+                                        value="${state.newTaskWeeklyRequired || 3}"
+                                        oninput="state.newTaskWeeklyRequired = parseInt(this.value) || 3"
+                                        class="w-16 px-3 py-2 border border-gray-300 rounded-lg"
+                                    />
+                                    <span class="text-sm text-gray-700">times per week</span>
                                 </div>
-                                <div class="border-t border-gray-200 pt-2 mt-2">
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Or choose a special frequency:</label>
-                                    <div class="grid grid-cols-3 gap-2">
-                                        <label class="flex items-center gap-1 cursor-pointer hover:bg-orange-50 px-2 py-1 rounded border ${state.newTaskDays.includes('oneTime') ? 'border-orange-400 bg-orange-50' : 'border-gray-200'}">
-                                            <input type="checkbox" ${state.newTaskDays.includes('oneTime') ? 'checked' : ''} onchange="toggleTaskDay('oneTime'); render();" class="w-4 h-4 text-orange-600 rounded" />
-                                            <span class="text-xs">⚡ One-Time</span>
+                            ` : ''}
+                            ${(state.newTaskType || 'assigned') === 'assigned' ? `
+                                <div class="border border-gray-300 rounded-lg p-3">
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Which days does this chore apply?</label>
+                                    <div class="grid grid-cols-4 gap-2">
+                                        <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
+                                            <input type="checkbox" ${state.newTaskDays.includes('monday') ? 'checked' : ''} onchange="toggleTaskDay('monday'); render();" class="w-4 h-4 text-green-600 rounded" aria-label="Monday" />
+                                            <span class="text-sm">Mon</span>
                                         </label>
-                                        <label class="flex items-center gap-1 cursor-pointer hover:bg-blue-50 px-2 py-1 rounded border ${state.newTaskDays.includes('weekly') ? 'border-blue-400 bg-blue-50' : 'border-gray-200'}">
-                                            <input type="checkbox" ${state.newTaskDays.includes('weekly') ? 'checked' : ''} onchange="toggleTaskDay('weekly'); render();" class="w-4 h-4 text-blue-600 rounded" />
-                                            <span class="text-xs">📆 Weekly</span>
+                                        <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
+                                            <input type="checkbox" ${state.newTaskDays.includes('tuesday') ? 'checked' : ''} onchange="toggleTaskDay('tuesday'); render();" class="w-4 h-4 text-green-600 rounded" aria-label="Tuesday" />
+                                            <span class="text-sm">Tue</span>
                                         </label>
-                                        <label class="flex items-center gap-1 cursor-pointer hover:bg-purple-50 px-2 py-1 rounded border ${state.newTaskDays.includes('monthly') ? 'border-purple-400 bg-purple-50' : 'border-gray-200'}">
-                                            <input type="checkbox" ${state.newTaskDays.includes('monthly') ? 'checked' : ''} onchange="toggleTaskDay('monthly'); render();" class="w-4 h-4 text-purple-600 rounded" />
-                                            <span class="text-xs">🗓️ Monthly</span>
+                                        <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
+                                            <input type="checkbox" ${state.newTaskDays.includes('wednesday') ? 'checked' : ''} onchange="toggleTaskDay('wednesday'); render();" class="w-4 h-4 text-green-600 rounded" aria-label="Wednesday" />
+                                            <span class="text-sm">Wed</span>
                                         </label>
+                                        <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
+                                            <input type="checkbox" ${state.newTaskDays.includes('thursday') ? 'checked' : ''} onchange="toggleTaskDay('thursday'); render();" class="w-4 h-4 text-green-600 rounded" aria-label="Thursday" />
+                                            <span class="text-sm">Thu</span>
+                                        </label>
+                                        <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
+                                            <input type="checkbox" ${state.newTaskDays.includes('friday') ? 'checked' : ''} onchange="toggleTaskDay('friday'); render();" class="w-4 h-4 text-green-600 rounded" aria-label="Friday" />
+                                            <span class="text-sm">Fri</span>
+                                        </label>
+                                        <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
+                                            <input type="checkbox" ${state.newTaskDays.includes('saturday') ? 'checked' : ''} onchange="toggleTaskDay('saturday'); render();" class="w-4 h-4 text-blue-600 rounded" aria-label="Saturday" />
+                                            <span class="text-sm">Sat</span>
+                                        </label>
+                                        <label class="flex items-center gap-1 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
+                                            <input type="checkbox" ${state.newTaskDays.includes('sunday') ? 'checked' : ''} onchange="toggleTaskDay('sunday'); render();" class="w-4 h-4 text-blue-600 rounded" aria-label="Sunday" />
+                                            <span class="text-sm">Sun</span>
+                                        </label>
+                                        <button onclick="toggleAllDays(); render();" class="text-xs px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded" aria-label="Select all days or none">All/None</button>
                                     </div>
-                                    <p class="text-xs text-gray-500 mt-1">One-Time: today only | Weekly: Sundays | Monthly: 1st of month</p>
                                 </div>
-                            </div>
+                            ` : ''}
                             <button
                                 onclick="addTask()"
                                 class="w-full px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
@@ -4009,7 +3441,7 @@
                     ` : ''}
 
                     <div class="space-y-4">
-                        ${['morning', 'afterSchool', 'evening', 'bonus'].map(section => `
+                        ${['assigned', 'flexible', 'bonus'].map(section => `
                             <div>
                                 <div class="flex items-center gap-2 mb-2">
                                     ${getSectionIcon(section)}
@@ -4020,30 +3452,6 @@
                                 </div>
                             </div>
                         `).join('')}
-
-                        ${groupedTasks.weekly && groupedTasks.weekly.length > 0 ? `
-                            <div>
-                                <div class="flex items-center gap-2 mb-2">
-                                    <span class="text-blue-500 text-xl">📆</span>
-                                    <h4 class="font-semibold text-blue-700">Weekly Tasks</h4>
-                                </div>
-                                <div class="space-y-2">
-                                    ${groupedTasks.weekly.map(task => renderManageTaskItem(task)).join('')}
-                                </div>
-                            </div>
-                        ` : ''}
-
-                        ${groupedTasks.monthly && groupedTasks.monthly.length > 0 ? `
-                            <div>
-                                <div class="flex items-center gap-2 mb-2">
-                                    <span class="text-purple-500 text-xl">🗓️</span>
-                                    <h4 class="font-semibold text-purple-700">Monthly Tasks</h4>
-                                </div>
-                                <div class="space-y-2">
-                                    ${groupedTasks.monthly.map(task => renderManageTaskItem(task)).join('')}
-                                </div>
-                            </div>
-                        ` : ''}
 
                         ${groupedTasks.oneTime && groupedTasks.oneTime.length > 0 ? `
                             <div>
@@ -4243,21 +3651,21 @@
                                         </div>
                                     </div>
                                     
-                                    <!-- Weekly Streak Bonus -->
+                                    <!-- Weekly Bonus -->
                                     <div class="mb-4 pb-4 border-b border-gray-300">
                                         <label class="block text-sm font-medium text-gray-700 mb-1">
-                                            Weekly Streak Bonus (Complete All Tasks Every Day for 7 Days)
+                                            Weekly Bonus (Complete all daily chores every day + flexible chores hit target)
                                         </label>
                                         <div class="flex items-center gap-2">
                                             <span class="text-gray-600">$</span>
                                             <input
                                                 type="number"
                                                 step="0.50"
-                                                value="${state.weeklyStreakBonus}"
-                                                oninput="state.weeklyStreakBonus = parseFloat(this.value) || 0; saveState();"
+                                                value="${state.weeklyBonusAmount}"
+                                                oninput="state.weeklyBonusAmount = parseFloat(this.value) || 0; saveState();"
                                                 class="w-32 px-3 py-2 border border-gray-300 rounded-lg"
                                             />
-                                            <span class="text-xs text-gray-500 ml-2">🔥 Streak bonus</span>
+                                            <span class="text-xs text-gray-500 ml-2">🎯 Weekly bonus</span>
                                         </div>
                                     </div>
                                     
@@ -4378,17 +3786,10 @@
                                                 class="w-full px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition flex items-center justify-center gap-2 font-semibold"
                                             >
                                                 <span>🔄</span>
-                                                Reset to Every Day
-                                            </button>
-                                            <button
-                                                onclick="resetToWeekdayChores()"
-                                                class="w-full px-4 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition flex items-center justify-center gap-2 font-semibold"
-                                            >
-                                                <span>📅</span>
-                                                Reset to Weekdays Only (Mon-Fri)
+                                                Reset to Default Chores
                                             </button>
                                         </div>
-                                        <p class="text-xs text-gray-500 mt-2">Restores all 14 default chores (Morning, After School, Evening)</p>
+                                        <p class="text-xs text-gray-500 mt-2">Restores default chore list (daily, flexible, and bonus tasks)</p>
                                     </div>
 
                                     <!-- Recalculate Earnings -->
