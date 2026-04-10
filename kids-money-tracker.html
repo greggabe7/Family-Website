@@ -349,22 +349,26 @@
             }
         }
 
-        // Auto-remove one-time tasks that both kids have completed
+        // Auto-archive one-time tasks that both kids have completed.
+        // We MUST NOT delete the task from state.tasks — silentRecalculateEarnings()
+        // looks up payout by task id from completionHistory; deleting the task makes
+        // the historical payout vanish from weekTotal. Archiving hides it from the UI
+        // while preserving the task record for earnings recalculation.
         function cleanupCompletedOneTimeTasks() {
-            const oneTimeTasks = state.tasks.filter(t => t.taskType === 'oneTime');
-            let removed = false;
+            const oneTimeTasks = state.tasks.filter(t => t.taskType === 'oneTime' && !t.archived);
+            let archived = false;
             for (const task of oneTimeTasks) {
                 const mariaCompleted = state.completedTasks.maria.includes(task.id) ||
                     Object.values(state.completionHistory.maria || {}).some(day => day.includes(task.id));
                 const helenaCompleted = state.completedTasks.helena.includes(task.id) ||
                     Object.values(state.completionHistory.helena || {}).some(day => day.includes(task.id));
                 if (mariaCompleted && helenaCompleted) {
-                    state.tasks = state.tasks.filter(t => t.id !== task.id);
-                    removed = true;
-                    console.log(`Auto-removed completed one-time task: "${task.name}"`);
+                    task.archived = true;
+                    archived = true;
+                    console.log(`Auto-archived completed one-time task: "${task.name}"`);
                 }
             }
-            return removed;
+            return archived;
         }
 
         // Silent version of recalculate (no confirm dialog, no alert)
@@ -2382,6 +2386,10 @@
             const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
             const todayName = dayNames[today];
 
+            // Archived tasks (e.g., one-time tasks both kids have completed) are hidden
+            // from the UI but kept in state.tasks so historical payouts still recalculate.
+            if (task.archived) return false;
+
             // Flexible tasks show every day (can be done any day)
             if (task.taskType === 'flexible') return true;
 
@@ -2439,11 +2447,12 @@
         }
 
         function groupAllTasks() {
+            const visible = state.tasks.filter(t => !t.archived);
             return {
-                assigned: state.tasks.filter(t => t.taskType === 'assigned'),
-                flexible: state.tasks.filter(t => t.taskType === 'flexible'),
-                bonus: state.tasks.filter(t => t.taskType === 'bonus'),
-                oneTime: state.tasks.filter(t => t.taskType === 'oneTime' || (t.days && t.days.includes('oneTime')))
+                assigned: visible.filter(t => t.taskType === 'assigned'),
+                flexible: visible.filter(t => t.taskType === 'flexible'),
+                bonus: visible.filter(t => t.taskType === 'bonus'),
+                oneTime: visible.filter(t => t.taskType === 'oneTime' || (t.days && t.days.includes('oneTime')))
             };
         }
 
@@ -3975,6 +3984,37 @@
                 render();
             }
         }, 60000);
+
+        // iPad/Safari fix: when a backgrounded tab becomes visible again, its in-memory
+        // state.lastModified can be newer than Firebase (e.g., from an earlier local edit)
+        // even though *another* device has since pushed real changes. The normal listener's
+        // timestamp-wins logic would then push the stale local state OVER fresh remote data.
+        // On visibility regain, force-pull Firebase and accept it unconditionally, treating
+        // it like a fresh page load.
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState !== 'visible') return;
+            if (!firebaseLoaded) return; // initial sync hasn't happened yet — listener will handle it
+            database.ref('allowanceData').once('value').then((snapshot) => {
+                if (!snapshot.exists()) return;
+                const firebaseData = snapshot.val();
+                const currentJson = JSON.stringify(stripTransientFields(state));
+                const newJson = JSON.stringify(firebaseData);
+                if (currentJson === newJson) return;
+                console.log('Tab regained visibility — accepting Firebase data unconditionally to avoid stale-overwrite');
+                const currentUser = state.currentUser;
+                Object.assign(state, firebaseData);
+                state.currentUser = currentUser;
+                state.loginForm = { username: '', password: '' };
+                sanitizeState();
+                checkDailyReset();
+                cleanupInvalidCompletions();
+                silentRecalculateEarnings();
+                try { localStorage.setItem('moneyTrackerState', JSON.stringify(stripTransientFields(state))); } catch (e) {}
+                lastSyncTime = new Date();
+                syncStatus = 'connected';
+                render();
+            }).catch(err => console.warn('visibilitychange refetch failed:', err));
+        });
     </script>
 </body>
 </html>
