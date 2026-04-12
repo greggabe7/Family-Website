@@ -260,6 +260,11 @@
         const auth = firebase.auth();
         const database = firebase.database();
 
+        // Code version — bump on every deploy so stale cached pages force-reload.
+        // Firebase stores the latest version; if a page loads with an older version,
+        // it reloads once to pick up the new code from the server.
+        const CODE_VERSION = 2;
+
         // Sync status tracking
         let syncStatus = 'connecting'; // 'connected', 'syncing', 'offline', 'connecting'
         let lastSyncTime = null;
@@ -869,6 +874,7 @@
             state.lastModified = Date.now();
 
             const toSave = stripTransientFields(state);
+            toSave.codeVersion = CODE_VERSION;
 
             // Save to localStorage as backup
             try {
@@ -905,6 +911,15 @@
             database.ref('allowanceData').on('value', (snapshot) => {
                 if (snapshot.exists()) {
                     const firebaseData = snapshot.val();
+
+                    // Force-reload if this page's code is older than what last saved to Firebase.
+                    // Prevents stale cached JS (e.g., the old delete-instead-of-archive bug)
+                    // from corrupting shared data.
+                    if (firebaseData.codeVersion && firebaseData.codeVersion > CODE_VERSION) {
+                        console.warn(`Code version mismatch: local=${CODE_VERSION}, firebase=${firebaseData.codeVersion}. Reloading...`);
+                        location.reload();
+                        return;
+                    }
 
                     // Timestamp-based conflict resolution
                     const localTimestamp = state.lastModified || 0;

@@ -1,0 +1,4 @@
+# Prevent browsers from serving stale HTML — always revalidate with the server.
+# Static assets (CSS/JS CDNs) are unaffected since they're on external domains.
+/*.html
+  Cache-Control: no-cache, must-revalidate
