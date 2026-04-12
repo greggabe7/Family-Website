@@ -248,6 +248,24 @@
 
 ---
 
+## Apr 10-12, 2026 - One-Time Task Earnings Lost After Completion
+
+**Problem:** One-time chore earnings vanished from the weekly total the day after the chore was completed and disappeared from the task list.
+
+**Root Cause (layer 1 — code bug):** `cleanupCompletedOneTimeTasks()` DELETED one-time tasks from `state.tasks` when both children completed them. Since `silentRecalculateEarnings()` looks up each task by ID from `completionHistory`, deleted tasks returned `undefined` and their payouts were silently skipped. `cleanupInvalidCompletions()` then removed the orphaned IDs from history, making the loss permanent.
+
+**Fix (layer 1):** Changed from deletion (`state.tasks.filter(t => t.id !== task.id)`) to archival (`task.archived = true`). Added `if (task.archived) return false` to `isTaskApplicableToday()` and filtered archived tasks in `groupAllTasks()`. Archived tasks stay in `state.tasks` for earnings recalculation but are hidden from the UI.
+
+**Root Cause (layer 2 — browser caching):** After deploying the archive fix, the bug persisted because other devices (kids' iPad/Chromebook) served the OLD cached JavaScript. The old code ran `cleanupCompletedOneTimeTasks()` with the delete behavior, corrupted Firebase, and undid the fix.
+
+**Fix (layer 2):** Two-part cache defense:
+1. Netlify `_headers` file: `Cache-Control: no-cache, must-revalidate` on all HTML files
+2. In-app `CODE_VERSION` constant: `saveState()` stamps the version into Firebase. On sync, if Firebase has a newer version than the running code, the page force-reloads.
+
+**Pattern to follow:** When deploying a fix that changes behavior affecting shared state (Firebase), you must also prevent stale cached code on OTHER devices from undoing the fix. Static HTML apps served from CDNs need explicit cache-control headers and/or code versioning to ensure all clients run the same code version.
+
+---
+
 ## Current Status
 
 ### How the app works now (post Feb 23 fixes):
@@ -261,4 +279,5 @@
 - **Firebase sync**: On initial load, Firebase always wins. On reconnection, newer timestamp wins. `saveState()` won't push to Firebase until initial load completes. Sync order: `sanitizeState()` → one-time migrations → `checkDailyReset()` → `cleanupInvalidCompletions()` → `silentRecalculateEarnings()`.
 - **Daily bonuses**: Re-validated on every recalculation from actual completion data. Never blindly trusted from stored flags.
 - **Joint tasks**: Payout only awarded when both children complete the task. All recalculation functions, `deleteTask()`, and history editing functions check `task.isJoint` and adjust both children's earnings accordingly.
-- **One-time tasks**: Hidden from child views once completed or skipped (checked against both `completedTasks` and `completionHistory`). Parents can see today's completed one-time tasks to allow undo.
+- **One-time tasks**: Archived (not deleted) when both children complete. Hidden from child views once completed or skipped. Archived tasks stay in `state.tasks` for earnings recalculation.
+- **Cache control**: Netlify `_headers` sets `no-cache` on HTML. `CODE_VERSION` in JS forces reload if stale code detects a newer version in Firebase.
