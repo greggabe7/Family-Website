@@ -376,6 +376,23 @@
             return archived;
         }
 
+        // Today's completions can live in two places: live toggles write to
+        // completedTasks[childKey], history-tab edits write to completionHistory[childKey][today].
+        // Every read of "today's completions" must union both, deduped, or earnings/bonus
+        // checks will silently miss entries written via the other path.
+        function getTodayCompleted(childKey) {
+            const today = new Date().toDateString();
+            const live = state.completedTasks[childKey] || [];
+            const hist = (state.completionHistory[childKey] && state.completionHistory[childKey][today]) || [];
+            return [...new Set([...live, ...hist])];
+        }
+        function getTodaySkipped(childKey) {
+            const today = new Date().toDateString();
+            const live = state.skippedTasks[childKey] || [];
+            const hist = (state.skippedHistory[childKey] && state.skippedHistory[childKey][today]) || [];
+            return [...new Set([...live, ...hist])];
+        }
+
         // Silent version of recalculate (no confirm dialog, no alert)
         function silentRecalculateEarnings() {
             const today = new Date().toDateString();
@@ -385,12 +402,8 @@
                 let weekTotal = 0;
                 let todayTotal = 0;
 
-                // Calculate today's earnings: union of completedTasks and completionHistory[today]
-                // History-tab edits write to completionHistory[today]; live toggles write to completedTasks.
-                // Dedupe so the same task can't be counted twice.
-                const todayHistory = (state.completionHistory[childKey] && state.completionHistory[childKey][today]) || [];
-                const todayIds = [...new Set([...state.completedTasks[childKey], ...todayHistory])];
-                todayIds.forEach(taskId => {
+                // Calculate today's earnings from the union (live toggles + history edits)
+                getTodayCompleted(childKey).forEach(taskId => {
                     const task = state.tasks.find(t => t.id === taskId);
                     if (task) {
                         todayTotal = roundMoney(todayTotal + task.payout);
@@ -451,10 +464,10 @@
             for (const date of weekDates) {
                 const dateObj = new Date(date);
                 const completedForDay = date === today
-                    ? state.completedTasks[childKey]
+                    ? getTodayCompleted(childKey)
                     : (state.completionHistory[childKey][date] || []);
                 const skippedForDay = date === today
-                    ? (state.skippedTasks[childKey] || [])
+                    ? getTodaySkipped(childKey)
                     : (state.skippedHistory[childKey]?.[date] || []);
 
                 const applicableTasks = dailyBonusTasks.filter(task => {
@@ -474,10 +487,10 @@
                 let count = 0;
                 for (const date of weekDates) {
                     const completedForDay = date === today
-                        ? state.completedTasks[childKey]
+                        ? getTodayCompleted(childKey)
                         : (state.completionHistory[childKey][date] || []);
                     const skippedForDay = date === today
-                        ? (state.skippedTasks[childKey] || [])
+                        ? getTodaySkipped(childKey)
                         : (state.skippedHistory[childKey]?.[date] || []);
                     if (completedForDay.includes(task.id)) count++;
                     // Count skipped days as excused (don't penalize)
@@ -500,7 +513,7 @@
             for (const date of weekDates) {
                 if (new Date(date) > today) continue;
                 const completedForDay = date === todayStr
-                    ? state.completedTasks[childKey]
+                    ? getTodayCompleted(childKey)
                     : (state.completionHistory[childKey][date] || []);
                 if (completedForDay.includes(taskId)) count++;
             }
@@ -2806,10 +2819,10 @@
                         for (const date of weekDates) {
                             if (new Date(date) > today) continue;
                             const completedForDay = date === todayStr
-                                ? state.completedTasks[childKey]
+                                ? getTodayCompleted(childKey)
                                 : (state.completionHistory[childKey][date] || []);
                             const skippedForDay = date === todayStr
-                                ? (state.skippedTasks[childKey] || [])
+                                ? getTodaySkipped(childKey)
                                 : (state.skippedHistory[childKey]?.[date] || []);
 
                             const applicableTasks = dailyBonusTasks.filter(task => {
@@ -3082,10 +3095,10 @@
                                 const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
                                 const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                                 const completedForDay = isToday
-                                    ? (state.completedTasks[childKey] || [])
+                                    ? getTodayCompleted(childKey)
                                     : (state.completionHistory[childKey] && state.completionHistory[childKey][date] || []);
                                 const skippedForDay = isToday
-                                    ? (state.skippedTasks[childKey] || [])
+                                    ? getTodaySkipped(childKey)
                                     : (state.skippedHistory[childKey] && state.skippedHistory[childKey][date] || []);
 
                                 const dayTasks = state.tasks.filter(t => taskAppliesToDate(t, dateObj, childKey));
