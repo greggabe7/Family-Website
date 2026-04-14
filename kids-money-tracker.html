@@ -263,7 +263,7 @@
         // Code version — bump on every deploy so stale cached pages force-reload.
         // Firebase stores the latest version; if a page loads with an older version,
         // it reloads once to pick up the new code from the server.
-        const CODE_VERSION = 2;
+        const CODE_VERSION = 3;
 
         // Sync status tracking
         let syncStatus = 'connecting'; // 'connected', 'syncing', 'offline', 'connecting'
@@ -385,8 +385,12 @@
                 let weekTotal = 0;
                 let todayTotal = 0;
 
-                // Calculate today's earnings (task payouts only)
-                state.completedTasks[childKey].forEach(taskId => {
+                // Calculate today's earnings: union of completedTasks and completionHistory[today]
+                // History-tab edits write to completionHistory[today]; live toggles write to completedTasks.
+                // Dedupe so the same task can't be counted twice.
+                const todayHistory = (state.completionHistory[childKey] && state.completionHistory[childKey][today]) || [];
+                const todayIds = [...new Set([...state.completedTasks[childKey], ...todayHistory])];
+                todayIds.forEach(taskId => {
                     const task = state.tasks.find(t => t.id === taskId);
                     if (task) {
                         todayTotal = roundMoney(todayTotal + task.payout);
