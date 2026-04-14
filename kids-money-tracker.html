@@ -263,7 +263,7 @@
         // Code version — bump on every deploy so stale cached pages force-reload.
         // Firebase stores the latest version; if a page loads with an older version,
         // it reloads once to pick up the new code from the server.
-        const CODE_VERSION = 3;
+        const CODE_VERSION = 4;
 
         // Sync status tracking
         let syncStatus = 'connecting'; // 'connected', 'syncing', 'offline', 'connecting'
@@ -345,6 +345,14 @@
                         if (state.completionHistory[childKey][date].length !== before) needsRecalc = true;
                     });
                 }
+
+                // Clean paid snapshot: drop orphan task IDs so they don't mask current entries
+                if (state.paidCompletionSnapshot && state.paidCompletionSnapshot[childKey]) {
+                    Object.keys(state.paidCompletionSnapshot[childKey]).forEach(date => {
+                        state.paidCompletionSnapshot[childKey][date] =
+                            state.paidCompletionSnapshot[childKey][date].filter(id => validTaskIds.includes(id));
+                    });
+                }
             });
 
             // If we removed anything, recalculate earnings
@@ -394,16 +402,22 @@
         }
 
         // Silent version of recalculate (no confirm dialog, no alert)
+        // Model: weekTotal = sum of completionHistory entries NOT in paidCompletionSnapshot,
+        // plus today's live completedTasks. Bonuses: only the current week's bonus is added
+        // (past weeks' bonuses were paid at payout time and live in yearlyEarnings).
         function silentRecalculateEarnings() {
             const today = new Date().toDateString();
 
             ['maria', 'helena'].forEach(childKey => {
-                const earningDates = getEarningPeriodDates(childKey);
+                const snapshot = state.paidCompletionSnapshot[childKey] || {};
                 let weekTotal = 0;
                 let todayTotal = 0;
 
-                // Calculate today's earnings from the union (live toggles + history edits)
+                // Today's earnings: union of live toggles + today's history, minus anything
+                // in today's paid snapshot (in case payout happened today).
+                const paidToday = snapshot[today] || [];
                 getTodayCompleted(childKey).forEach(taskId => {
+                    if (paidToday.includes(taskId)) return;
                     const task = state.tasks.find(t => t.id === taskId);
                     if (task) {
                         todayTotal = roundMoney(todayTotal + task.payout);
@@ -411,38 +425,32 @@
                     }
                 });
 
-                // Calculate from history (entire earning period, excluding today)
-                for (const date of earningDates) {
-                    if (date === today) continue;
-                    if (state.completionHistory[childKey][date]) {
-                        state.completionHistory[childKey][date].forEach(taskId => {
-                            const task = state.tasks.find(t => t.id === taskId);
-                            if (task) {
-                                weekTotal = roundMoney(weekTotal + task.payout);
-                            }
-                        });
-                    }
-                }
+                // All prior-day history: count only UNPAID entries (present in completionHistory
+                // but not in the paid snapshot). This makes retroactive history edits count
+                // regardless of payout date, while old paid data stays settled.
+                const hist = state.completionHistory[childKey] || {};
+                Object.keys(hist).forEach(date => {
+                    if (date === today) return; // today handled above via union
+                    const paidIds = snapshot[date] || [];
+                    (hist[date] || []).forEach(taskId => {
+                        if (paidIds.includes(taskId)) return;
+                        const task = state.tasks.find(t => t.id === taskId);
+                        if (task) {
+                            weekTotal = roundMoney(weekTotal + task.payout);
+                        }
+                    });
+                });
 
-                // Evaluate weekly bonus for complete calendar weeks in the earning period
-                const processedWeeks = new Set();
-                for (const date of earningDates) {
-                    const calWeek = getCalendarWeekDates(new Date(date));
-                    const weekStart = calWeek[0];
-                    if (processedWeeks.has(weekStart)) continue;
-                    processedWeeks.add(weekStart);
-
-                    // Already awarded — just add to total
-                    if (state.weeklyBonusAwarded[childKey][weekStart]) {
-                        weekTotal = roundMoney(weekTotal + state.weeklyBonusAmount);
-                        continue;
-                    }
-
-                    // Only evaluate complete weeks (Saturday must be today or in the past)
+                // Current calendar week's bonus (past weeks' bonuses were paid out already).
+                const weekStart = getCalendarWeekDates(new Date())[0];
+                if (state.weeklyBonusAwarded[childKey][weekStart]) {
+                    weekTotal = roundMoney(weekTotal + state.weeklyBonusAmount);
+                } else {
+                    const calWeek = getCalendarWeekDates(new Date());
                     const weekEnd = calWeek[6];
-                    if (new Date(weekEnd) > new Date(today)) continue;
-
-                    if (checkWeeklyBonusCriteria(childKey, calWeek) && state.weeklyBonusAmount > 0) {
+                    if (new Date(weekEnd) <= new Date(today) &&
+                        checkWeeklyBonusCriteria(childKey, calWeek) &&
+                        state.weeklyBonusAmount > 0) {
                         state.weeklyBonusAwarded[childKey][weekStart] = true;
                         weekTotal = roundMoney(weekTotal + state.weeklyBonusAmount);
                     }
@@ -709,6 +717,16 @@
                 helena: {}
             },
 
+            // Snapshot of completionHistory at the moment of the most recent payout.
+            // silentRecalculateEarnings treats entries PRESENT in this snapshot as already paid
+            // and excludes them from weekTotal. Any new history entry (via the history tab or
+            // normal play) that isn't in the snapshot counts as unpaid earnings — this makes
+            // retroactive edits work regardless of payout date.
+            paidCompletionSnapshot: {
+                maria: {},
+                helena: {}
+            },
+
             skippedHistory: {
                 maria: {},
                 helena: {}
@@ -764,6 +782,21 @@
             ensureChildProperty('skippedTasks', () => []);
             ensureChildProperty('completionHistory', () => ({}));
             ensureChildProperty('skippedHistory', () => ({}));
+            ensureChildProperty('paidCompletionSnapshot', () => ({}));
+
+            // One-time migration: snapshot existing completionHistory as "already paid" so
+            // prior payouts aren't double-counted under the new unpaid-delta model. Any entry
+            // added AFTER this migration will count as fresh earnings. Without this, every
+            // historical completion would re-enter weekTotal on first load after deploy.
+            if (!state.paidSnapshotMigrated) {
+                ['maria', 'helena'].forEach(childKey => {
+                    const hist = state.completionHistory[childKey] || {};
+                    state.paidCompletionSnapshot[childKey] = Object.fromEntries(
+                        Object.entries(hist).map(([d, ids]) => [d, [...ids]])
+                    );
+                });
+                state.paidSnapshotMigrated = true;
+            }
             ensureChildProperty('payoutHistory', () => []);
             ensureChildProperty('weeklyBonusAwarded', () => ({}));
             ensureChildProperty('yearlyEarnings', () => ({}));
@@ -1498,6 +1531,13 @@
                         state.skippedHistory[childKey][date] = state.skippedHistory[childKey][date].filter(id => id !== taskId);
                     }
                 }
+
+                // Remove from paid snapshot so recalc stays consistent
+                if (state.paidCompletionSnapshot && state.paidCompletionSnapshot[childKey]) {
+                    for (const date in state.paidCompletionSnapshot[childKey]) {
+                        state.paidCompletionSnapshot[childKey][date] = state.paidCompletionSnapshot[childKey][date].filter(id => id !== taskId);
+                    }
+                }
             });
 
             // Remove the task itself, then recalculate earnings from scratch
@@ -1840,6 +1880,16 @@
                 // doesn't immediately recount them back into weekTotal
                 state.completedTasks[childKey] = [];
                 state.skippedTasks[childKey] = [];
+
+                // Snapshot the current completionHistory as paid. Any future addition (retroactive
+                // or forward) that isn't in this snapshot will count as unpaid earnings.
+                // Also include today's date so any history edits for today after payout count fresh.
+                const todayStr = new Date().toDateString();
+                const snap = {};
+                const hist = state.completionHistory[childKey] || {};
+                Object.keys(hist).forEach(d => { snap[d] = [...(hist[d] || [])]; });
+                if (!snap[todayStr]) snap[todayStr] = [];
+                state.paidCompletionSnapshot[childKey] = snap;
 
                 // Keep only last 52 weeks of history
                 if (state.payoutHistory[childKey].length > 52) {
