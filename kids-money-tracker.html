@@ -2864,6 +2864,7 @@
 
                         // Count perfect days for daily bonus-eligible tasks
                         let completedDays = 0;
+                        let applicableDays = 0;
                         const dailyBonusTasks = state.tasks.filter(t => t.bonusEligible && t.taskType === 'assigned');
 
                         for (const date of weekDates) {
@@ -2881,6 +2882,7 @@
                             });
 
                             if (applicableTasks.length === 0) continue;
+                            applicableDays++;
                             if (applicableTasks.every(t => completedForDay.includes(t.id))) completedDays++;
                         }
 
@@ -2896,7 +2898,7 @@
 
                         // Calculate overall progress: daily tasks row + flexible tasks
                         const totalItems = 1 + flexProgress.length; // 1 for daily tasks row
-                        const metItems = (completedDays === 7 ? 1 : 0) + flexProgress.filter(f => f.met).length;
+                        const metItems = (completedDays === applicableDays ? 1 : 0) + flexProgress.filter(f => f.met).length;
                         const overallPct = totalItems > 0 ? Math.round((metItems / totalItems) * 100) : 0;
 
                         return `
@@ -2919,8 +2921,8 @@
                                 ${!hasWeeklyBonus ? `
                                     <div class="mt-2 space-y-1">
                                         <div class="flex justify-between text-xs">
-                                            <span class="${completedDays === 7 ? 'text-green-600' : 'text-gray-600'}">All Daily Chores Completed</span>
-                                            <span class="${completedDays === 7 ? 'text-green-600 font-semibold' : 'text-blue-500'}">${completedDays}/7${completedDays === 7 ? ' ✓' : ''}</span>
+                                            <span class="${completedDays === applicableDays ? 'text-green-600' : 'text-gray-600'}">All Daily Chores Completed</span>
+                                            <span class="${completedDays === applicableDays ? 'text-green-600 font-semibold' : 'text-blue-500'}">${completedDays}/${applicableDays}${completedDays === applicableDays ? ' ✓' : ''}</span>
                                         </div>
                                         ${flexProgress.map(f => `
                                             <div class="flex justify-between text-xs">
