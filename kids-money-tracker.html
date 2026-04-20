@@ -815,7 +815,15 @@
             }
             if (!state.paidBonusSnapshotMigrated) {
                 ['maria', 'helena'].forEach(childKey => {
-                    state.paidBonusSnapshot[childKey] = { ...(state.weeklyBonusAwarded[childKey] || {}) };
+                    const awarded = state.weeklyBonusAwarded[childKey] || {};
+                    const payouts = state.payoutHistory[childKey] || [];
+                    const bonusSnap = {};
+                    Object.keys(awarded).forEach(weekStart => {
+                        const weekEnd = getCalendarWeekDates(new Date(weekStart))[6];
+                        const wasPaid = payouts.some(p => new Date(p.date) > new Date(weekEnd));
+                        if (wasPaid) bonusSnap[weekStart] = true;
+                    });
+                    state.paidBonusSnapshot[childKey] = bonusSnap;
                 });
                 state.paidBonusSnapshotMigrated = true;
             }
