@@ -513,9 +513,9 @@
         }
 
         // Get the count of completions for a flexible task in the current calendar week
-        function getFlexibleTaskWeekCount(childKey, taskId) {
+        function getFlexibleTaskWeekCount(childKey, taskId, overrideWeekDates) {
             const today = new Date();
-            const weekDates = getCalendarWeekDates(today);
+            const weekDates = overrideWeekDates || getCalendarWeekDates(today);
             const todayStr = today.toDateString();
             let count = 0;
             for (const date of weekDates) {
@@ -657,6 +657,7 @@
             showHistory: false,
             selectedHistoryChild: null,
             historyWeekOffset: 0,
+            bonusWeekOffset: { maria: 0, helena: 0 },
             editingGoal: null,
             tempGoalName: '',
             tempGoalAmount: 0,
@@ -893,6 +894,7 @@
             delete copy.showHistory;
             delete copy.selectedHistoryChild;
             delete copy.historyWeekOffset;
+            delete copy.bonusWeekOffset;
             delete copy.editingName;
             delete copy.tempName;
             delete copy.editingPayout;
@@ -2856,11 +2858,19 @@
 
                     <!-- Weekly Bonus Progress -->
                     ${(() => {
-                        const weekDates = getWeekDates();
+                        const bonusOffset = (state.bonusWeekOffset && state.bonusWeekOffset[childKey]) || 0;
+                        const offsetDate = new Date();
+                        offsetDate.setDate(offsetDate.getDate() + (bonusOffset * 7));
+                        const weekDates = getCalendarWeekDates(offsetDate);
                         const weekStart = weekDates[0];
+                        const weekEnd = weekDates[6];
+                        const isCurrentWeek = bonusOffset === 0;
                         const hasWeeklyBonus = state.weeklyBonusAwarded[childKey][weekStart];
                         const today = new Date();
                         const todayStr = today.toDateString();
+
+                        const weekLabel = isCurrentWeek ? 'This Week'
+                            : `${new Date(weekStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(weekEnd).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
 
                         // Count perfect days for daily bonus-eligible tasks
                         let completedDays = 0;
@@ -2889,7 +2899,7 @@
                         // Check flexible task progress
                         const flexibleBonusTasks = state.tasks.filter(t => t.bonusEligible && t.taskType === 'flexible');
                         const flexProgress = flexibleBonusTasks.map(task => {
-                            const count = getFlexibleTaskWeekCount(childKey, task.id);
+                            const count = getFlexibleTaskWeekCount(childKey, task.id, weekDates);
                             return { name: task.name, count, required: task.weeklyRequired || 0, met: count >= (task.weeklyRequired || 0) };
                         });
                         const allFlexMet = flexProgress.every(f => f.met);
@@ -2903,20 +2913,35 @@
 
                         return `
                             <div class="mb-4 p-3 rounded-lg ${hasWeeklyBonus ? 'bg-gradient-to-r from-orange-100 to-red-100 border-2 border-orange-400' : 'bg-blue-50 border-2 border-blue-200'}">
-                                <div class="flex items-center gap-2">
-                                    ${hasWeeklyBonus ? `
-                                        <div class="text-3xl">🎉</div>
-                                        <div>
-                                            <div class="text-base font-bold text-orange-700">Weekly Bonus Earned!</div>
-                                            <div class="text-xs text-orange-600">+$${state.weeklyBonusAmount.toFixed(2)} for completing all chores!</div>
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-2">
+                                        ${hasWeeklyBonus ? `
+                                            <div class="text-3xl">🎉</div>
+                                            <div>
+                                                <div class="text-base font-bold text-orange-700">Weekly Bonus Earned!</div>
+                                                <div class="text-xs text-orange-600">+$${state.weeklyBonusAmount.toFixed(2)} for completing all chores!</div>
+                                            </div>
+                                        ` : `
+                                            <div class="text-2xl">🎯</div>
+                                            <div>
+                                                <div class="text-sm font-semibold text-blue-700">Weekly Bonus Progress</div>
+                                                <div class="text-xs text-blue-600">Earn $${state.weeklyBonusAmount.toFixed(2)}!</div>
+                                            </div>
+                                        `}
+                                    </div>
+                                    ${state.currentUser === 'dad' || state.currentUser === 'mom' ? `
+                                        <div class="flex items-center gap-1">
+                                            <button onclick="state.bonusWeekOffset['${childKey}']--; render();"
+                                                class="px-1.5 py-0.5 text-xs bg-gray-200 rounded hover:bg-gray-300 ${bonusOffset <= -1 ? 'opacity-50 cursor-not-allowed' : ''}"
+                                                ${bonusOffset <= -1 ? 'disabled' : ''}
+                                                title="Previous week">&larr;</button>
+                                            <span class="text-xs text-gray-500 min-w-[70px] text-center">${weekLabel}</span>
+                                            <button onclick="state.bonusWeekOffset['${childKey}']++; render();"
+                                                class="px-1.5 py-0.5 text-xs bg-gray-200 rounded hover:bg-gray-300 ${isCurrentWeek ? 'opacity-50 cursor-not-allowed' : ''}"
+                                                ${isCurrentWeek ? 'disabled' : ''}
+                                                title="Next week">&rarr;</button>
                                         </div>
-                                    ` : `
-                                        <div class="text-2xl">🎯</div>
-                                        <div>
-                                            <div class="text-sm font-semibold text-blue-700">Weekly Bonus Progress</div>
-                                            <div class="text-xs text-blue-600">Earn $${state.weeklyBonusAmount.toFixed(2)}!</div>
-                                        </div>
-                                    `}
+                                    ` : ''}
                                 </div>
                                 ${!hasWeeklyBonus ? `
                                     <div class="mt-2 space-y-1">
