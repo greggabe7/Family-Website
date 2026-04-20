@@ -2951,7 +2951,7 @@
                                             </div>
                                         `}
                                     </div>
-                                    ${state.currentUser === 'dad' || state.currentUser === 'mom' ? `
+                                    ${state.currentUser.isParent ? `
                                         <div class="flex items-center gap-1">
                                             <button onclick="state.bonusWeekOffset['${childKey}']--; render();"
                                                 class="px-1.5 py-0.5 text-xs bg-gray-200 rounded hover:bg-gray-300 ${bonusOffset <= -1 ? 'opacity-50 cursor-not-allowed' : ''}"
