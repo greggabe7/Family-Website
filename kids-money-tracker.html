@@ -441,20 +441,30 @@
                     });
                 });
 
-                // Current calendar week's bonus (past weeks' bonuses were paid out already).
-                const weekStart = getCalendarWeekDates(new Date())[0];
-                if (state.weeklyBonusAwarded[childKey][weekStart]) {
-                    weekTotal = roundMoney(weekTotal + state.weeklyBonusAmount);
-                } else {
-                    const calWeek = getCalendarWeekDates(new Date());
-                    const weekEnd = calWeek[6];
-                    if (new Date(weekEnd) <= new Date(today) &&
-                        checkWeeklyBonusCriteria(childKey, calWeek) &&
-                        state.weeklyBonusAmount > 0) {
-                        state.weeklyBonusAwarded[childKey][weekStart] = true;
-                        weekTotal = roundMoney(weekTotal + state.weeklyBonusAmount);
+                // Check current and prior week bonuses (prior week may not be paid
+                // out yet if tasks were edited retroactively via history).
+                const calWeek = getCalendarWeekDates(new Date());
+                const prevWeekRef = new Date();
+                prevWeekRef.setDate(prevWeekRef.getDate() - 7);
+                const prevWeek = getCalendarWeekDates(prevWeekRef);
+                const paidBonus = state.paidBonusSnapshot[childKey] || {};
+
+                [prevWeek, calWeek].forEach(week => {
+                    const ws = week[0];
+                    const we = week[6];
+                    if (state.weeklyBonusAwarded[childKey][ws]) {
+                        if (!paidBonus[ws]) {
+                            weekTotal = roundMoney(weekTotal + state.weeklyBonusAmount);
+                        }
+                    } else if (new Date(we) <= new Date(today) &&
+                               checkWeeklyBonusCriteria(childKey, week) &&
+                               state.weeklyBonusAmount > 0) {
+                        state.weeklyBonusAwarded[childKey][ws] = true;
+                        if (!paidBonus[ws]) {
+                            weekTotal = roundMoney(weekTotal + state.weeklyBonusAmount);
+                        }
                     }
-                }
+                });
 
                 state.earnings[childKey].weekTotal = roundMoney(weekTotal);
                 state.earnings[childKey].todayTotal = roundMoney(todayTotal);
@@ -727,6 +737,10 @@
                 maria: {},
                 helena: {}
             },
+            paidBonusSnapshot: {
+                maria: {},
+                helena: {}
+            },
 
             skippedHistory: {
                 maria: {},
@@ -784,6 +798,7 @@
             ensureChildProperty('completionHistory', () => ({}));
             ensureChildProperty('skippedHistory', () => ({}));
             ensureChildProperty('paidCompletionSnapshot', () => ({}));
+            ensureChildProperty('paidBonusSnapshot', () => ({}));
 
             // One-time migration: snapshot existing completionHistory as "already paid" so
             // prior payouts aren't double-counted under the new unpaid-delta model. Any entry
@@ -797,6 +812,12 @@
                     );
                 });
                 state.paidSnapshotMigrated = true;
+            }
+            if (!state.paidBonusSnapshotMigrated) {
+                ['maria', 'helena'].forEach(childKey => {
+                    state.paidBonusSnapshot[childKey] = { ...(state.weeklyBonusAwarded[childKey] || {}) };
+                });
+                state.paidBonusSnapshotMigrated = true;
             }
             ensureChildProperty('payoutHistory', () => []);
             ensureChildProperty('weeklyBonusAwarded', () => ({}));
@@ -1892,6 +1913,7 @@
                 Object.keys(hist).forEach(d => { snap[d] = [...(hist[d] || [])]; });
                 if (!snap[todayStr]) snap[todayStr] = [];
                 state.paidCompletionSnapshot[childKey] = snap;
+                state.paidBonusSnapshot[childKey] = { ...(state.weeklyBonusAwarded[childKey] || {}) };
 
                 // Keep only last 52 weeks of history
                 if (state.payoutHistory[childKey].length > 52) {
