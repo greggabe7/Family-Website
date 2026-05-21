@@ -353,6 +353,7 @@
             <button class="store-tab" data-store="traderjoes">Trader Joe's</button>
             <button class="store-tab" data-store="wholefoods">Whole Foods</button>
             <button class="store-tab" data-store="stater">Stater</button>
+            <button class="store-tab" data-store="costco">Costco</button>
             <button class="store-tab" data-store="all">Full List</button>
         </div>
 
@@ -376,6 +377,7 @@
                 <option value="traderjoes">Trader Joe's</option>
                 <option value="wholefoods">Whole Foods</option>
                 <option value="stater">Stater</option>
+                <option value="costco">Costco</option>
             </select>
             <input type="text" id="add-input" class="add-input" placeholder="Add an item...">
             <button id="add-btn" class="add-btn">Add</button>
@@ -402,13 +404,14 @@
             general: "General",
             traderjoes: "Trader Joe's",
             wholefoods: "Whole Foods",
-            stater: "Stater"
+            stater: "Stater",
+            costco: "Costco"
         };
 
         let currentStore = 'general';
         let currentFilter = 'all';
         let activeListeners = [];
-        let allStoreData = { traderjoes: null, wholefoods: null, stater: null, general: null };
+        let allStoreData = { traderjoes: null, wholefoods: null, stater: null, costco: null, general: null };
         let resetTimer = null;
 
         const personSelect = document.getElementById('add-person');
